@@ -76,6 +76,7 @@ md-quiz solves these problems by using markdown files as the canonical quiz sour
 | Session leaderboard | At end of quiz, rank students by number of correct answers (tiebreak by cumulative response time, computed server-side). |
 | Cumulative leaderboard | Persist weekly scores in a flat JSON file. The cumulative leaderboard is computed dynamically at runtime from per-week results; cumulative totals are not precomputed or stored. |
 | QR code generation | Generate and display a QR code for the session URL on the projector view. |
+| Auto-generated QR and access URL | On server startup, the backend calls `tailscale status --json` to read `Self.DNSName` (e.g., `my-laptop.tailnet-name.ts.net`) and constructs the public URL `https://<DNSName>`. It then calls the TinyURL free API (`https://tinyurl.com/api-create.php?url=<url>`, no API key needed) to produce a short URL (e.g., `https://tinyurl.com/abc123`). A QR code is generated server-side using the `qrcode` npm package and served as a PNG or SVG endpoint. The instructor's "Session Start" screen (before launching the quiz) prominently displays: (a) the full Tailscale Funnel URL, (b) the short URL, and (c) a large QR code that students can scan. The QR code and short URL remain visible on the instructor view during the quiz (in a corner or toggle panel) so latecomers can join. If the `tailscale` CLI is not available or Funnel is not active, the server falls back to displaying the local LAN IP with a warning that students on isolated campus WiFi may not be able to connect. |
 | Submission count display | Projector view must display submission count in format "X / Y answered" during active questions. |
 | Per-question time limit | Each question has a `time_limit` field (in seconds, default 20 if omitted in the markdown file). The server enforces the time limit by closing the submission window after the specified duration, even if the client is slow to reflect the countdown. The projector view displays a visible countdown timer. |
 
@@ -132,7 +133,7 @@ The system supports two modes for student identity validation at join time, conf
 
 1. **Static frontend** (hosted on GitHub Pages): React + Tailwind CSS single-page application. This includes the student view, instructor view, and all UI components. The markdown quiz files (week01-quiz.md, etc.) are also committed to the same repo and served as static assets.
 
-2. **Lightweight backend** (hosted separately): A Node.js server that handles session state, WebSocket connections for real-time updates, and quiz data serving. This is the minimal server component needed for live interaction.
+2. **Lightweight backend** (runs locally on instructor's machine, exposed via Tailscale Funnel): A Node.js server that handles session state, WebSocket connections for real-time updates, and quiz data serving. Tailscale Funnel provides a public HTTPS endpoint so students can reach the backend from any network without installing anything (see Section 9).
 
 ### Why not a fully static (serverless) approach?
 
@@ -209,9 +210,9 @@ week03-quiz.md
 
 ### Detailed Flow
 
-1. **Startup**: The backend reads all `weekNN-quiz.md` files from the configured quiz directory (or fetches them from the GitHub Pages URL). It parses each file into a structured array of questions.
+1. **Startup**: The backend reads all `weekNN-quiz.md` files from the configured quiz directory (or fetches them from the GitHub Pages URL). It parses each file into a structured array of questions. The server then detects its public Funnel URL by calling `tailscale status --json` and parsing `Self.DNSName`. If Tailscale is available and Funnel is active, the server constructs the public URL (`https://<DNSName>`), calls the TinyURL API to generate a short URL, and generates a QR code via the `qrcode` npm package. If Tailscale is unavailable, the server falls back to the local LAN IP and logs a warning.
 
-2. **Session creation**: The instructor selects a week's quiz from the dashboard. The backend creates a session with a unique 6-character code, stores it in memory, and returns the session URL.
+2. **Session creation**: The instructor selects a week's quiz from the dashboard. The backend creates a session with a unique 6-character code, stores it in memory, and returns the session URL. The instructor's "Session Start" screen prominently displays the Funnel URL, the short URL, and a large QR code so students can scan or type the URL to join.
 
 3. **Student join**: Students navigate to the URL (or scan the QR code). They enter a student ID (and optionally a display name) and connect via WebSocket. The server adds them to the session's participant list.
 
@@ -333,51 +334,44 @@ The built React application and the markdown quiz files are committed to the `ch
 - The markdown quiz files are placed in a `quizzes/` directory within the repo.
 - The frontend fetches quiz file contents via the GitHub raw content URL or from the same static hosting.
 
-### Backend (Free Hosting Options)
+Note: GitHub Pages hosts the static frontend only. The backend must still run locally on the instructor's machine and be exposed to students via Tailscale Funnel (see below).
 
-The backend needs to run a Node.js process with WebSocket support. Free-tier options:
+### Backend (Tailscale Funnel, Primary Approach)
+
+The backend runs as a local Node.js process on the instructor's laptop. To make it accessible to students without requiring them to install anything, the instructor uses Tailscale Funnel to expose the local server via a public HTTPS URL.
+
+**Why Tailscale Funnel:** Campus WiFi networks typically enable client isolation (AP isolation), which blocks device-to-device traffic. Students on the same campus WiFi network cannot reach the instructor's laptop by LAN IP because the access points drop inter-client packets. Tailscale Funnel bypasses this entirely by routing traffic through Tailscale's relay infrastructure, providing a publicly accessible HTTPS endpoint with no student-side setup.
+
+**Funnel URL format:** `https://<hostname>.<tailnet>.ts.net` (e.g., `https://instructors-macbook.tail12345.ts.net`). This URL is publicly accessible over HTTPS. Students open it in any browser on any network (campus WiFi, cellular, home WiFi). No Tailscale installation is needed on student devices.
+
+**One-time setup (instructor only):**
+
+1. Install Tailscale on the instructor's laptop (free tier is sufficient).
+2. Enable Funnel in the Tailscale admin console (one-time toggle).
+
+**Each class session:**
+
+1. The instructor starts the Node.js backend (`node server.js`).
+2. The instructor runs `tailscale funnel 3000` (or whatever port the backend listens on) to expose the local server.
+3. The server automatically detects its own Funnel URL at startup by calling `tailscale status --json` and parsing the `Self.DNSName` field.
+4. The server generates a QR code and short URL (see Section 5, P1, "Auto-generated QR and access URL").
+5. The instructor displays the session start screen on the projector. Students scan the QR code or type the short URL to join.
+
+**Latency:** Funnel routes traffic through Tailscale's relay infrastructure, adding modest latency. For a quiz with 200-250 students submitting short multiple-choice answers, this latency is negligible.
+
+**Fallback:** If Tailscale is not installed or Funnel is not active, the server falls back to displaying the local LAN IP address (`http://192.168.x.x:3000`) with a warning that students on isolated campus WiFi may not be able to connect. This fallback is useful for networks without client isolation (e.g., home WiFi for testing).
+
+### Alternative Backend Hosting
+
+For cases where the instructor prefers not to run the backend locally, cloud-hosted options are available:
 
 | Service | Free Tier | WebSocket Support | Notes |
 |---------|-----------|-------------------|-------|
-| **Render** | 750 hours/month (spins down after inactivity) | Yes | Recommended. Simple deploy from GitHub repo. Cold starts of ~30 seconds. |
+| **Render** | 750 hours/month (spins down after inactivity) | Yes | Simple deploy from GitHub repo. Cold starts of ~30 seconds. |
 | **Fly.io** | 3 shared VMs, 256MB RAM | Yes | Good performance, slightly more setup. |
 | **Railway** | $5 credit/month | Yes | Simple deploy, may exceed free tier with heavy use. |
-| **Glitch** | Always-on with limits | Yes | Easy to prototype but less reliable for production. |
-| **Self-hosted** | Instructor's machine | Yes | Run locally during class. Zero cost, full control, but requires the instructor's laptop to be on and connected. |
 
-### Recommended Deployment
-
-For simplicity and zero cost:
-
-1. **During class**: Run the backend locally on the instructor's laptop (`node server.js`). Students connect over the campus network. This avoids cold-start delays and external dependencies.
-2. **Frontend**: Serve from GitHub Pages. The frontend connects to the backend URL (configurable, defaults to `localhost:3000` for local use).
-3. **Backup option**: Deploy the backend to Render for cases where the instructor wants students to connect from outside the local network.
-
-### Short URL
-
-Use a free URL shortener (e.g., a custom short link via GitHub Pages redirect, or a service like `tinyurl.com`) to create a memorable class URL like `tinyurl.com/dia-quiz`. This URL can remain the same across weeks; the landing page shows available quiz sessions.
-
-### Option B: Local Instructor Machine with Tailscale (Recommended for Classroom)
-
-Running the Node.js backend on the instructor's own laptop is the simplest deployment, but campus WiFi networks typically enable client isolation (AP isolation), which blocks device-to-device traffic. Students on the same campus WiFi network cannot reach the instructor's laptop by LAN IP because the access points drop inter-client packets. This means `http://192.168.x.x:3000` will not work.
-
-**Tailscale as the solution:** Tailscale creates an encrypted mesh network (WireGuard-based) that bypasses client isolation entirely by routing traffic through Tailscale's coordination servers when direct connections are blocked. Each device gets a stable Tailscale IP (e.g., `100.x.x.x`) that is reachable from any other device on the same Tailscale network, regardless of the underlying WiFi configuration.
-
-**Classroom workflow:**
-
-1. **One-time setup (instructor):** Install Tailscale on the instructor's laptop. Create a free Tailscale account (free tier supports up to 100 devices, sufficient for a class of 200-250 since students connect via browser, not Tailscale).
-2. **One-time setup (students):** Two options:
-   - **(a) Tailscale Funnel (no student install):** The instructor enables Tailscale Funnel on their machine, which exposes the local backend via a public HTTPS URL (e.g., `https://instructors-macbook.tail12345.ts.net:3000`). Students access this URL directly from any browser. No Tailscale installation needed on student devices. This is the recommended option for simplicity.
-   - **(b) Tailscale on student devices:** Students install the Tailscale app (available on iOS, Android, macOS, Windows, Linux) and join the instructor's Tailscale network via an invite link shared at the start of class. Students then access the backend via the instructor's Tailscale IP (e.g., `http://100.x.x.x:3000`). This is a one-time setup per device.
-3. **Each class session:** The instructor starts the Node.js backend (`node server.js`), opens the Tailscale app (or verifies it is running), and displays the QR code pointing to the Tailscale URL on the projector. Students scan and join.
-
-**Tradeoffs:**
-
-- Tailscale Funnel (option a) requires zero student-side setup but routes traffic through Tailscale's relay infrastructure, adding modest latency. For a quiz with 200-250 students submitting short answers, this latency is negligible.
-- Direct Tailscale mesh (option b) has lower latency but requires a one-time student install. The mobile apps are lightweight and free.
-- Both options work through any network configuration (campus WiFi, home WiFi, cellular), making the system robust to varying classroom network setups.
-
-**QR code integration:** The QR code feature (Section 5, P1) points to whichever URL the instructor configures: the Tailscale Funnel HTTPS URL, the Tailscale IP, or a short URL redirect. The instructor sets the base URL in the session configuration.
+These are secondary options. The Tailscale Funnel approach is recommended because it avoids cold-start delays, external dependencies, and hosting costs while giving the instructor full control over the server.
 
 ## 10. Out of Scope
 
