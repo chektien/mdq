@@ -9,7 +9,11 @@
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",
     "lint": "eslint packages/*/src --ext .ts,.tsx",
-    "typecheck": "tsc --build packages/shared packages/server packages/client"
+    "typecheck": "tsc --build packages/shared packages/server packages/client",
+    "verify": "./scripts/verify.sh",
+    "verify:quick": "./scripts/verify.sh --quick",
+    "test:e2e": "npx jest --testPathPattern e2e-lifecycle --forceExit --detectOpenHandles --config packages/server/jest.config.js",
+    "test:load": "npx jest --testPathPattern load-smoke --forceExit --detectOpenHandles --config packages/server/jest.config.js"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
