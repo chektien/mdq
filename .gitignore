@@ -11,4 +11,8 @@ data/sessions/
 data/submissions/
 data/winners/
 data/access/
+**/data/sessions/
+**/data/submissions/
+**/data/winners/
+**/data/access/
 .env
