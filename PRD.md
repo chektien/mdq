@@ -55,9 +55,9 @@ md-quiz solves these problems by using markdown files as the canonical quiz sour
 1. **As a student**, I want to scan a QR code or type a short URL to join the quiz on my phone, so I can participate without installing anything.
 2. **As a student**, I want to enter my student ID as the main way to identify myself, so my answers are tracked consistently even if I disconnect and reconnect.
 3. **As a student**, I want to optionally enter a display name that shows on the leaderboard alongside my student ID, so I can be recognized by name if I choose.
-3. **As a student**, I want to see the question, real-time countdown time limit, and answer choices on my phone and tap to submit my answer, so I can participate in real time.
-4. **As a student**, I want to see whether my answer was correct after the instructor reveals the answer, so I can learn from mistakes immediately.
-5. **As a student**, I want to see my rank on the leaderboard at the end of the quiz, so I know how I performed relative to others.
+4. **As a student**, I want to see the question, real-time countdown time limit, and answer choices on my phone and tap to submit my answer, so I can participate in real time.
+5. **As a student**, I want to see whether my answer was correct after the instructor reveals the answer, so I can learn from mistakes immediately.
+6. **As a student**, I want to see my rank on the leaderboard at the end of the quiz, so I know how I performed relative to others.
 
 ## 5. Feature Requirements
 
