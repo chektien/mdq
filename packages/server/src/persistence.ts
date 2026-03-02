@@ -140,7 +140,21 @@ export function loadAllWeeklyResults(baseDir?: string): WeeklyResult[] {
   for (const file of files) {
     const filePath = path.join(dir, file);
     const result = readJsonSafe<WeeklyResult>(filePath);
-    if (result && result.entries && Array.isArray(result.entries)) {
+    if (
+      result &&
+      typeof result.week === "string" &&
+      result.entries &&
+      Array.isArray(result.entries)
+    ) {
+      // Sanitize entries: ensure numeric fields default to 0
+      result.entries = result.entries
+        .filter((e) => e && typeof e.studentId === "string")
+        .map((e) => ({
+          ...e,
+          correctCount: typeof e.correctCount === "number" ? e.correctCount : 0,
+          totalTimeMs: typeof e.totalTimeMs === "number" ? e.totalTimeMs : 0,
+          rank: typeof e.rank === "number" ? e.rank : 0,
+        }));
       results.push(result);
     } else {
       console.warn(`Skipping malformed weekly result file: ${file}`);

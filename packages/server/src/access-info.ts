@@ -61,10 +61,14 @@ export const tinyUrlProvider: ShortUrlProvider = {
 
       if (!response.ok) return null;
 
-      const shortUrl = await response.text();
-      // Validate it looks like a URL
-      if (shortUrl.startsWith("http")) {
-        return shortUrl.trim();
+      const shortUrl = (await response.text()).trim();
+      // Validate it looks like a URL (not HTML error page or other junk)
+      if (
+        shortUrl.startsWith("http") &&
+        !shortUrl.includes("<") &&
+        shortUrl.length < 200
+      ) {
+        return shortUrl;
       }
       return null;
     } catch {

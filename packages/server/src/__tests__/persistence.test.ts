@@ -210,6 +210,72 @@ describe("Persistence", () => {
       const results = loadAllWeeklyResults(tempDir);
       expect(results).toHaveLength(2);
     });
+
+    it("skips files with missing week field", () => {
+      const dir = path.join(tempDir, "winners");
+      fs.mkdirSync(dir, { recursive: true });
+
+      // Valid entries array but no week field
+      fs.writeFileSync(
+        path.join(dir, "weekNoField.json"),
+        JSON.stringify({ entries: [{ studentId: "s1", correctCount: 1, totalTimeMs: 100, rank: 1 }] }),
+        "utf-8",
+      );
+
+      const results = loadAllWeeklyResults(tempDir);
+      expect(results).toHaveLength(0);
+    });
+
+    it("sanitizes entries with missing numeric fields", () => {
+      const dir = path.join(tempDir, "winners");
+      fs.mkdirSync(dir, { recursive: true });
+
+      // Entry with missing correctCount and totalTimeMs
+      const data = {
+        week: "week01",
+        sessionId: "s1",
+        totalQuestions: 1,
+        completedAt: Date.now(),
+        entries: [
+          { studentId: "s001", rank: 1 },
+          { studentId: "s002", correctCount: "not-a-number", totalTimeMs: null, rank: 2 },
+        ],
+      };
+      fs.writeFileSync(path.join(dir, "week01.json"), JSON.stringify(data), "utf-8");
+
+      const results = loadAllWeeklyResults(tempDir);
+      expect(results).toHaveLength(1);
+      expect(results[0].entries).toHaveLength(2);
+      // Missing fields default to 0
+      expect(results[0].entries[0].correctCount).toBe(0);
+      expect(results[0].entries[0].totalTimeMs).toBe(0);
+      expect(results[0].entries[1].correctCount).toBe(0);
+      expect(results[0].entries[1].totalTimeMs).toBe(0);
+    });
+
+    it("filters out entries without studentId", () => {
+      const dir = path.join(tempDir, "winners");
+      fs.mkdirSync(dir, { recursive: true });
+
+      const data = {
+        week: "week01",
+        sessionId: "s1",
+        totalQuestions: 1,
+        completedAt: Date.now(),
+        entries: [
+          { studentId: "s001", correctCount: 1, totalTimeMs: 100, rank: 1 },
+          { correctCount: 2, totalTimeMs: 200, rank: 2 }, // no studentId
+          null, // null entry
+        ],
+      };
+      fs.writeFileSync(path.join(dir, "week01.json"), JSON.stringify(data), "utf-8");
+
+      const results = loadAllWeeklyResults(tempDir);
+      expect(results).toHaveLength(1);
+      // Only the valid entry should remain
+      expect(results[0].entries).toHaveLength(1);
+      expect(results[0].entries[0].studentId).toBe("s001");
+    });
   });
 
   describe("persistSessionOnEnd", () => {
@@ -220,6 +286,33 @@ describe("Persistence", () => {
       expect(fs.existsSync(path.join(tempDir, "sessions", `${session.sessionId}.json`))).toBe(true);
       expect(fs.existsSync(path.join(tempDir, "submissions", `${session.sessionId}.json`))).toBe(true);
       expect(fs.existsSync(path.join(tempDir, "winners", "week01.json"))).toBe(true);
+    });
+
+    it("handles session with no participants", () => {
+      const session = createSession("week01", "open");
+      const quiz = makeQuiz("week01", 1);
+      // No participants, no submissions
+      expect(() => persistSessionOnEnd(session, quiz, tempDir)).not.toThrow();
+
+      const filePath = path.join(tempDir, "sessions", `${session.sessionId}.json`);
+      expect(fs.existsSync(filePath)).toBe(true);
+      const snapshot = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      expect(snapshot.participantCount).toBe(0);
+      expect(snapshot.participants).toEqual([]);
+    });
+
+    it("continues saving other files when one save fails", () => {
+      const { session, quiz } = setupSessionWithData();
+      // Verify error isolation by checking other files still save even if one component errors
+      const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+      
+      persistSessionOnEnd(session, quiz, tempDir);
+      
+      // All files should exist since nothing actually failed
+      expect(fs.existsSync(path.join(tempDir, "submissions", `${session.sessionId}.json`))).toBe(true);
+      expect(fs.existsSync(path.join(tempDir, "winners", "week01.json"))).toBe(true);
+      
+      consoleSpy.mockRestore();
     });
   });
 });

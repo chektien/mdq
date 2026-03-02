@@ -7,6 +7,7 @@ import {
   getCachedAccessInfo,
   setCachedAccessInfo,
   ShortUrlProvider,
+  tinyUrlProvider,
 } from "../access-info";
 
 // We mock child_process.execSync for tailscale tests
@@ -125,6 +126,71 @@ describe("generateShortUrl", () => {
   it("returns empty string with no providers", async () => {
     const result = await generateShortUrl("https://example.com", []);
     expect(result).toBe("");
+  });
+});
+
+describe("tinyUrlProvider validation", () => {
+  it("rejects HTML error page responses", async () => {
+    // Mock fetch to return HTML instead of a short URL
+    const origFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => "<html><body>Error 500</body></html>",
+    });
+
+    const result = await tinyUrlProvider.generate("https://example.com");
+    expect(result).toBeNull();
+
+    global.fetch = origFetch;
+  });
+
+  it("rejects overly long responses", async () => {
+    const origFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => "https://example.com/" + "x".repeat(300),
+    });
+
+    const result = await tinyUrlProvider.generate("https://example.com");
+    expect(result).toBeNull();
+
+    global.fetch = origFetch;
+  });
+
+  it("rejects non-HTTP responses", async () => {
+    const origFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => "Error: Invalid URL",
+    });
+
+    const result = await tinyUrlProvider.generate("https://example.com");
+    expect(result).toBeNull();
+
+    global.fetch = origFetch;
+  });
+
+  it("returns null on non-OK response", async () => {
+    const origFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+    });
+
+    const result = await tinyUrlProvider.generate("https://example.com");
+    expect(result).toBeNull();
+
+    global.fetch = origFetch;
+  });
+
+  it("returns null on network error", async () => {
+    const origFetch = global.fetch;
+    global.fetch = jest.fn().mockRejectedValue(new Error("network error"));
+
+    const result = await tinyUrlProvider.generate("https://example.com");
+    expect(result).toBeNull();
+
+    global.fetch = origFetch;
   });
 });
 
