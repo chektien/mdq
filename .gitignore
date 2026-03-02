@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.js
+*.d.ts
+*.js.map
+*.tsbuildinfo
+!jest.config.js
+!.eslintrc.js
+!eslint.config.js
+data/sessions/
+data/submissions/
+data/winners/
+data/access/
+.env

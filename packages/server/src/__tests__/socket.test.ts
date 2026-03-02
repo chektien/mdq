@@ -1,0 +1,548 @@
+import { createServer } from "http";
+import { Server } from "socket.io";
+import { io as ioClient, Socket as ClientSocket } from "socket.io-client";
+import { createApp } from "../app";
+import { setupSocket, clearSessionTimers, startQuestionTimer } from "../socket";
+import {
+  clearAllSessions,
+  storeSession,
+  createSession,
+  transitionState,
+} from "../session";
+import { SocketEvents, Quiz } from "@md-quiz/shared";
+import * as path from "path";
+import { AddressInfo } from "net";
+
+const quizDir = path.join(__dirname, "../../../../data/quizzes");
+
+describe("Socket.IO Integration", () => {
+  let httpServer: ReturnType<typeof createServer>;
+  let ioServer: Server;
+  let port: number;
+  let baseUrl: string;
+
+  beforeAll((done) => {
+    const app = createApp(quizDir);
+    httpServer = createServer(app);
+    const quizzes = (app as unknown as { _quizzes: Map<string, Quiz> })._quizzes;
+    ioServer = setupSocket(httpServer, quizzes);
+    httpServer.listen(0, () => {
+      port = (httpServer.address() as AddressInfo).port;
+      baseUrl = `http://localhost:${port}`;
+      done();
+    });
+  });
+
+  afterAll((done) => {
+    ioServer.close();
+    httpServer.close(done);
+  });
+
+  afterEach(() => {
+    clearAllSessions();
+  });
+
+  function createClient(sessionId: string): ClientSocket {
+    return ioClient(baseUrl, {
+      autoConnect: false,
+      auth: { sessionId },
+      transports: ["websocket"],
+    });
+  }
+
+  function waitForEvent<T>(client: ClientSocket, event: string, timeout = 3000): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Timeout waiting for ${event}`)), timeout);
+      client.once(event, (data: T) => {
+        clearTimeout(timer);
+        resolve(data);
+      });
+    });
+  }
+
+  describe("student:join flow", () => {
+    it("joins a session and receives student:joined", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const client = createClient(session.sessionId);
+      client.connect();
+
+      const joinedPromise = waitForEvent<{ participantId: string; sessionToken: string; sessionState: string }>(
+        client,
+        SocketEvents.STUDENT_JOINED,
+      );
+
+      client.emit(SocketEvents.STUDENT_JOIN, {
+        studentId: "S001",
+        displayName: "Alice",
+      });
+
+      const joined = await joinedPromise;
+      expect(joined.participantId).toBe("S001");
+      expect(joined.sessionToken).toBeTruthy();
+      expect(joined.sessionState).toBe("LOBBY");
+
+      client.disconnect();
+    });
+
+    it("rejects join with empty studentId", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const client = createClient(session.sessionId);
+      client.connect();
+
+      const rejectedPromise = waitForEvent<{ reason: string }>(
+        client,
+        SocketEvents.STUDENT_REJECTED,
+      );
+
+      client.emit(SocketEvents.STUDENT_JOIN, { studentId: "" });
+
+      const rejected = await rejectedPromise;
+      expect(rejected.reason).toContain("required");
+
+      client.disconnect();
+    });
+
+    it("rejects duplicate studentId with different token", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      // First student joins
+      const client1 = createClient(session.sessionId);
+      client1.connect();
+      const joined1Promise = waitForEvent<{ sessionToken: string }>(
+        client1,
+        SocketEvents.STUDENT_JOINED,
+      );
+      client1.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joined1Promise;
+
+      // Second client tries same ID with wrong token
+      const client2 = createClient(session.sessionId);
+      client2.connect();
+      const rejectedPromise = waitForEvent<{ reason: string }>(
+        client2,
+        SocketEvents.STUDENT_REJECTED,
+      );
+      client2.emit(SocketEvents.STUDENT_JOIN, {
+        studentId: "S001",
+        sessionToken: "wrong-token",
+      });
+      const rejected = await rejectedPromise;
+      expect(rejected.reason).toContain("already in use");
+
+      client1.disconnect();
+      client2.disconnect();
+    });
+
+    it("allows reconnection with valid token", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      // First join
+      const client1 = createClient(session.sessionId);
+      client1.connect();
+      const joined1Promise = waitForEvent<{ sessionToken: string }>(
+        client1,
+        SocketEvents.STUDENT_JOINED,
+      );
+      client1.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      const joined1 = await joined1Promise;
+      const token = joined1.sessionToken;
+      client1.disconnect();
+
+      // Wait for disconnect to process
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Reconnect with same token
+      const client2 = createClient(session.sessionId);
+      client2.connect();
+      const joined2Promise = waitForEvent<{ sessionToken: string; participantId: string }>(
+        client2,
+        SocketEvents.STUDENT_JOINED,
+      );
+      client2.emit(SocketEvents.STUDENT_JOIN, {
+        studentId: "S001",
+        sessionToken: token,
+      });
+      const joined2 = await joined2Promise;
+      expect(joined2.participantId).toBe("S001");
+      expect(joined2.sessionToken).toBe(token);
+
+      client2.disconnect();
+    });
+
+    it("rejects join to non-existent session", async () => {
+      const client = createClient("no-such-session");
+      const rejectedPromise = waitForEvent<{ reason: string }>(
+        client,
+        SocketEvents.STUDENT_REJECTED,
+      );
+      client.connect();
+      const rejected = await rejectedPromise;
+      expect(rejected.reason).toContain("Session not found");
+      client.disconnect();
+    });
+
+    it("rejects join to ended session", async () => {
+      const session = createSession("week01", "open");
+      // Force session to ENDED state
+      session.state = "ENDED";
+      storeSession(session);
+
+      const client = createClient(session.sessionId);
+      const rejectedPromise = waitForEvent<{ reason: string }>(
+        client,
+        SocketEvents.STUDENT_REJECTED,
+      );
+      client.connect();
+      const rejected = await rejectedPromise;
+      expect(rejected.reason).toContain("ended");
+      client.disconnect();
+    });
+  });
+
+  describe("answer:submit flow", () => {
+    let session: ReturnType<typeof createSession>;
+    let client: ClientSocket;
+
+    beforeEach(async () => {
+      session = createSession("week01", "open");
+      storeSession(session);
+
+      client = createClient(session.sessionId);
+      client.connect();
+
+      const joinedPromise = waitForEvent<{ sessionToken: string }>(
+        client,
+        SocketEvents.STUDENT_JOINED,
+      );
+      client.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      // Transition to QUESTION_OPEN
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+    });
+
+    afterEach(() => {
+      clearSessionTimers(session.sessionId);
+      client.disconnect();
+    });
+
+    it("accepts valid submission", async () => {
+      const acceptedPromise = waitForEvent<{ questionIndex: number }>(
+        client,
+        SocketEvents.ANSWER_ACCEPTED,
+      );
+      client.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["B"],
+      });
+      const accepted = await acceptedPromise;
+      expect(accepted.questionIndex).toBe(0);
+    });
+
+    it("rejects duplicate submission (first-submission-only)", async () => {
+      // First submission
+      const accepted = waitForEvent(client, SocketEvents.ANSWER_ACCEPTED);
+      client.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["B"],
+      });
+      await accepted;
+
+      // Second submission
+      const rejectedPromise = waitForEvent<{ reason: string }>(
+        client,
+        SocketEvents.ANSWER_REJECTED,
+      );
+      client.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["A"],
+      });
+      const rejected = await rejectedPromise;
+      expect(rejected.reason).toContain("Already submitted");
+    });
+
+    it("rejects submission when question is closed", async () => {
+      // Close the question
+      transitionState(session, "QUESTION_CLOSED");
+
+      const rejectedPromise = waitForEvent<{ reason: string }>(
+        client,
+        SocketEvents.ANSWER_REJECTED,
+      );
+      client.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["B"],
+      });
+      const rejected = await rejectedPromise;
+      expect(rejected.reason).toContain("QUESTION_OPEN");
+    });
+
+    it("rejects submission for wrong question index", async () => {
+      const rejectedPromise = waitForEvent<{ reason: string }>(
+        client,
+        SocketEvents.ANSWER_REJECTED,
+      );
+      client.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 5,
+        selectedOptions: ["B"],
+      });
+      const rejected = await rejectedPromise;
+      expect(rejected.reason).toContain("mismatch");
+    });
+  });
+
+  describe("reconnect during open question", () => {
+    it("reconnected student can still submit if they have not answered", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      // Join
+      const client1 = createClient(session.sessionId);
+      client1.connect();
+      const joined1Promise = waitForEvent<{ sessionToken: string }>(
+        client1,
+        SocketEvents.STUDENT_JOINED,
+      );
+      client1.emit(SocketEvents.STUDENT_JOIN, {
+        studentId: "S001",
+        displayName: "Alice",
+      });
+      const joined1 = await joined1Promise;
+      const token = joined1.sessionToken;
+
+      // Open question
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+
+      // Disconnect
+      client1.disconnect();
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Reconnect with valid token
+      const client2 = createClient(session.sessionId);
+      const joined2Promise = waitForEvent<{ sessionToken: string; answeredQuestions: number[] }>(
+        client2,
+        SocketEvents.STUDENT_JOINED,
+      );
+      client2.connect();
+      client2.emit(SocketEvents.STUDENT_JOIN, {
+        studentId: "S001",
+        sessionToken: token,
+      });
+      const joined2 = await joined2Promise;
+      expect(joined2.sessionToken).toBe(token);
+
+      // Should be able to submit after reconnect
+      const acceptedPromise = waitForEvent<{ questionIndex: number }>(
+        client2,
+        SocketEvents.ANSWER_ACCEPTED,
+      );
+      client2.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["B"],
+      });
+      const accepted = await acceptedPromise;
+      expect(accepted.questionIndex).toBe(0);
+
+      clearSessionTimers(session.sessionId);
+      client2.disconnect();
+    });
+  });
+
+  describe("timer auto-close", () => {
+    it("auto-closes question after timer expires", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const client = createClient(session.sessionId);
+      client.connect();
+      const joinedPromise = waitForEvent(client, SocketEvents.STUDENT_JOINED);
+      client.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      // Transition to QUESTION_OPEN
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+
+      // Start a very short timer (1 second)
+      startQuestionTimer(ioServer, session, session.sessionId, 1);
+
+      // Wait for auto-close
+      const closeData = await waitForEvent<{ questionIndex: number }>(
+        client,
+        SocketEvents.QUESTION_CLOSE,
+        5000,
+      );
+      expect(closeData.questionIndex).toBe(0);
+      expect(session.state).toBe("QUESTION_CLOSED");
+
+      // Submissions after close should be rejected
+      const rejectedPromise = waitForEvent<{ reason: string }>(
+        client,
+        SocketEvents.ANSWER_REJECTED,
+      );
+      client.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["B"],
+      });
+      const rejected = await rejectedPromise;
+      expect(rejected.reason).toContain("QUESTION_OPEN");
+
+      clearSessionTimers(session.sessionId);
+      client.disconnect();
+    }, 10000);
+
+    it("sends tick events during countdown", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const client = createClient(session.sessionId);
+      client.connect();
+      const joinedPromise = waitForEvent(client, SocketEvents.STUDENT_JOINED);
+      client.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+
+      // Start 3-second timer to allow at least 2 clear ticks
+      startQuestionTimer(ioServer, session, session.sessionId, 3);
+
+      // Collect ticks until we see at least 2
+      const ticks: number[] = [];
+      const tickPromise = new Promise<void>((resolve) => {
+        client.on(SocketEvents.QUESTION_TICK, (data: { remainingSec: number }) => {
+          ticks.push(data.remainingSec);
+          if (ticks.length >= 2) resolve();
+        });
+      });
+
+      await tickPromise;
+      // Should have received ticks counting down (e.g., 2, 1)
+      expect(ticks.length).toBeGreaterThanOrEqual(2);
+      expect(ticks[0]).toBeGreaterThan(ticks[1]);
+
+      clearSessionTimers(session.sessionId);
+      client.disconnect();
+    }, 10000);
+  });
+
+  describe("edge cases", () => {
+    it("student can join during QUESTION_OPEN and submit immediately", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+
+      const client = createClient(session.sessionId);
+      const joinedPromise = waitForEvent<{ sessionState: string }>(
+        client,
+        SocketEvents.STUDENT_JOINED,
+      );
+      client.connect();
+      client.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      const joined = await joinedPromise;
+      expect(joined.sessionState).toBe("QUESTION_OPEN");
+
+      // Submit immediately
+      const acceptedPromise = waitForEvent<{ questionIndex: number }>(
+        client,
+        SocketEvents.ANSWER_ACCEPTED,
+      );
+      client.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["A"],
+      });
+      const accepted = await acceptedPromise;
+      expect(accepted.questionIndex).toBe(0);
+
+      clearSessionTimers(session.sessionId);
+      client.disconnect();
+    });
+
+    it("two students submit to same question concurrently", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      // Join two students
+      const client1 = createClient(session.sessionId);
+      const client2 = createClient(session.sessionId);
+      client1.connect();
+      const j1Promise = waitForEvent(client1, SocketEvents.STUDENT_JOINED);
+      client1.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await j1Promise;
+
+      client2.connect();
+      const j2Promise = waitForEvent(client2, SocketEvents.STUDENT_JOINED);
+      client2.emit(SocketEvents.STUDENT_JOIN, { studentId: "S002" });
+      await j2Promise;
+
+      // Open question
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+
+      // Submit concurrently
+      const a1Promise = waitForEvent<{ questionIndex: number }>(
+        client1,
+        SocketEvents.ANSWER_ACCEPTED,
+      );
+      const a2Promise = waitForEvent<{ questionIndex: number }>(
+        client2,
+        SocketEvents.ANSWER_ACCEPTED,
+      );
+      client1.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 0, selectedOptions: ["A"] });
+      client2.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 0, selectedOptions: ["B"] });
+
+      const [a1, a2] = await Promise.all([a1Promise, a2Promise]);
+      expect(a1.questionIndex).toBe(0);
+      expect(a2.questionIndex).toBe(0);
+      expect(session.submissions).toHaveLength(2);
+
+      clearSessionTimers(session.sessionId);
+      client1.disconnect();
+      client2.disconnect();
+    });
+
+    it("rejects submission with empty selectedOptions via socket", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const client = createClient(session.sessionId);
+      client.connect();
+      const joinedPromise = waitForEvent(client, SocketEvents.STUDENT_JOINED);
+      client.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+
+      const rejectedPromise = waitForEvent<{ reason: string }>(
+        client,
+        SocketEvents.ANSWER_REJECTED,
+      );
+      client.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: [],
+      });
+      const rejected = await rejectedPromise;
+      expect(rejected.reason).toContain("option");
+
+      clearSessionTimers(session.sessionId);
+      client.disconnect();
+    });
+  });
+});

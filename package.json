@@ -1,0 +1,21 @@
+{
+  "name": "md-quiz",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint packages/*/src --ext .ts",
+    "typecheck": "tsc --build packages/shared packages/server"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "typescript": "^5.5.0"
+  }
+}

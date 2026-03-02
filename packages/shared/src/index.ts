@@ -1,0 +1,230 @@
+// ──────────────────────────────────────────────
+// md-quiz shared contracts
+// Single source of truth for types, events, REST
+// paths, and session state transitions.
+// ──────────────────────────────────────────────
+
+// ── Session States ──────────────────────────
+export const SESSION_STATES = [
+  "LOBBY",
+  "QUESTION_OPEN",
+  "QUESTION_CLOSED",
+  "REVEAL",
+  "LEADERBOARD",
+  "ENDED",
+] as const;
+
+export type SessionState = (typeof SESSION_STATES)[number];
+
+/**
+ * Valid state transitions. Key = current state, value = set of allowed next states.
+ * Transitions are instructor-controlled except QUESTION_OPEN -> QUESTION_CLOSED
+ * which also happens automatically when the timer expires.
+ */
+export const STATE_TRANSITIONS: Record<SessionState, readonly SessionState[]> = {
+  LOBBY: ["QUESTION_OPEN"],
+  QUESTION_OPEN: ["QUESTION_CLOSED"],
+  QUESTION_CLOSED: ["REVEAL"],
+  REVEAL: ["QUESTION_OPEN", "LEADERBOARD"],
+  LEADERBOARD: ["ENDED"],
+  ENDED: [],
+};
+
+// ── Socket.IO Event Names ───────────────────
+export const SocketEvents = {
+  // Client -> Server
+  STUDENT_JOIN: "student:join",
+  ANSWER_SUBMIT: "answer:submit",
+
+  // Server -> Client (targeted)
+  STUDENT_JOINED: "student:joined",
+  STUDENT_REJECTED: "student:rejected",
+  ANSWER_ACCEPTED: "answer:accepted",
+  ANSWER_REJECTED: "answer:rejected",
+
+  // Server -> Instructor
+  SESSION_PARTICIPANTS: "session:participants",
+  ANSWER_COUNT: "answer:count",
+  RESULTS_DISTRIBUTION: "results:distribution",
+
+  // Server -> All
+  QUESTION_OPEN: "question:open",
+  QUESTION_TICK: "question:tick",
+  QUESTION_CLOSE: "question:close",
+  RESULTS_REVEAL: "results:reveal",
+  LEADERBOARD_UPDATE: "leaderboard:update",
+  SESSION_STATE: "session:state",
+} as const;
+
+// ── Socket.IO Payload Types ─────────────────
+
+export interface StudentJoinPayload {
+  studentId: string;
+  displayName?: string;
+  sessionToken?: string;
+}
+
+export interface StudentJoinedPayload {
+  participantId: string;
+  sessionToken: string;
+  sessionState: SessionState;
+  currentQuestion?: number;
+  answeredQuestions?: number[]; // question indices already answered
+}
+
+export interface StudentRejectedPayload {
+  reason: string;
+}
+
+export interface QuestionOpenPayload {
+  questionIndex: number;
+  topic: string;
+  text: string; // rendered HTML
+  options: { label: string; text: string }[];
+  timeLimitSec: number;
+  startedAt: number; // unix ms
+}
+
+export interface QuestionTickPayload {
+  remainingSec: number;
+}
+
+export interface AnswerSubmitPayload {
+  questionIndex: number;
+  selectedOptions: string[];
+}
+
+export interface AnswerAcceptedPayload {
+  questionIndex: number;
+}
+
+export interface AnswerRejectedPayload {
+  questionIndex: number;
+  reason: string;
+}
+
+export interface AnswerCountPayload {
+  questionIndex: number;
+  submitted: number;
+  total: number;
+}
+
+export interface QuestionClosePayload {
+  questionIndex: number;
+}
+
+export interface ResultsDistributionPayload {
+  questionIndex: number;
+  distribution: Record<string, number>;
+}
+
+export interface ResultsRevealPayload {
+  questionIndex: number;
+  correctOptions: string[];
+  explanation: string;
+  distribution: Record<string, number>;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  studentId: string;
+  displayName?: string;
+  correctCount: number;
+  totalTimeMs: number;
+}
+
+export interface LeaderboardUpdatePayload {
+  entries: LeaderboardEntry[];
+  totalQuestions: number;
+}
+
+export interface SessionStatePayload {
+  state: SessionState;
+  questionIndex?: number;
+}
+
+export interface SessionParticipantsPayload {
+  count: number;
+  participants: { studentId: string; displayName?: string }[];
+}
+
+// ── REST API Paths ──────────────────────────
+export const API = {
+  HEALTH: "/api/health",
+  QUIZZES: "/api/quizzes",
+  QUIZ: "/api/quiz/:week",
+  SESSION_CREATE: "/api/session",
+  SESSION_START: "/api/session/:id/start",
+  SESSION_NEXT: "/api/session/:id/next",
+  SESSION_CLOSE: "/api/session/:id/close",
+  SESSION_REVEAL: "/api/session/:id/reveal",
+  SESSION_END: "/api/session/:id/end",
+  SESSION_LEADERBOARD: "/api/session/:id/leaderboard",
+  ACCESS_INFO: "/api/access-info",
+  QR_CODE: "/api/qr/:sessionId.png",
+} as const;
+
+// ── Data Model Types ────────────────────────
+
+export interface QuestionOption {
+  label: string;
+  textMd: string;
+  textHtml: string;
+}
+
+export interface Question {
+  index: number;
+  topic: string;
+  subtopic?: string;
+  textMd: string;
+  textHtml: string;
+  options: QuestionOption[];
+  correctOptions: string[];
+  explanation: string;
+  timeLimitSec: number;
+}
+
+export interface Quiz {
+  week: string;
+  title: string;
+  questions: Question[];
+  sourceFile: string;
+}
+
+export type SessionMode = "strict" | "open";
+
+export interface Participant {
+  studentId: string;
+  displayName?: string;
+  sessionToken: string;
+  socketId: string;
+  joinedAt: number;
+  connected: boolean;
+}
+
+export interface Submission {
+  studentId: string;
+  questionIndex: number;
+  selectedOptions: string[];
+  submittedAt: number;
+  responseTimeMs: number;
+}
+
+export interface Session {
+  sessionId: string;
+  sessionCode: string;
+  week: string;
+  mode: SessionMode;
+  state: SessionState;
+  currentQuestionIndex: number;
+  questionStartedAt?: number;
+  participants: Map<string, Participant>;
+  submissions: Submission[];
+  createdAt: number;
+}
+
+// ── Constants ───────────────────────────────
+export const DEFAULT_TIME_LIMIT_SEC = 20;
+export const SESSION_CODE_LENGTH = 6;
+export const DEFAULT_PORT = 3000;
+export const TICK_INTERVAL_MS = 1000;
