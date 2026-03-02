@@ -48,13 +48,14 @@ md-quiz solves these problems by using markdown files as the canonical quiz sour
 5. **As an instructor**, I want to reveal the correct answer and explanation after closing a question, so I can discuss it with the class while the context is fresh.
 6. **As an instructor**, I want to advance through questions one at a time at my own pace, so I can control the flow of the quiz based on class discussion.
 7. **As an instructor**, I want to see a leaderboard at the end of the quiz showing who answered correctly and fastest, so I can recognize top performers.
-8. **As an instructor**, I want a cumulative leaderboard across all weeks, so I can track weekly winners for bonus marks without manual record-keeping.
+8. **As an instructor**, I want a cumulative leaderboard (just based on students' positioning and not scores) across all weeks, so I can track weekly winners for bonus marks without manual record-keeping.
 
 ### Student
 
 1. **As a student**, I want to scan a QR code or type a short URL to join the quiz on my phone, so I can participate without installing anything.
-2. **As a student**, I want to enter my student ID to identify myself, so my answers are tracked consistently even if I disconnect and reconnect.
-3. **As a student**, I want to see the question and answer choices on my phone and tap to submit my answer, so I can participate in real time.
+2. **As a student**, I want to enter my student ID as the main way to identify myself, so my answers are tracked consistently even if I disconnect and reconnect.
+3. **As a student**, I want to optionally enter a display name that shows on the leaderboard alongside my student ID, so I can be recognized by name if I choose.
+3. **As a student**, I want to see the question, real-time countdown time limit, and answer choices on my phone and tap to submit my answer, so I can participate in real time.
 4. **As a student**, I want to see whether my answer was correct after the instructor reveals the answer, so I can learn from mistakes immediately.
 5. **As a student**, I want to see my rank on the leaderboard at the end of the quiz, so I know how I performed relative to others.
 
@@ -76,12 +77,12 @@ md-quiz solves these problems by using markdown files as the canonical quiz sour
 | Cumulative leaderboard | Persist weekly scores in a flat JSON file. The cumulative leaderboard is computed dynamically at runtime from per-week results; cumulative totals are not precomputed or stored. |
 | QR code generation | Generate and display a QR code for the session URL on the projector view. |
 | Submission count display | Projector view must display submission count in format "X / Y answered" during active questions. |
+| Per-question time limit | Each question has a `time_limit` field (in seconds, default 20 if omitted in the markdown file). The server enforces the time limit by closing the submission window after the specified duration, even if the client is slow to reflect the countdown. The projector view displays a visible countdown timer. |
 
 ### P2 (Nice to Have)
 
 | Feature | Description |
 |---------|-------------|
-| Timer per question | Optional countdown timer that auto-closes submissions. |
 | Multi-select questions | Support questions with multiple correct answers (matching the d2l-quiz "Correct Answers: A, B, C" format). |
 | Short answer questions | Support free-text short answer questions with exact-match grading. |
 | Question images | Render images referenced in markdown (e.g., `![alt](url)`). |
@@ -98,6 +99,22 @@ To prevent duplicate counting, ensure continuity of experience for students who 
 - Students must provide a `studentId` (mandatory) when joining a session. A `displayName` is optional.
 - On join, the server generates a `sessionToken` (UUID) for the participant. This token is stored in the student's browser via `localStorage` to support reconnection.
 - Each `studentId` is locked to exactly one `sessionToken` per session. If a join attempt uses an existing `studentId` with a different token, the server either rejects the new connection or disconnects the previous socket (policy configurable by the instructor).
+
+### Roster Validation and Impersonation Prevention
+
+The system supports two modes for student identity validation at join time, configurable per session by the instructor.
+
+**Strict mode (roster file present):** If the instructor uploads a roster file (e.g., `roster.csv` containing a column of valid student IDs), the server validates each submitted `studentId` against the roster on join. If the ID is not found, the server rejects the join with a clear error message: "Student ID not found, please check your ID." The student can retry immediately with a corrected ID. This prevents both accidental typos and intentional impersonation of IDs that do not exist in the class.
+
+**Open mode (no roster file):** If no roster is uploaded, the system falls back to a "claim any ID" model where any `studentId` is accepted. This is useful for ad hoc sessions, guest lectures, or situations where the instructor does not have a roster on hand. The instructor selects strict or open mode in the session configuration.
+
+**Impersonation mitigation in an in-class setting:** Since md-quiz is designed for in-person, in-class use, the following measures reduce impersonation risk without requiring authentication infrastructure:
+
+1. **Session token binding**: Each `studentId` is bound to a `sessionToken` stored in the student's browser (see Student Identity above). A second device attempting to join with the same `studentId` would need a new token, triggering a conflict (rejected or previous connection dropped, per instructor policy).
+2. **Per-device submission count**: The instructor dashboard shows submission counts per connected device, allowing the instructor to spot a single device submitting under multiple IDs.
+3. **Live participant list**: The projector view displays the list of active participants. The instructor can visually scan for duplicate or suspicious IDs during the lobby phase before starting questions.
+
+**Wrong ID handling:** Students receive immediate feedback at join time if their ID is rejected (strict mode). They can correct and retry before the session moves past the lobby. Once a question is open, no new joins are processed until the next lobby or inter-question pause.
 
 ### Submission Integrity
 
@@ -223,12 +240,16 @@ week13-quiz.md
 
 ### Format Specification
 
+Each question block supports an optional `time_limit:` field that specifies how many seconds students have to answer. If omitted, the default is 20 seconds. The time limit is server-enforced: the server closes the submission window after the specified duration regardless of client-side timer state.
+
 ````markdown
 # Week 01 Quiz: Introduction to XR (10 Questions)
 
 ---
 
 ## Topic: Subtopic
+
+time_limit: 30
 
 Question text goes here. Supports **bold**, *italic*, `inline code`, and links.
 
@@ -268,6 +289,8 @@ D. Loads a 3D model
 
 ## Multi-Select Topic
 
+time_limit: 45
+
 **Which options apply? (Select all that apply)**
 
 A. Option one
@@ -281,17 +304,20 @@ D. Option four
 ---
 ````
 
+In the examples above, the first question has a 30-second time limit, the second question uses the default (20 seconds, since `time_limit:` is omitted), and the multi-select question has a 45-second time limit.
+
 ### Parsing Rules
 
 1. **Title**: The H1 heading (`# ...`) is the quiz title. The parenthetical "(N Questions)" is optional metadata.
 2. **Question separator**: Questions are separated by horizontal rules (`---`).
 3. **Topic header**: Each question starts with an H2 heading (`## Topic: Subtopic`). This is used for categorization and display.
-4. **Question text**: Everything between the H2 header and the answer options. May include markdown formatting, code blocks, and images.
-5. **Answer options**: Lines starting with `A.`, `B.`, `C.`, `D.`, etc. (letter followed by period and space).
-6. **Correct answer (single)**: A blockquote line starting with `> Correct Answer:` followed by the letter and optionally the answer text.
-7. **Correct answers (multi-select)**: A blockquote line starting with `> Correct Answers:` followed by comma-separated letters.
-8. **Feedback**: A blockquote line starting with `> Overall Feedback:` with the explanation text.
-9. **End of questions**: Parsing stops at `## Learning Objectives` or end of file.
+4. **Time limit**: An optional line `time_limit: N` (where N is an integer in seconds) appearing after the H2 header and before the question text. If omitted, defaults to 20 seconds. The parser looks for this line before the first paragraph of question text.
+5. **Question text**: Everything between the H2 header (and optional `time_limit:` line) and the answer options. May include markdown formatting, code blocks, and images.
+6. **Answer options**: Lines starting with `A.`, `B.`, `C.`, `D.`, etc. (letter followed by period and space).
+7. **Correct answer (single)**: A blockquote line starting with `> Correct Answer:` followed by the letter and optionally the answer text.
+8. **Correct answers (multi-select)**: A blockquote line starting with `> Correct Answers:` followed by comma-separated letters.
+9. **Feedback**: A blockquote line starting with `> Overall Feedback:` with the explanation text.
+10. **End of questions**: Parsing stops at `## Learning Objectives` or end of file.
 
 ### Compatibility with d2l-quiz
 
@@ -331,6 +357,28 @@ For simplicity and zero cost:
 
 Use a free URL shortener (e.g., a custom short link via GitHub Pages redirect, or a service like `tinyurl.com`) to create a memorable class URL like `tinyurl.com/dia-quiz`. This URL can remain the same across weeks; the landing page shows available quiz sessions.
 
+### Option B: Local Instructor Machine with Tailscale (Recommended for Classroom)
+
+Running the Node.js backend on the instructor's own laptop is the simplest deployment, but campus WiFi networks typically enable client isolation (AP isolation), which blocks device-to-device traffic. Students on the same campus WiFi network cannot reach the instructor's laptop by LAN IP because the access points drop inter-client packets. This means `http://192.168.x.x:3000` will not work.
+
+**Tailscale as the solution:** Tailscale creates an encrypted mesh network (WireGuard-based) that bypasses client isolation entirely by routing traffic through Tailscale's coordination servers when direct connections are blocked. Each device gets a stable Tailscale IP (e.g., `100.x.x.x`) that is reachable from any other device on the same Tailscale network, regardless of the underlying WiFi configuration.
+
+**Classroom workflow:**
+
+1. **One-time setup (instructor):** Install Tailscale on the instructor's laptop. Create a free Tailscale account (free tier supports up to 100 devices, sufficient for a class of 200-250 since students connect via browser, not Tailscale).
+2. **One-time setup (students):** Two options:
+   - **(a) Tailscale Funnel (no student install):** The instructor enables Tailscale Funnel on their machine, which exposes the local backend via a public HTTPS URL (e.g., `https://instructors-macbook.tail12345.ts.net:3000`). Students access this URL directly from any browser. No Tailscale installation needed on student devices. This is the recommended option for simplicity.
+   - **(b) Tailscale on student devices:** Students install the Tailscale app (available on iOS, Android, macOS, Windows, Linux) and join the instructor's Tailscale network via an invite link shared at the start of class. Students then access the backend via the instructor's Tailscale IP (e.g., `http://100.x.x.x:3000`). This is a one-time setup per device.
+3. **Each class session:** The instructor starts the Node.js backend (`node server.js`), opens the Tailscale app (or verifies it is running), and displays the QR code pointing to the Tailscale URL on the projector. Students scan and join.
+
+**Tradeoffs:**
+
+- Tailscale Funnel (option a) requires zero student-side setup but routes traffic through Tailscale's relay infrastructure, adding modest latency. For a quiz with 200-250 students submitting short answers, this latency is negligible.
+- Direct Tailscale mesh (option b) has lower latency but requires a one-time student install. The mobile apps are lightweight and free.
+- Both options work through any network configuration (campus WiFi, home WiFi, cellular), making the system robust to varying classroom network setups.
+
+**QR code integration:** The QR code feature (Section 5, P1) points to whichever URL the instructor configures: the Tailscale Funnel HTTPS URL, the Tailscale IP, or a short URL redirect. The instructor sets the base URL in the session configuration.
+
 ## 10. Out of Scope
 
 The following are explicitly out of scope for the initial version:
@@ -344,4 +392,4 @@ The following are explicitly out of scope for the initial version:
 - **Accessibility compliance**: Best-effort responsive design, but no formal WCAG audit.
 - **Offline support**: Requires network connectivity for both instructor and students.
 - **Video or audio questions**: Text, code, and images only.
-- **Anti-cheating measures**: No lockdown browser, no IP tracking, no answer-shuffling (P2 consideration).
+- **Anti-cheating measures**: No lockdown browser, no IP tracking, no answer-shuffling (P2 consideration). Roster validation and impersonation mitigation are covered in Section 5a.
