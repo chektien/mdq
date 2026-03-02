@@ -387,3 +387,367 @@ The following are explicitly out of scope for the initial version:
 - **Offline support**: Requires network connectivity for both instructor and students.
 - **Video or audio questions**: Text, code, and images only.
 - **Anti-cheating measures**: No lockdown browser, no IP tracking, no answer-shuffling (P2 consideration). Roster validation and impersonation mitigation are covered in Section 5a.
+
+## 11. API and Event Contract
+
+### WebSocket Events (Socket.IO)
+
+All real-time communication uses Socket.IO events. Direction notation: `C->S` = client to server, `S->C` = server to client, `S->All` = server broadcasts to all connected clients in the session.
+
+| Event Name | Direction | Payload Fields | Description |
+|------------|-----------|---------------|-------------|
+| `student:join` | C->S | `{ studentId: string, displayName?: string, sessionToken?: string }` | Student requests to join a session. If `sessionToken` is provided, server attempts reconnection. |
+| `student:joined` | S->C | `{ participantId: string, sessionToken: string, sessionState: string, currentQuestion?: number }` | Server acknowledges join. Client stores `sessionToken` in localStorage. |
+| `student:rejected` | S->C | `{ reason: string }` | Server rejects join (invalid ID, duplicate token conflict, session ended). |
+| `session:participants` | S->C (instructor) | `{ count: number, participants: Array<{ studentId: string, displayName?: string }> }` | Updated participant list sent to instructor on each join/leave. |
+| `question:open` | S->All | `{ questionIndex: number, topic: string, text: string, options: Array<{ label: string, text: string }>, timeLimitSec: number, startedAt: number }` | Server broadcasts question to all students. `text` and `options` are rendered markdown (HTML). Correct answer is never sent to clients. `startedAt` is a Unix timestamp (ms). |
+| `question:tick` | S->All | `{ remainingSec: number }` | Server broadcasts remaining seconds every 1s during an active question. |
+| `answer:submit` | C->S | `{ questionIndex: number, selectedOptions: string[] }` | Student submits answer. `selectedOptions` is an array of labels (e.g., `["B"]` or `["A","C"]` for multi-select). |
+| `answer:accepted` | S->C | `{ questionIndex: number }` | Server confirms the submission was recorded. |
+| `answer:rejected` | S->C | `{ questionIndex: number, reason: string }` | Server rejects submission (question closed, already submitted, invalid state). |
+| `answer:count` | S->C (instructor) | `{ questionIndex: number, submitted: number, total: number }` | Updated submission count sent to instructor after each submission. |
+| `question:close` | S->All | `{ questionIndex: number }` | Server closes submissions (timer expired or instructor manually closed). |
+| `results:distribution` | S->C (instructor) | `{ questionIndex: number, distribution: Record<string, number> }` | Answer distribution by option label (e.g., `{ "A": 12, "B": 45, "C": 8, "D": 5 }`). Sent to instructor after question closes. |
+| `results:reveal` | S->All | `{ questionIndex: number, correctOptions: string[], explanation: string, distribution: Record<string, number> }` | Correct answer and explanation broadcast to all clients. Students see whether their answer was correct. |
+| `leaderboard:update` | S->All | `{ entries: Array<{ rank: number, studentId: string, displayName?: string, correctCount: number, totalTimeSec: number }>, totalQuestions: number }` | Leaderboard broadcast after reveal or at end of quiz. |
+| `session:state` | S->All | `{ state: string, questionIndex?: number }` | Broadcast on every state transition (LOBBY, QUESTION_OPEN, QUESTION_CLOSED, REVEAL, LEADERBOARD, ENDED). |
+
+#### Example: Full Question-Answer Flow
+
+```json
+// 1. Instructor advances to question 0 -> server broadcasts:
+// Event: question:open (S->All)
+{
+  "questionIndex": 0,
+  "topic": "Introduction to XR",
+  "text": "<p><strong>What does createDefaultXRExperienceAsync do?</strong></p>",
+  "options": [
+    { "label": "A", "text": "Creates a default scene" },
+    { "label": "B", "text": "Initializes VR components" },
+    { "label": "C", "text": "Renders a frame" },
+    { "label": "D", "text": "Loads a 3D model" }
+  ],
+  "timeLimitSec": 20,
+  "startedAt": 1709345678000
+}
+
+// 2. Student submits answer:
+// Event: answer:submit (C->S)
+{
+  "questionIndex": 0,
+  "selectedOptions": ["B"]
+}
+
+// 3. Server acknowledges:
+// Event: answer:accepted (S->C)
+{
+  "questionIndex": 0
+}
+
+// 4. Server sends updated count to instructor:
+// Event: answer:count (S->C instructor)
+{
+  "questionIndex": 0,
+  "submitted": 142,
+  "total": 198
+}
+
+// 5. Timer expires or instructor closes -> server broadcasts:
+// Event: question:close (S->All)
+{
+  "questionIndex": 0
+}
+
+// 6. Instructor reveals answer -> server broadcasts:
+// Event: results:reveal (S->All)
+{
+  "questionIndex": 0,
+  "correctOptions": ["B"],
+  "explanation": "The createDefaultXRExperienceAsync method sets up stereo rendering, input handling, and other VR defaults.",
+  "distribution": { "A": 12, "B": 145, "C": 28, "D": 13 }
+}
+```
+
+### REST Endpoints
+
+REST endpoints handle session lifecycle and static data. All endpoints return JSON. The server listens on a single port (default 3000) for both REST and WebSocket traffic.
+
+| Method | Path | Description | Request Body | Response |
+|--------|------|-------------|-------------|----------|
+| `GET` | `/api/health` | Health check | None | `{ "status": "ok", "uptime": number }` |
+| `GET` | `/api/quiz/:week` | Get parsed quiz metadata for a week (question count, title). Does not include correct answers. | None | `{ "week": string, "title": string, "questionCount": number }` |
+| `GET` | `/api/quizzes` | List all available weeks | None | `Array<{ week: string, title: string, questionCount: number }>` |
+| `POST` | `/api/session` | Create a new quiz session | `{ "week": string, "mode": "strict" \| "open", "rosterPath?": string }` | `{ "sessionId": string, "sessionCode": string, "joinUrl": string }` |
+| `POST` | `/api/session/:id/start` | Transition session from LOBBY to QUESTION_OPEN (first question) | None | `{ "state": "QUESTION_OPEN", "questionIndex": 0 }` |
+| `POST` | `/api/session/:id/next` | Advance to next question | None | `{ "state": "QUESTION_OPEN", "questionIndex": number }` |
+| `POST` | `/api/session/:id/close` | Close current question submissions | None | `{ "state": "QUESTION_CLOSED", "questionIndex": number }` |
+| `POST` | `/api/session/:id/reveal` | Reveal correct answer for current question | None | `{ "state": "REVEAL", "questionIndex": number }` |
+| `POST` | `/api/session/:id/end` | End the session | None | `{ "state": "ENDED" }` |
+| `GET` | `/api/session/:id/leaderboard` | Get current session leaderboard | None | `{ "entries": Array<LeaderboardEntry>, "totalQuestions": number }` |
+| `GET` | `/api/access-info` | Get server access info (full URL, short URL, QR path) | None | `{ "fullUrl": string, "shortUrl": string, "qrCodePath": string, "source": "tailscale" \| "lan-fallback" }` |
+| `GET` | `/api/qr/:sessionId.png` | QR code image for session join URL | None | PNG image |
+
+## 12. Data Model and Storage Schema
+
+### TypeScript Interfaces
+
+```typescript
+interface Quiz {
+  week: string;              // e.g., "week01"
+  title: string;             // e.g., "Week 01 Quiz: Introduction to XR"
+  questions: Question[];
+  sourceFile: string;        // e.g., "week01-quiz.md"
+}
+
+interface Question {
+  index: number;             // 0-based position within the quiz
+  topic: string;             // from H2 heading, e.g., "Introduction to XR"
+  subtopic?: string;         // after colon in H2, e.g., "Subtopic"
+  textMd: string;            // raw markdown of question body
+  textHtml: string;          // rendered HTML of question body
+  options: QuestionOption[];
+  correctOptions: string[];  // e.g., ["B"] or ["A", "C"] for multi-select
+  explanation: string;       // from Overall Feedback
+  timeLimitSec: number;      // default 20 if not specified in markdown
+}
+
+interface QuestionOption {
+  label: string;             // "A", "B", "C", "D", etc.
+  textMd: string;            // raw markdown of option text
+  textHtml: string;          // rendered HTML of option text
+}
+
+interface Session {
+  sessionId: string;         // UUID v4
+  sessionCode: string;       // 6-character alphanumeric code
+  week: string;              // which quiz week this session uses
+  mode: "strict" | "open";   // roster validation mode
+  state: SessionState;       // current state machine state
+  currentQuestionIndex: number;  // -1 when in LOBBY
+  questionStartedAt?: number;    // Unix timestamp (ms) when current question opened
+  participants: Map<string, Participant>;  // keyed by studentId
+  submissions: Submission[];
+  createdAt: number;         // Unix timestamp (ms)
+}
+
+type SessionState = "LOBBY" | "QUESTION_OPEN" | "QUESTION_CLOSED" | "REVEAL" | "LEADERBOARD" | "ENDED";
+
+interface Participant {
+  studentId: string;
+  displayName?: string;
+  sessionToken: string;      // UUID v4, generated on first join
+  socketId: string;          // current Socket.IO socket ID
+  joinedAt: number;          // Unix timestamp (ms)
+  connected: boolean;        // tracks live connection status
+}
+
+interface Submission {
+  studentId: string;
+  questionIndex: number;
+  selectedOptions: string[]; // e.g., ["B"] or ["A", "C"]
+  submittedAt: number;       // Unix timestamp (ms), server-recorded
+  responseTimeMs: number;    // submittedAt - questionStartedAt, computed server-side
+}
+
+interface LeaderboardEntry {
+  rank: number;
+  studentId: string;
+  displayName?: string;
+  correctCount: number;
+  totalTimeMs: number;       // sum of responseTimeMs for correct answers only
+}
+
+interface AccessInfo {
+  fullUrl: string;           // e.g., "https://my-laptop.tailnet.ts.net"
+  shortUrl: string;          // e.g., "https://tinyurl.com/abc123"
+  qrCodeDataUrl: string;     // base64 data URL of QR code SVG/PNG
+  source: "tailscale" | "lan-fallback";
+  detectedAt: number;        // Unix timestamp (ms)
+}
+```
+
+### Flat-File Persistence Layout
+
+In-memory data (sessions, connected participants, live submissions) is authoritative during a session. On session end, relevant data is persisted to disk. On server restart, in-memory state is lost (sessions do not survive restarts).
+
+```
+data/
+  quizzes/
+    week01-quiz.md           # source markdown files (read-only by server)
+    week02-quiz.md
+    ...
+  sessions/
+    <sessionId>.json         # session metadata + final state snapshot (written on session end)
+  submissions/
+    <sessionId>.json         # all submissions for a session (written on session end)
+  winners/
+    week01.json              # per-week leaderboard results (top N, used for cumulative leaderboard)
+    week02.json
+    ...
+  access/
+    current.json             # current server access info (overwritten on each startup)
+```
+
+**What stays in-memory vs. persisted:**
+
+| Data | In-Memory (during session) | Persisted (on session end) |
+|------|---------------------------|---------------------------|
+| Session state machine | Yes (authoritative) | `sessions/<id>.json` (snapshot) |
+| Participant list + socket IDs | Yes | `sessions/<id>.json` (without socket IDs) |
+| Submissions | Yes (authoritative) | `submissions/<id>.json` |
+| Per-week leaderboard results | Computed at LEADERBOARD state | `winners/weekNN.json` |
+| Cumulative leaderboard | Computed on demand from `winners/*.json` | Not stored (always derived) |
+| Parsed quiz data | Yes (loaded on startup) | No (re-parsed from markdown on startup) |
+| Access info (URL, QR) | Yes | `access/current.json` |
+
+### `timeLimitSec` Default Behavior
+
+If a question's markdown does not include a `time_limit:` line, the default is 20 seconds. The server enforces this: when `questionStartedAt + (timeLimitSec * 1000)` is reached, the server automatically transitions to `QUESTION_CLOSED` and broadcasts `question:close`. Submissions arriving after this timestamp are rejected with `answer:rejected` regardless of network latency.
+
+## 13. Acceptance Criteria and Success Metrics (P1)
+
+Each criterion below is testable. P1 is complete when all criteria pass.
+
+### Markdown Parsing
+
+- AC-1: The parser successfully extracts title, topic, question text, options, correct answer(s), explanation, and time limit from every question block in the example `week01-quiz.md` through `week13-quiz.md` files.
+- AC-2: The parser produces a validation error (not a crash) for malformed questions: missing correct answer line, no options, unterminated code block. The error message identifies the question number and file.
+- AC-3: Code blocks in question text and options render with syntax highlighting (highlight.js classes present in HTML output).
+
+### Session and Join Flow
+
+- AC-4: In strict mode with a roster loaded, a student submitting an ID not in the roster receives `student:rejected` with reason "Student ID not found" within 200ms. The student can retry immediately.
+- AC-5: In open mode, any `studentId` string is accepted on join.
+- AC-6: A second connection with the same `studentId` but a different `sessionToken` is rejected (or the first connection is dropped, per config).
+
+### Timer and Submission Enforcement
+
+- AC-7: The server closes the submission window exactly at `timeLimitSec` seconds after `question:open`, regardless of client clock. Submissions arriving after the deadline receive `answer:rejected` with reason "Question closed."
+- AC-8: If a student submits a second answer for the same question, the server rejects it with `answer:rejected` and reason "Already submitted." The first submission is unchanged.
+- AC-9: Submissions sent while the session is not in `QUESTION_OPEN` state are rejected.
+
+### Access Info and QR
+
+- AC-10: When `tailscale status --json` succeeds and Funnel is active, the server generates a valid HTTPS URL, calls TinyURL API for a short URL, and generates a scannable QR code (verifiable with any QR reader).
+- AC-11: When Tailscale CLI is unavailable or Funnel is not active, the server falls back to the local LAN IP and logs a warning. The `GET /api/access-info` response shows `"source": "lan-fallback"`.
+
+### Instructor Live View
+
+- AC-12: The projector view displays a bar chart that updates within 500ms of each new submission during `QUESTION_OPEN`.
+- AC-13: The submission count display shows `"X / Y answered"` where X = submissions received and Y = connected participants, updating in real time.
+- AC-14: The instructor can advance through the full state machine (LOBBY -> QUESTION_OPEN -> QUESTION_CLOSED -> REVEAL -> next QUESTION_OPEN -> ... -> LEADERBOARD -> ENDED) using the UI controls. Each transition broadcasts the correct `session:state` event.
+
+### Leaderboard
+
+- AC-15: Students are ranked by correct answer count (descending). Ties are broken by cumulative response time (ascending, lower is better). Response time is computed server-side only.
+- AC-16: The cumulative leaderboard aggregates results from all `winners/weekNN.json` files. Adding a new week's results and refreshing the leaderboard reflects the update without server restart.
+
+### Reconnection (P1 scope: within active question)
+
+- AC-17: A student who disconnects and reconnects with a valid `sessionToken` during a `QUESTION_OPEN` window can still submit an answer if they have not already submitted for that question.
+- AC-18: A reconnected student's previous submissions and score are preserved. They are not counted as a new participant.
+
+### Scale
+
+- AC-19: The server handles 250 concurrent WebSocket connections with sub-second event broadcast latency, verified by a load test script using a WebSocket client library (e.g., `ws` or `socket.io-client`).
+
+## 14. Implementation Milestones (P1 Build Order)
+
+P1 is broken into seven milestones. Each milestone has concrete deliverables and verification checks. Milestones are sequential; each builds on the previous.
+
+### M1: Parser and Schema Validation
+
+**Deliverables:**
+- Markdown parser module that reads `weekNN-quiz.md` files and produces `Quiz` objects matching the Section 12 interface.
+- Validation layer that rejects malformed questions with descriptive errors (question index, file name, what is missing).
+- Unit tests covering: single-select, multi-select, code blocks, missing fields, `time_limit` parsing, default `time_limit` of 20s.
+
+**Verification:**
+- `npm test` passes all parser tests.
+- Parser correctly handles the example questions from Section 8.
+- Malformed input produces errors, not crashes.
+
+### M2: Session State Machine and REST Shell
+
+**Deliverables:**
+- Express server with all REST endpoints from Section 11 returning correct responses.
+- In-memory `Session` object with state machine transitions (Section 6).
+- State transition guards: e.g., cannot call `/start` unless in LOBBY, cannot call `/next` unless in REVEAL.
+- `GET /api/health` returns uptime.
+
+**Verification:**
+- REST endpoints return correct status codes and payloads (testable with curl or automated HTTP tests).
+- Invalid state transitions return 400 with a descriptive error.
+- Session creation assigns a 6-character code and UUID.
+
+### M3: WebSocket Student Answer Loop
+
+**Deliverables:**
+- Socket.IO integration on the Express server.
+- `student:join` / `student:joined` / `student:rejected` flow with roster validation (strict and open modes).
+- `answer:submit` / `answer:accepted` / `answer:rejected` flow with duplicate-submission and late-submission guards.
+- Server-enforced timer: auto-closes question after `timeLimitSec` and broadcasts `question:close`.
+- `question:tick` broadcast every 1 second.
+- `sessionToken` generation and reconnection within active question window.
+
+**Verification:**
+- A test client can join, submit, and receive acknowledgment.
+- Duplicate submissions are rejected.
+- Late submissions (after timer) are rejected.
+- Reconnection with valid token restores state.
+
+### M4: Instructor UI and Projector Controls
+
+**Deliverables:**
+- React instructor view with: quiz selector, session start screen (QR + URLs), question display, state-machine control buttons (Start, Close, Reveal, Next, End).
+- Real-time bar chart of answer distribution (updates on each `answer:count`).
+- Submission count display: "X / Y answered."
+- Countdown timer display synced with server `question:tick`.
+- Participant list panel.
+
+**Verification:**
+- Instructor can drive a full quiz session from LOBBY to ENDED using UI controls.
+- Bar chart updates visually within 500ms of a submission.
+- Timer counts down and question auto-closes when it reaches zero.
+
+### M5: Student UI, Results Reveal, and Leaderboard
+
+**Deliverables:**
+- React student view with: join screen (student ID + optional display name), question display with answer buttons, submission confirmation, results screen (correct/incorrect + explanation), leaderboard screen.
+- Markdown rendering in questions and options (bold, code, images via marked + highlight.js).
+- Leaderboard computation: rank by correct count, tiebreak by cumulative server-side response time.
+- Persist per-week results to `winners/weekNN.json` on session end.
+- Cumulative leaderboard derived from all `winners/*.json` files.
+
+**Verification:**
+- Student can join, answer all questions, and see results and leaderboard.
+- Leaderboard ranking matches expected order (correct count, then time tiebreak).
+- `winners/weekNN.json` file is written correctly after session end.
+- Cumulative leaderboard reflects multiple weeks.
+
+### M6: Tailscale Access Info, QR, and Short URL
+
+**Deliverables:**
+- Startup routine: call `tailscale status --json`, parse `Self.DNSName`, construct full URL.
+- TinyURL API call to generate short URL.
+- QR code generation via `qrcode` npm package, served at `/api/qr/:sessionId.png`.
+- Fallback to LAN IP with warning when Tailscale is unavailable.
+- `GET /api/access-info` endpoint returning `AccessInfo` object.
+- Persist access info to `data/access/current.json`.
+
+**Verification:**
+- With Tailscale active: full URL, short URL, and QR code are generated and displayed.
+- Without Tailscale: LAN IP fallback is used, warning is logged, `source` is `"lan-fallback"`.
+- QR code is scannable and resolves to the correct join URL.
+
+### M7: Load Test and Classroom Dry-Run Checklist
+
+**Deliverables:**
+- Load test script using `socket.io-client` that simulates 250 concurrent students: join, submit random answers, verify acknowledgment, measure broadcast latency.
+- Dry-run checklist document covering: Tailscale Funnel active, quiz files in place, projector display tested, QR code scannable from back of room, timer behavior confirmed, leaderboard display verified.
+- Fix any performance issues identified by load test (if broadcast latency > 1s at 250 clients).
+
+**Verification:**
+- Load test passes at 250 concurrent clients with sub-second broadcast latency.
+- All acceptance criteria from Section 13 are verified.
+- Dry-run checklist completed successfully on instructor's machine.
