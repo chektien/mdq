@@ -1,10 +1,11 @@
 import express from "express";
 import cors from "cors";
-import { API, Quiz } from "@md-quiz/shared";
+import { API, Quiz, Session, SessionState } from "@md-quiz/shared";
 import {
   createSession,
   storeSession,
   getSession,
+  getSessionByCode,
   transitionState,
   StateTransitionError,
   computeLeaderboard,
@@ -18,6 +19,8 @@ import * as path from "path";
 export interface AppOptions {
   quizDir?: string;
   dataDir?: string;
+  /** Called after a successful REST-driven state transition */
+  onStateChange?: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => void;
 }
 
 export function createApp(quizDirOrOpts?: string | AppOptions) {
@@ -28,11 +31,13 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   // Parse options
   let quizDir: string | undefined;
   let dataDir: string | undefined;
+  let onStateChange: AppOptions["onStateChange"];
   if (typeof quizDirOrOpts === "string") {
     quizDir = quizDirOrOpts;
   } else if (quizDirOrOpts) {
     quizDir = quizDirOrOpts.quizDir;
     dataDir = quizDirOrOpts.dataDir;
+    onStateChange = quizDirOrOpts.onStateChange;
   }
 
   // ── Quiz store ──────────────────────────────
@@ -58,7 +63,14 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     return quizzes.get(week);
   }
 
-  // Expose for testing
+  /** Notify state change if callback is set */
+  function notifyStateChange(session: Session, sessionId: string, quiz?: Quiz): void {
+    if (onStateChange) {
+      onStateChange(session, sessionId, session.state, quiz);
+    }
+  }
+
+  // Expose for testing and socket setup
   (app as unknown as { _quizzes: Map<string, Quiz>; _dataDir?: string })._quizzes = quizzes;
   (app as unknown as { _quizzes: Map<string, Quiz>; _dataDir?: string })._dataDir = dataDir;
 
@@ -109,6 +121,20 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     });
   });
 
+  // ── Session lookup by code ─────────────────
+  app.get("/api/session/by-code/:code", (req, res) => {
+    const session = getSessionByCode(req.params.code.toUpperCase());
+    if (!session) {
+      return res.status(404).json({ error: "Session not found for that code" });
+    }
+    res.json({
+      sessionId: session.sessionId,
+      sessionCode: session.sessionCode,
+      state: session.state,
+      week: session.week,
+    });
+  });
+
   // Helper middleware to get session by :id param
   function withSession(
     req: express.Request,
@@ -128,6 +154,8 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         transitionState(session, "QUESTION_OPEN");
         session.currentQuestionIndex = 0;
         session.questionStartedAt = Date.now();
+        const quiz = getQuizForSession(session.week);
+        notifyStateChange(session, req.params.id, quiz);
         res.json({ state: session.state, questionIndex: 0 });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -152,6 +180,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         transitionState(session, "QUESTION_OPEN");
         session.currentQuestionIndex = nextIndex;
         session.questionStartedAt = Date.now();
+        notifyStateChange(session, req.params.id, quiz);
         res.json({ state: session.state, questionIndex: nextIndex });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -166,6 +195,8 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     withSession(req, res, (session) => {
       try {
         transitionState(session, "QUESTION_CLOSED");
+        const quiz = getQuizForSession(session.week);
+        notifyStateChange(session, req.params.id, quiz);
         res.json({ state: session.state, questionIndex: session.currentQuestionIndex });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -180,6 +211,8 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     withSession(req, res, (session) => {
       try {
         transitionState(session, "REVEAL");
+        const quiz = getQuizForSession(session.week);
+        notifyStateChange(session, req.params.id, quiz);
         res.json({ state: session.state, questionIndex: session.currentQuestionIndex });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -210,7 +243,25 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
           persistSessionOnEnd(session, quiz, dataDir);
         }
 
+        notifyStateChange(session, req.params.id, quiz);
         res.json({ state: "ENDED" });
+      } catch (e) {
+        if (e instanceof StateTransitionError) {
+          return res.status(400).json({ error: e.message });
+        }
+        throw e;
+      }
+    });
+  });
+
+  // Show leaderboard (REVEAL -> LEADERBOARD, without ending)
+  app.post("/api/session/:id/leaderboard-show", (req, res) => {
+    withSession(req, res, (session) => {
+      try {
+        transitionState(session, "LEADERBOARD");
+        const quiz = getQuizForSession(session.week);
+        notifyStateChange(session, req.params.id, quiz);
+        res.json({ state: session.state });
       } catch (e) {
         if (e instanceof StateTransitionError) {
           return res.status(400).json({ error: e.message });

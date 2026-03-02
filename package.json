@@ -8,8 +8,8 @@
   "scripts": {
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",
-    "lint": "eslint packages/*/src --ext .ts",
-    "typecheck": "tsc --build packages/shared packages/server"
+    "lint": "eslint packages/*/src --ext .ts,.tsx",
+    "typecheck": "tsc --build packages/shared packages/server packages/client"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

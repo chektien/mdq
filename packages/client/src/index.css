@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+html {
+  background: #0f1117;
+  color: #e8eaf0;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+}
+
+/* ── Bar chart animation ─────────────────── */
+.bar-fill { transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ── Timer urgency ───────────────────────── */
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.timer-urgent { animation: timer-pulse 0.5s ease-in-out infinite; }
+
+/* ── Quiz HTML rendering ─────────────────── */
+.quiz-html p { margin: 0.5em 0; }
+.quiz-html code {
+  background: #242836;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.quiz-html pre {
+  background: #242836;
+  padding: 1em;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.85em;
+}
+.quiz-html pre code { background: none; padding: 0; }
+.quiz-html strong { color: #fff; font-weight: 600; }
+.quiz-html img { max-width: 100%; border-radius: 8px; }
+
+/* ── Option button press ─────────────────── */
+.option-btn {
+  transition: transform 0.1s, box-shadow 0.15s, background-color 0.15s;
+}
+.option-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* ── Leaderboard staggered entry ─────────── */
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.lb-row { animation: slide-in 0.3s ease-out both; }
