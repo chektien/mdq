@@ -43,12 +43,22 @@ function waitForParticipantCount(
   timeout = 5000,
 ): Promise<{ count: number }> {
   return new Promise((resolve, reject) => {
+    let latestCount: number | null = null;
     const timer = setTimeout(
-      () => reject(new Error(`Timeout waiting for participant count ${expectedCount}`)),
+      () => {
+        socket.off(SocketEvents.SESSION_PARTICIPANTS, listener);
+        const latest = latestCount === null ? "none" : String(latestCount);
+        reject(
+          new Error(
+            `Timeout waiting for participant count ${expectedCount} (latest observed: ${latest})`,
+          ),
+        );
+      },
       timeout,
     );
 
     const listener = (payload: { count: number }) => {
+      latestCount = payload.count;
       if (payload.count === expectedCount) {
         clearTimeout(timer);
         socket.off(SocketEvents.SESSION_PARTICIPANTS, listener);
@@ -162,8 +172,13 @@ describe("E2E Live Readiness", () => {
   });
 
   afterAll((done) => {
-    ioServer.close();
-    httpServer.close(done);
+    ioServer.close(() => {
+      if (httpServer.listening) {
+        httpServer.close(done);
+        return;
+      }
+      done();
+    });
   });
 
   afterEach(() => {
@@ -189,6 +204,7 @@ describe("E2E Live Readiness", () => {
 
     await request(app).post(`/api/session/${sessionId}/start`).expect(200);
 
+    const participantUpdatePromise = waitForParticipantCount(instructor, 3);
     const studentA = await connectStudent(baseUrl, sessionId, "LIVE001", "Alice");
     const studentB = await connectStudent(baseUrl, sessionId, "LIVE002", "Bob");
     const studentC = await connectStudent(baseUrl, sessionId, "LIVE003", "Charlie");
@@ -197,7 +213,7 @@ describe("E2E Live Readiness", () => {
     expect(studentB.joined.sessionState).toBe("QUESTION_OPEN");
     expect(studentC.joined.sessionState).toBe("QUESTION_OPEN");
 
-    const participantUpdate = await waitForParticipantCount(instructor, 3);
+    const participantUpdate = await participantUpdatePromise;
     expect(participantUpdate.count).toBe(3);
 
     const answerAcceptedA = waitForEvent<AnswerAcceptedPayload>(

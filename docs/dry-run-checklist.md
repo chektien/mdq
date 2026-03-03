@@ -84,6 +84,7 @@ For each question:
 1. Click "Start" (or "Next Question") to open the question.
 2. The timer starts automatically (default 20s, or per-question `time_limit`).
 3. Watch the submission count. The question auto-closes when time runs out, or you can close it early.
+   - If a student disconnects mid-question, the denominator may drop because only currently connected participants are counted.
 4. Click "Reveal" to show the correct answer, explanation, and answer distribution chart.
 5. Click "Next Question" to advance, or "Show Leaderboard" after the last question.
 
@@ -112,6 +113,7 @@ curl http://localhost:3000/api/leaderboard/cumulative | jq
 - **Single session at a time**: The server supports one active session. End the current session before starting a new one.
 - **No authentication**: Students self-identify with their student ID. Impersonation is mitigated by session tokens (reconnection requires the original token), but not prevented.
 - **In-memory state**: If the server crashes mid-session, in-progress data is lost. Completed sessions are persisted to disk.
+- **Submission denominator semantics**: During a question, the `submitted/total` denominator tracks currently connected participants. Mid-question disconnects can make the denominator shrink.
 - **Browser support**: Tested on Chrome, Safari, Firefox (desktop + mobile). No IE support.
 
 ## Troubleshooting
