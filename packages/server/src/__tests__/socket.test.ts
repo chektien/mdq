@@ -60,6 +60,20 @@ describe("Socket.IO Integration", () => {
     });
   }
 
+  function waitForNoEvent(client: ClientSocket, event: string, timeout = 400): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const onEvent = () => {
+        clearTimeout(timer);
+        reject(new Error(`Unexpected event: ${event}`));
+      };
+      const timer = setTimeout(() => {
+        client.off(event, onEvent);
+        resolve();
+      }, timeout);
+      client.once(event, onEvent);
+    });
+  }
+
   describe("student:join flow", () => {
     it("joins a session and receives student:joined", async () => {
       const session = createSession("week01", "open");
@@ -171,6 +185,41 @@ describe("Socket.IO Integration", () => {
       const joined2 = await joined2Promise;
       expect(joined2.participantId).toBe("S001");
       expect(joined2.sessionToken).toBe(token);
+
+      client2.disconnect();
+    });
+
+    it("allows token-less reconnect for same client instance after disconnect", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const client1 = createClient(session.sessionId);
+      client1.connect();
+      const joined1Promise = waitForEvent<{ sessionToken: string }>(
+        client1,
+        SocketEvents.STUDENT_JOINED,
+      );
+      client1.emit(SocketEvents.STUDENT_JOIN, {
+        studentId: "S001",
+        clientInstanceId: "client-a",
+      });
+      await joined1Promise;
+      client1.disconnect();
+      await new Promise((r) => setTimeout(r, 100));
+
+      const client2 = createClient(session.sessionId);
+      client2.connect();
+      const joined2Promise = waitForEvent<{ participantId: string }>(
+        client2,
+        SocketEvents.STUDENT_JOINED,
+      );
+      client2.emit(SocketEvents.STUDENT_JOIN, {
+        studentId: "S001",
+        clientInstanceId: "client-a",
+      });
+
+      const joined2 = await joined2Promise;
+      expect(joined2.participantId).toBe("S001");
 
       client2.disconnect();
     });
@@ -539,6 +588,53 @@ describe("Socket.IO Integration", () => {
       client.disconnect();
     });
 
+    it("late join during QUESTION_CLOSED receives deterministic closed-question snapshot", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() - 2000;
+      transitionState(session, "QUESTION_CLOSED");
+
+      const client = createClient(session.sessionId);
+      client.connect();
+
+      const joinedPromise = waitForEvent<{ sessionState: string }>(client, SocketEvents.STUDENT_JOINED);
+      const qOpenPromise = waitForEvent<{ questionIndex: number }>(client, SocketEvents.QUESTION_OPEN);
+      const qClosePromise = waitForEvent<{ questionIndex: number }>(client, SocketEvents.QUESTION_CLOSE);
+
+      client.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+
+      const [joined, qOpen, qClose] = await Promise.all([joinedPromise, qOpenPromise, qClosePromise]);
+      expect(joined.sessionState).toBe("QUESTION_CLOSED");
+      expect(qOpen.questionIndex).toBe(0);
+      expect(qClose.questionIndex).toBe(0);
+
+      client.disconnect();
+    });
+
+    it("late join during REVEAL does not receive reveal payload", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() - 2000;
+      transitionState(session, "QUESTION_CLOSED");
+      transitionState(session, "REVEAL");
+
+      const client = createClient(session.sessionId);
+      client.connect();
+
+      const joinedPromise = waitForEvent<{ sessionState: string }>(client, SocketEvents.STUDENT_JOINED);
+      client.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      const joined = await joinedPromise;
+
+      expect(joined.sessionState).toBe("REVEAL");
+      await waitForNoEvent(client, SocketEvents.RESULTS_REVEAL);
+
+      client.disconnect();
+    });
+
     it("two students submit to same question concurrently", async () => {
       const session = createSession("week01", "open");
       storeSession(session);
@@ -721,6 +817,197 @@ describe("Socket.IO Integration", () => {
       expect(participants.count).toBe(1);
       expect(participants.participants[0].studentId).toBe("S001");
 
+      instructor.disconnect();
+      student.disconnect();
+    });
+
+    it("instructor reconnect during QUESTION_OPEN receives state snapshot", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const student = createClient(session.sessionId);
+      student.connect();
+      const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+      student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() - 1000;
+
+      const firstInstructor = createInstructorClient(session.sessionId);
+      firstInstructor.connect();
+      await new Promise<void>((resolve) => firstInstructor.once("connect", resolve));
+      firstInstructor.disconnect();
+
+      const instructor = createInstructorClient(session.sessionId);
+      const statePromise = waitForEvent<{ state: string; questionIndex?: number }>(
+        instructor,
+        SocketEvents.SESSION_STATE,
+      );
+      const openPromise = waitForEvent<{ questionIndex: number; timeLimitSec: number }>(
+        instructor,
+        SocketEvents.QUESTION_OPEN,
+      );
+      const tickPromise = waitForEvent<{ remainingSec: number }>(
+        instructor,
+        SocketEvents.QUESTION_TICK,
+      );
+      const countPromise = waitForEvent<{ questionIndex: number; submitted: number; total: number }>(
+        instructor,
+        SocketEvents.ANSWER_COUNT,
+      );
+      instructor.connect();
+
+      const [state, open, tick, count] = await Promise.all([
+        statePromise,
+        openPromise,
+        tickPromise,
+        countPromise,
+      ]);
+
+      expect(state.state).toBe("QUESTION_OPEN");
+      expect(state.questionIndex).toBe(0);
+      expect(open.questionIndex).toBe(0);
+      expect(tick.remainingSec).toBeGreaterThanOrEqual(0);
+      expect(tick.remainingSec).toBeLessThanOrEqual(open.timeLimitSec);
+      expect(count.questionIndex).toBe(0);
+      expect(count.submitted).toBe(0);
+      expect(count.total).toBe(1);
+
+      clearSessionTimers(session.sessionId);
+      instructor.disconnect();
+      student.disconnect();
+    });
+
+    it("instructor reconnect during REVEAL receives current reveal context", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const student = createClient(session.sessionId);
+      student.connect();
+      const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+      student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() - 1500;
+
+      const acceptedPromise = waitForEvent<{ questionIndex: number }>(
+        student,
+        SocketEvents.ANSWER_ACCEPTED,
+      );
+      student.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["B"],
+      });
+      await acceptedPromise;
+
+      transitionState(session, "QUESTION_CLOSED");
+      transitionState(session, "REVEAL");
+
+      const firstInstructor = createInstructorClient(session.sessionId);
+      firstInstructor.connect();
+      await new Promise<void>((resolve) => firstInstructor.once("connect", resolve));
+      firstInstructor.disconnect();
+
+      const instructor = createInstructorClient(session.sessionId);
+      const statePromise = waitForEvent<{ state: string; questionIndex?: number }>(
+        instructor,
+        SocketEvents.SESSION_STATE,
+      );
+      const openPromise = waitForEvent<{ questionIndex: number }>(
+        instructor,
+        SocketEvents.QUESTION_OPEN,
+      );
+      const revealPromise = waitForEvent<{
+        questionIndex: number;
+        correctOptions: string[];
+        explanation: string;
+        distribution: Record<string, number>;
+      }>(instructor, SocketEvents.RESULTS_REVEAL);
+      const countPromise = waitForEvent<{ questionIndex: number; submitted: number; total: number }>(
+        instructor,
+        SocketEvents.ANSWER_COUNT,
+      );
+      instructor.connect();
+
+      const [state, open, reveal, count] = await Promise.all([
+        statePromise,
+        openPromise,
+        revealPromise,
+        countPromise,
+      ]);
+
+      expect(state.state).toBe("REVEAL");
+      expect(state.questionIndex).toBe(0);
+      expect(open.questionIndex).toBe(0);
+      expect(reveal.questionIndex).toBe(0);
+      expect(reveal.correctOptions.length).toBeGreaterThan(0);
+      expect(reveal.explanation).toBeTruthy();
+      expect(Object.values(reveal.distribution).reduce((sum, value) => sum + value, 0)).toBe(1);
+      expect(count.questionIndex).toBe(0);
+      expect(count.submitted).toBe(1);
+      expect(count.total).toBe(1);
+
+      clearSessionTimers(session.sessionId);
+      instructor.disconnect();
+      student.disconnect();
+    });
+
+    it("instructor reconnect during LEADERBOARD receives leaderboard and state", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const student = createClient(session.sessionId);
+      student.connect();
+      const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+      student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() - 1000;
+
+      const acceptedPromise = waitForEvent<{ questionIndex: number }>(
+        student,
+        SocketEvents.ANSWER_ACCEPTED,
+      );
+      student.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["B"],
+      });
+      await acceptedPromise;
+
+      transitionState(session, "QUESTION_CLOSED");
+      transitionState(session, "REVEAL");
+      transitionState(session, "LEADERBOARD");
+
+      const firstInstructor = createInstructorClient(session.sessionId);
+      firstInstructor.connect();
+      await new Promise<void>((resolve) => firstInstructor.once("connect", resolve));
+      firstInstructor.disconnect();
+
+      const instructor = createInstructorClient(session.sessionId);
+      const statePromise = waitForEvent<{ state: string; questionIndex?: number }>(
+        instructor,
+        SocketEvents.SESSION_STATE,
+      );
+      const leaderboardPromise = waitForEvent<{
+        entries: { studentId: string }[];
+        totalQuestions: number;
+      }>(instructor, SocketEvents.LEADERBOARD_UPDATE);
+      instructor.connect();
+
+      const [state, leaderboard] = await Promise.all([statePromise, leaderboardPromise]);
+
+      expect(state.state).toBe("LEADERBOARD");
+      expect(state.questionIndex).toBe(0);
+      expect(leaderboard.totalQuestions).toBeGreaterThan(0);
+      expect(leaderboard.entries.some((entry) => entry.studentId === "S001")).toBe(true);
+
+      clearSessionTimers(session.sessionId);
       instructor.disconnect();
       student.disconnect();
     });

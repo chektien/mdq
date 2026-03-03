@@ -19,6 +19,10 @@ import {
 } from "./session";
 import { Session } from "@mdq/shared";
 
+function logActivity(message: string): void {
+  console.log(`[mdq activity] ${message}`);
+}
+
 /** Active timer handles per session */
 const sessionTimers = new Map<string, NodeJS.Timeout>();
 const tickTimers = new Map<string, NodeJS.Timeout>();
@@ -45,6 +49,155 @@ function sessionRoom(sessionId: string): string {
   return `session:${sessionId}`;
 }
 
+function buildQuestionOpenPayload(session: Session): {
+  questionIndex: number;
+  topic: string;
+  text: string;
+  options: { label: string; text: string }[];
+  timeLimitSec: number;
+  startedAt: number;
+} | null {
+  const quiz = quizStore.get(session.week);
+  const question =
+    quiz && session.currentQuestionIndex >= 0
+      ? quiz.questions[session.currentQuestionIndex]
+      : undefined;
+
+  if (!quiz || !question) {
+    return null;
+  }
+
+  return {
+    questionIndex: session.currentQuestionIndex,
+    topic: question.topic,
+    text: question.textHtml,
+    options: question.options.map((o) => ({ label: o.label, text: o.textHtml })),
+    timeLimitSec: question.timeLimitSec,
+    startedAt: session.questionStartedAt || Date.now(),
+  };
+}
+
+function emitInstructorStateSnapshot(socket: Socket, session: Session): void {
+  socket.emit(SocketEvents.SESSION_STATE, {
+    state: session.state,
+    questionIndex: session.currentQuestionIndex >= 0 ? session.currentQuestionIndex : undefined,
+  });
+
+  const questionOpenPayload = buildQuestionOpenPayload(session);
+  const quiz = quizStore.get(session.week);
+
+  if (session.state === "QUESTION_OPEN" && questionOpenPayload) {
+    socket.emit(SocketEvents.QUESTION_OPEN, questionOpenPayload);
+    if (session.questionStartedAt) {
+      const elapsed = Math.floor((Date.now() - session.questionStartedAt) / 1000);
+      const remaining = Math.max(0, questionOpenPayload.timeLimitSec - elapsed);
+      socket.emit(SocketEvents.QUESTION_TICK, { remainingSec: remaining });
+    }
+    socket.emit(SocketEvents.ANSWER_COUNT, {
+      questionIndex: session.currentQuestionIndex,
+      ...getSubmissionCount(session, session.currentQuestionIndex),
+    });
+    return;
+  }
+
+  if (session.state === "QUESTION_CLOSED" && questionOpenPayload) {
+    socket.emit(SocketEvents.QUESTION_OPEN, questionOpenPayload);
+    socket.emit(SocketEvents.QUESTION_CLOSE, {
+      questionIndex: session.currentQuestionIndex,
+    });
+    socket.emit(SocketEvents.RESULTS_DISTRIBUTION, {
+      questionIndex: session.currentQuestionIndex,
+      distribution: getDistribution(session, session.currentQuestionIndex),
+    });
+    socket.emit(SocketEvents.ANSWER_COUNT, {
+      questionIndex: session.currentQuestionIndex,
+      ...getSubmissionCount(session, session.currentQuestionIndex),
+    });
+    return;
+  }
+
+  if (session.state === "REVEAL" && questionOpenPayload && quiz) {
+    const question = quiz.questions[session.currentQuestionIndex];
+    socket.emit(SocketEvents.QUESTION_OPEN, questionOpenPayload);
+    socket.emit(SocketEvents.RESULTS_REVEAL, {
+      questionIndex: session.currentQuestionIndex,
+      correctOptions: question.correctOptions,
+      explanation: question.explanation,
+      distribution: getDistribution(session, session.currentQuestionIndex),
+    });
+    socket.emit(SocketEvents.ANSWER_COUNT, {
+      questionIndex: session.currentQuestionIndex,
+      ...getSubmissionCount(session, session.currentQuestionIndex),
+    });
+    return;
+  }
+
+  if (session.state === "LEADERBOARD" && quiz) {
+    const correctMap = new Map<number, string[]>();
+    quiz.questions.forEach((q, i) => correctMap.set(i, q.correctOptions));
+    const entries = computeLeaderboard(session, correctMap);
+    socket.emit(SocketEvents.LEADERBOARD_UPDATE, {
+      entries,
+      totalQuestions: quiz.questions.length,
+    });
+  }
+}
+
+function emitJoinStateSnapshot(socket: Socket, session: Session, isReconnect: boolean): void {
+  const questionOpenPayload = buildQuestionOpenPayload(session);
+  const quiz = quizStore.get(session.week);
+
+  if (!questionOpenPayload || !quiz) {
+    return;
+  }
+
+  const question = quiz.questions[session.currentQuestionIndex];
+
+  if (session.state === "QUESTION_OPEN") {
+    socket.emit(SocketEvents.QUESTION_OPEN, questionOpenPayload);
+    if (session.questionStartedAt) {
+      const elapsed = Math.floor((Date.now() - session.questionStartedAt) / 1000);
+      const remaining = Math.max(0, question.timeLimitSec - elapsed);
+      socket.emit(SocketEvents.QUESTION_TICK, { remainingSec: remaining });
+    }
+    return;
+  }
+
+  if (session.state === "QUESTION_CLOSED") {
+    socket.emit(SocketEvents.QUESTION_OPEN, questionOpenPayload);
+    socket.emit(SocketEvents.QUESTION_CLOSE, {
+      questionIndex: session.currentQuestionIndex,
+    });
+    return;
+  }
+
+  if (session.state === "REVEAL") {
+    // Late joiners who were not previously connected should wait for next question.
+    // Rejoiners get full reveal context so they can recover their previous view.
+    if (!isReconnect) {
+      return;
+    }
+    socket.emit(SocketEvents.QUESTION_OPEN, questionOpenPayload);
+    socket.emit(SocketEvents.RESULTS_REVEAL, {
+      questionIndex: session.currentQuestionIndex,
+      correctOptions: question.correctOptions,
+      explanation: question.explanation,
+      distribution: getDistribution(session, session.currentQuestionIndex),
+    });
+    return;
+  }
+
+  if (session.state === "LEADERBOARD") {
+    const correctMap = new Map<number, string[]>();
+    quiz.questions.forEach((q, i) => correctMap.set(i, q.correctOptions));
+    const entries = computeLeaderboard(session, correctMap);
+    socket.emit(SocketEvents.LEADERBOARD_UPDATE, {
+      entries,
+      totalQuestions: quiz.questions.length,
+    });
+  }
+}
+
 /**
  * Setup Socket.IO on an HTTP server.
  * Handles student:join, answer:submit, reconnection, and timer logic.
@@ -64,6 +217,7 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
 
     if (!sessionId) {
       socket.emit(SocketEvents.STUDENT_REJECTED, { reason: "Missing sessionId" });
+      logActivity(`reject socket=${socket.id} reason=missing-session-id`);
       socket.disconnect();
       return;
     }
@@ -71,12 +225,14 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
     const session = getSession(sessionId);
     if (!session) {
       socket.emit(SocketEvents.STUDENT_REJECTED, { reason: "Session not found" });
+      logActivity(`reject socket=${socket.id} session=${sessionId} reason=session-not-found`);
       socket.disconnect();
       return;
     }
 
     if (session.state === "ENDED") {
       socket.emit(SocketEvents.STUDENT_REJECTED, { reason: "Session has ended" });
+      logActivity(`reject socket=${socket.id} session=${sessionId} reason=session-ended`);
       socket.disconnect();
       return;
     }
@@ -89,17 +245,21 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
       const providedKey = socket.handshake.auth?.instructorKey as string | undefined;
       if (instructorKey && providedKey !== instructorKey) {
         socket.emit(SocketEvents.STUDENT_REJECTED, { reason: "Instructor key required" });
+        logActivity(`reject instructor socket=${socket.id} session=${sessionId} reason=bad-key`);
         socket.disconnect();
         return;
       }
       socket.join(sessionRoom(sessionId));
+      logActivity(`instructor connected session=${sessionId} socket=${socket.id}`);
 
       // Send current participant list immediately
       broadcastParticipants(io, session, sessionId);
+      emitInstructorStateSnapshot(socket, session);
 
       // Track disconnect for instructor
       socket.on("disconnect", () => {
         // Nothing to clean up for instructor; room membership is auto-removed by Socket.IO
+        logActivity(`instructor disconnected session=${sessionId} socket=${socket.id}`);
       });
     }
 
@@ -117,6 +277,7 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
           socket.id,
           payload.displayName?.trim(),
           payload.sessionToken,
+          payload.clientInstanceId,
         );
 
         // Join the session room
@@ -139,28 +300,19 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
         // Broadcast updated participant list to instructor
         broadcastParticipants(io, session, sessionId);
 
-        // If reconnecting during QUESTION_OPEN, send current question
-        if (isReconnect && session.state === "QUESTION_OPEN" && session.questionStartedAt) {
-          const quiz = quizStore.get(session.week);
-          if (quiz && session.currentQuestionIndex >= 0) {
-            const q = quiz.questions[session.currentQuestionIndex];
-            const elapsed = Math.floor((Date.now() - session.questionStartedAt) / 1000);
-            const remaining = Math.max(0, q.timeLimitSec - elapsed);
-            socket.emit(SocketEvents.QUESTION_OPEN, {
-              questionIndex: session.currentQuestionIndex,
-              topic: q.topic,
-              text: q.textHtml,
-              options: q.options.map((o) => ({ label: o.label, text: o.textHtml })),
-              timeLimitSec: q.timeLimitSec,
-              startedAt: session.questionStartedAt,
-            });
-            socket.emit(SocketEvents.QUESTION_TICK, { remainingSec: remaining });
-          }
-        }
+        logActivity(
+          `student ${isReconnect ? "rejoined" : "joined"} session=${sessionId} id=${participant.studentId} socket=${socket.id}`,
+        );
+
+        emitJoinStateSnapshot(socket, session, isReconnect);
+
       } catch (e) {
         socket.emit(SocketEvents.STUDENT_REJECTED, {
           reason: e instanceof Error ? e.message : "Join failed",
         });
+        logActivity(
+          `student rejected session=${sessionId} id=${payload.studentId || "unknown"} socket=${socket.id} reason=${e instanceof Error ? e.message : "join-failed"}`,
+        );
       }
     });
 
@@ -191,6 +343,9 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
           questionIndex: payload.questionIndex,
           reason: e instanceof Error ? e.message : "Submission failed",
         });
+        logActivity(
+          `answer rejected session=${sessionId} id=${studentId} q=${payload.questionIndex} reason=${e instanceof Error ? e.message : "submission-failed"}`,
+        );
       }
     });
 
@@ -203,6 +358,7 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
           p.connected = false;
         }
         broadcastParticipants(io, session, sessionId);
+        logActivity(`student disconnected session=${sessionId} id=${sid} socket=${socket.id}`);
       }
     });
   });
