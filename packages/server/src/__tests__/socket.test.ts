@@ -612,4 +612,160 @@ describe("Socket.IO Integration", () => {
       client.disconnect();
     });
   });
+
+  describe("instructor socket room join", () => {
+    function createInstructorClient(sessionId: string): ClientSocket {
+      return ioClient(baseUrl, {
+        autoConnect: false,
+        auth: { sessionId, role: "instructor" },
+        transports: ["websocket"],
+      });
+    }
+
+    it("instructor receives SESSION_PARTICIPANTS when a student joins", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      // Connect instructor first
+      const instructor = createInstructorClient(session.sessionId);
+      instructor.connect();
+      await new Promise<void>((resolve) => instructor.once("connect", resolve));
+
+      // Register listener for participant update
+      const participantsPromise = waitForEvent<{ count: number; participants: { studentId: string }[] }>(
+        instructor,
+        SocketEvents.SESSION_PARTICIPANTS,
+      );
+
+      // Student joins
+      const student = createClient(session.sessionId);
+      student.connect();
+      student.emit(SocketEvents.STUDENT_JOIN, {
+        studentId: "S001",
+        displayName: "Alice",
+      });
+
+      const participants = await participantsPromise;
+      expect(participants.count).toBe(1);
+      expect(participants.participants[0].studentId).toBe("S001");
+
+      instructor.disconnect();
+      student.disconnect();
+    });
+
+    it("instructor receives SESSION_STATE after REST state transition", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      // Connect instructor
+      const instructor = createInstructorClient(session.sessionId);
+      instructor.connect();
+      await new Promise<void>((resolve) => instructor.once("connect", resolve));
+
+      // Student joins (needed for realistic flow)
+      const student = createClient(session.sessionId);
+      student.connect();
+      const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+      student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      // Instructor should receive SESSION_STATE when quiz starts
+      const statePromise = waitForEvent<{ state: string }>(
+        instructor,
+        SocketEvents.SESSION_STATE,
+      );
+
+      // Transition state via session object (simulating REST onStateChange callback)
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+
+      // Broadcast via socket functions (same as index.ts onStateChange does)
+      // Use the io server to emit SESSION_STATE directly
+      ioServer.to(`session:${session.sessionId}`).emit(SocketEvents.SESSION_STATE, {
+        state: session.state,
+        questionIndex: session.currentQuestionIndex,
+      });
+
+      const stateData = await statePromise;
+      expect(stateData.state).toBe("QUESTION_OPEN");
+
+      clearSessionTimers(session.sessionId);
+      instructor.disconnect();
+      student.disconnect();
+    });
+
+    it("instructor receives initial participant list on connect", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      // Student joins first
+      const student = createClient(session.sessionId);
+      student.connect();
+      const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+      student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001", displayName: "Alice" });
+      await joinedPromise;
+
+      // Now instructor connects (student already in room)
+      const instructor = createInstructorClient(session.sessionId);
+
+      // Instructor should receive participants list immediately on connect
+      const participantsPromise = waitForEvent<{ count: number; participants: { studentId: string }[] }>(
+        instructor,
+        SocketEvents.SESSION_PARTICIPANTS,
+      );
+
+      instructor.connect();
+
+      const participants = await participantsPromise;
+      expect(participants.count).toBe(1);
+      expect(participants.participants[0].studentId).toBe("S001");
+
+      instructor.disconnect();
+      student.disconnect();
+    });
+
+    it("instructor receives ANSWER_COUNT when student submits", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      // Connect instructor
+      const instructor = createInstructorClient(session.sessionId);
+      instructor.connect();
+      await new Promise<void>((resolve) => instructor.once("connect", resolve));
+
+      // Student joins
+      const student = createClient(session.sessionId);
+      student.connect();
+      const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+      student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      // Open question
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+
+      // Instructor listens for answer count
+      const countPromise = waitForEvent<{ questionIndex: number; submitted: number; total: number }>(
+        instructor,
+        SocketEvents.ANSWER_COUNT,
+      );
+
+      // Student submits
+      student.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["B"],
+      });
+
+      const count = await countPromise;
+      expect(count.questionIndex).toBe(0);
+      expect(count.submitted).toBe(1);
+      expect(count.total).toBe(1);
+
+      clearSessionTimers(session.sessionId);
+      instructor.disconnect();
+      student.disconnect();
+    });
+  });
 });

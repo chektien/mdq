@@ -80,6 +80,22 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
       return;
     }
 
+    // ── Instructor auto-join room ──────────────
+    const role = socket.handshake.auth?.role as string
+      || socket.handshake.query?.role as string;
+
+    if (role === "instructor") {
+      socket.join(sessionRoom(sessionId));
+
+      // Send current participant list immediately
+      broadcastParticipants(io, session, sessionId);
+
+      // Track disconnect for instructor
+      socket.on("disconnect", () => {
+        // Nothing to clean up for instructor; room membership is auto-removed by Socket.IO
+      });
+    }
+
     // ── student:join ──────────────────────────
     socket.on(SocketEvents.STUDENT_JOIN, (payload: StudentJoinPayload) => {
       try {

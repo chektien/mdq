@@ -121,15 +121,16 @@ export default function InstructorView() {
         ) : (
           <div className="w-full max-w-md space-y-6">
             <div>
-              <label className="block text-zinc-400 text-sm mb-2 font-medium">Select Quiz</label>
+              <label htmlFor="quiz-select" className="block text-zinc-400 text-sm mb-2 font-medium">Select Quiz</label>
               <select
+                id="quiz-select"
                 value={selectedWeek}
                 onChange={(e) => setSelectedWeek(e.target.value)}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 {quizzes.map((q) => (
                   <option key={q.week} value={q.week}>
-                    {q.title} ({q.questionCount} questions)
+                    {q.title}{/\d+\s*question/i.test(q.title) ? "" : ` (${q.questionCount} questions)`}
                   </option>
                 ))}
               </select>

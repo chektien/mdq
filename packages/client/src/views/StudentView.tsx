@@ -15,6 +15,22 @@ export default function StudentView({ sessionCode }: { sessionCode?: string }) {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
 
+  // Clear error when user edits any input field
+  const handleCodeChange = useCallback((val: string) => {
+    setCode(val.toUpperCase());
+    if (joinError) setJoinError(null);
+  }, [joinError]);
+
+  const handleStudentIdChange = useCallback((val: string) => {
+    setStudentId(val);
+    if (joinError) setJoinError(null);
+  }, [joinError]);
+
+  const handleDisplayNameChange = useCallback((val: string) => {
+    setDisplayName(val);
+    if (joinError) setJoinError(null);
+  }, [joinError]);
+
   const sock = useSocket(sessionId, "student");
   const { connected, sessionToken, joinSession, error: sockError } = sock;
 
@@ -123,7 +139,7 @@ export default function StudentView({ sessionCode }: { sessionCode?: string }) {
             <input
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              onChange={(e) => handleCodeChange(e.target.value)}
               placeholder="ABC123"
               maxLength={6}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white text-center text-2xl font-mono tracking-[0.15em] placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -138,7 +154,7 @@ export default function StudentView({ sessionCode }: { sessionCode?: string }) {
             <input
               type="text"
               value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
+              onChange={(e) => handleStudentIdChange(e.target.value)}
               placeholder="e.g. 2301234"
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               autoComplete="off"
@@ -152,7 +168,7 @@ export default function StudentView({ sessionCode }: { sessionCode?: string }) {
             <input
               type="text"
               value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              onChange={(e) => handleDisplayNameChange(e.target.value)}
               placeholder="Your name"
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               autoComplete="off"
