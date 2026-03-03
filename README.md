@@ -28,6 +28,12 @@ This creates local `data/` directories and copies sample quizzes into `data/quiz
 ## Run
 
 ```bash
+# optional but recommended for admin protection
+export INSTRUCTOR_KEY="choose-a-strong-local-secret"
+
+# if running the client in Vite dev mode, mirror it for browser requests
+export VITE_INSTRUCTOR_KEY="$INSTRUCTOR_KEY"
+
 npm run start --workspace=@mdq/server
 ```
 
@@ -41,6 +47,12 @@ tailscale funnel 3000
 
 Then share the generated `https://<machine>.ts.net` URL (or short URL / QR shown in the instructor screen).
 
+Student QR behavior:
+
+- QR codes resolve directly to `/#/join/<SESSION_CODE>`
+- students land on the join page with the code pre-filled
+- instructor controls require the optional `INSTRUCTOR_KEY` when configured
+
 ## Why This Works
 
 mdq is optimized for a narrow classroom usage scenario:
@@ -51,6 +63,39 @@ mdq is optimized for a narrow classroom usage scenario:
 - markdown files as the source of truth
 
 Because sessions are short and operationally simple, you do not need a large multi-tenant cloud quiz stack with heavy admin workflows and feature bloat.
+
+## Architecture
+
+```text
+Instructor Browser                 Student Browsers
+       |                                 |
+       | REST (session control)          | Socket.IO (join/answer/reconnect)
+       |                                 |
+       +-------------+-------------------+
+                     |
+             Node.js + Express + Socket.IO (mdq server)
+                     |
+          +----------+-----------+
+          |                      |
+    Quiz source            Runtime output
+  data/quizzes/*.md      data/sessions/*.json
+                         data/submissions/*.json
+                         data/winners/*.json
+                         data/access/current.json (local only)
+```
+
+Design notes:
+
+- markdown files are the single source of truth for quiz content
+- live session state is in-memory for speed and simplicity
+- completed session artifacts are persisted to local flat files
+- access URL and QR generation are runtime concerns, not committed artifacts
+
+## Media Scope
+
+Images and embedded video in quiz content are a future enhancement.
+
+For now, mdq assumes image or video context is shown by the instructor in slides during class, while the quiz app handles prompts, options, explanations, and scoring.
 
 ## Security and Risk
 

@@ -36,6 +36,15 @@ export default function StudentView({ sessionCode }: { sessionCode?: string }) {
 
   // Try to restore session from localStorage on mount
   useEffect(() => {
+    if (sessionCode) {
+      try {
+        localStorage.removeItem("mdquiz_session");
+        localStorage.removeItem("mdquiz_pending_join");
+      } catch {
+        // ignore
+      }
+      return;
+    }
     try {
       const raw = localStorage.getItem("mdquiz_session");
       if (raw) {
@@ -48,7 +57,7 @@ export default function StudentView({ sessionCode }: { sessionCode?: string }) {
     } catch {
       // ignore
     }
-  }, []);
+  }, [sessionCode]);
 
   // Handle join: first resolve session code to sessionId, then connect socket
   const handleJoin = useCallback(async () => {
@@ -118,9 +127,11 @@ export default function StudentView({ sessionCode }: { sessionCode?: string }) {
   if (!sock.sessionToken) {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-6 p-6">
-        <a href="#/" className="absolute top-4 left-4 text-zinc-500 hover:text-zinc-300 text-sm">
-          &larr; Back
-        </a>
+        {!sessionCode && (
+          <a href="#/" className="absolute top-4 left-4 text-zinc-500 hover:text-zinc-300 text-sm">
+            &larr; Back
+          </a>
+        )}
 
         <div className="text-center">
           <h1 className="text-2xl font-bold text-white mb-1">Join Quiz</h1>

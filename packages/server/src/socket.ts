@@ -51,6 +51,7 @@ function sessionRoom(sessionId: string): string {
  */
 export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>): Server {
   quizStore = quizzes;
+  const instructorKey = (process.env.INSTRUCTOR_KEY || "").trim();
 
   const io = new Server(httpServer, {
     cors: { origin: "*", methods: ["GET", "POST"] },
@@ -85,6 +86,12 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
       || socket.handshake.query?.role as string;
 
     if (role === "instructor") {
+      const providedKey = socket.handshake.auth?.instructorKey as string | undefined;
+      if (instructorKey && providedKey !== instructorKey) {
+        socket.emit(SocketEvents.STUDENT_REJECTED, { reason: "Instructor key required" });
+        socket.disconnect();
+        return;
+      }
       socket.join(sessionRoom(sessionId));
 
       // Send current participant list immediately

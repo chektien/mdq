@@ -26,7 +26,7 @@ export const STATE_TRANSITIONS: Record<SessionState, readonly SessionState[]> = 
   QUESTION_OPEN: ["QUESTION_CLOSED"],
   QUESTION_CLOSED: ["REVEAL"],
   REVEAL: ["QUESTION_OPEN", "LEADERBOARD"],
-  LEADERBOARD: ["ENDED"],
+  LEADERBOARD: ["REVEAL", "ENDED"],
   ENDED: [],
 };
 
@@ -162,6 +162,8 @@ export const API = {
   SESSION_END: "/api/session/:id/end",
   SESSION_LEADERBOARD: "/api/session/:id/leaderboard",
   SESSION_LEADERBOARD_SHOW: "/api/session/:id/leaderboard-show",
+  SESSION_LEADERBOARD_HIDE: "/api/session/:id/leaderboard-hide",
+  SESSION_ACCESS_INFO: "/api/session/:id/access-info",
   SESSION_BY_CODE: "/api/session/by-code/:code",
   ACCESS_INFO: "/api/access-info",
   QR_CODE: "/api/qr/:sessionId.png",

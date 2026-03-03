@@ -6,6 +6,7 @@ import {
   WeeklyResult,
   CumulativeLeaderboardEntry,
   Quiz,
+  Submission,
   DATA_DIR,
 } from "@mdq/shared";
 import { computeLeaderboard } from "./session";
@@ -82,6 +83,101 @@ export function saveSubmissions(session: Session, baseDir?: string): void {
 
   const filePath = path.join(dir, `${session.sessionId}.json`);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+}
+
+function csvEscape(value: string | number | boolean): string {
+  const raw = String(value);
+  if (raw.includes(",") || raw.includes("\n") || raw.includes('"')) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
+function isSubmissionCorrect(submission: Submission, correctOptions: string[]): boolean {
+  return (
+    submission.selectedOptions.length === correctOptions.length
+    && submission.selectedOptions.every((opt) => correctOptions.includes(opt))
+  );
+}
+
+/**
+ * Save per-student quiz results as CSV to data/submissions/<sessionId>.csv.
+ * Intended for attendance and lightweight spreadsheet workflows.
+ */
+export function saveResultsCsv(session: Session, quiz: Quiz, baseDir?: string): void {
+  const dir = submissionsDir(baseDir);
+  ensureDir(dir);
+
+  const correctMap = new Map<number, string[]>();
+  quiz.questions.forEach((q, i) => correctMap.set(i, q.correctOptions));
+  const leaderboard = computeLeaderboard(session, correctMap);
+  const boardMap = new Map(leaderboard.map((entry) => [entry.studentId, entry]));
+
+  const submissionsByStudent = new Map<string, Map<number, Submission>>();
+  for (const sub of session.submissions) {
+    if (!submissionsByStudent.has(sub.studentId)) {
+      submissionsByStudent.set(sub.studentId, new Map<number, Submission>());
+    }
+    submissionsByStudent.get(sub.studentId)!.set(sub.questionIndex, sub);
+  }
+
+  const headers = [
+    "session_id",
+    "session_code",
+    "week",
+    "student_id",
+    "display_name",
+    "joined_at_iso",
+    "connected_at_end",
+    "questions_answered",
+    "correct_count",
+    "total_time_ms",
+    "attendance",
+  ];
+
+  for (let i = 0; i < quiz.questions.length; i++) {
+    headers.push(`q${i + 1}_selected`);
+    headers.push(`q${i + 1}_correct`);
+    headers.push(`q${i + 1}_response_ms`);
+  }
+
+  const rows: string[] = [headers.join(",")];
+
+  const participants = [...session.participants.values()].sort((a, b) => a.studentId.localeCompare(b.studentId));
+  for (const participant of participants) {
+    const subs = submissionsByStudent.get(participant.studentId) || new Map<number, Submission>();
+    const stats = boardMap.get(participant.studentId);
+
+    const row: (string | number | boolean)[] = [
+      session.sessionId,
+      session.sessionCode,
+      session.week,
+      participant.studentId,
+      participant.displayName || "",
+      new Date(participant.joinedAt).toISOString(),
+      participant.connected,
+      subs.size,
+      stats?.correctCount ?? 0,
+      stats?.totalTimeMs ?? 0,
+      "present",
+    ];
+
+    for (let i = 0; i < quiz.questions.length; i++) {
+      const sub = subs.get(i);
+      if (!sub) {
+        row.push("", "", "");
+        continue;
+      }
+      row.push(sub.selectedOptions.join("|"));
+      row.push(isSubmissionCorrect(sub, correctMap.get(i) || []) ? 1 : 0);
+      row.push(sub.responseTimeMs);
+    }
+
+    rows.push(row.map(csvEscape).join(","));
+  }
+
+  const filePath = path.join(dir, `${session.sessionId}.csv`);
+  fs.writeFileSync(filePath, `${rows.join("\n")}\n`, "utf-8");
 }
 
 // ── Weekly winners persistence ──────────────
@@ -268,6 +364,12 @@ export function persistSessionOnEnd(
     saveSubmissions(session, baseDir);
   } catch (e) {
     console.error(`Failed to save submissions for ${session.sessionId}:`, e);
+  }
+
+  try {
+    saveResultsCsv(session, quiz, baseDir);
+  } catch (e) {
+    console.error(`Failed to save results CSV for ${session.sessionId}:`, e);
   }
 
   try {

@@ -12,7 +12,7 @@ import {
 } from "./session";
 import { parseQuizMarkdown } from "./parser";
 import { persistSessionOnEnd, computeCumulativeLeaderboard } from "./persistence";
-import { getCachedAccessInfo } from "./access-info";
+import { getCachedAccessInfo, generateQrDataUrl, generateShortUrl } from "./access-info";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -27,6 +27,20 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   const app = express();
   app.use(cors());
   app.use(express.json());
+  const instructorKey = (process.env.INSTRUCTOR_KEY || "").trim();
+
+  function requireInstructorKey(req: express.Request, res: express.Response, next: express.NextFunction): void {
+    if (!instructorKey) {
+      next();
+      return;
+    }
+    const provided = req.header("x-instructor-key") || "";
+    if (provided !== instructorKey) {
+      res.status(403).json({ error: "Instructor key required" });
+      return;
+    }
+    next();
+  }
 
   // Parse options
   let quizDir: string | undefined;
@@ -86,6 +100,11 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     }
   }
 
+  function buildJoinUrl(baseUrl: string, sessionCode: string): string {
+    const normalized = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+    return `${normalized}/#/join/${sessionCode}`;
+  }
+
   // Expose for testing and socket setup
   (app as unknown as { _quizzes: Map<string, Quiz>; _dataDir?: string })._quizzes = quizzes;
   (app as unknown as { _quizzes: Map<string, Quiz>; _dataDir?: string })._dataDir = dataDir;
@@ -106,7 +125,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     res.json(list);
   });
 
-  app.post(API.QUIZZES_RELOAD, (_req, res) => {
+  app.post(API.QUIZZES_RELOAD, requireInstructorKey, (_req, res) => {
     if (!quizDir) {
       return res.status(400).json({ error: "Quiz directory is not configured" });
     }
@@ -137,7 +156,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   });
 
   // ── Session lifecycle ─────────────────────
-  app.post(API.SESSION_CREATE, (req, res) => {
+  app.post(API.SESSION_CREATE, requireInstructorKey, (req, res) => {
     const { week, mode = "open" } = req.body;
     if (!week) {
       return res.status(400).json({ error: "Missing required field: week" });
@@ -151,7 +170,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     res.status(201).json({
       sessionId: session.sessionId,
       sessionCode: session.sessionCode,
-      joinUrl: `/join/${session.sessionCode}`,
+      joinUrl: `/#/join/${session.sessionCode}`,
     });
   });
 
@@ -182,7 +201,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     callback(session);
   }
 
-  app.post(API.SESSION_START, (req, res) => {
+  app.post(API.SESSION_START, requireInstructorKey, (req, res) => {
     withSession(req, res, (session) => {
       try {
         transitionState(session, "QUESTION_OPEN");
@@ -200,7 +219,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     });
   });
 
-  app.post(API.SESSION_NEXT, (req, res) => {
+  app.post(API.SESSION_NEXT, requireInstructorKey, (req, res) => {
     withSession(req, res, (session) => {
       const quiz = getQuizForSession(session.week);
       if (!quiz) {
@@ -225,7 +244,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     });
   });
 
-  app.post(API.SESSION_CLOSE, (req, res) => {
+  app.post(API.SESSION_CLOSE, requireInstructorKey, (req, res) => {
     withSession(req, res, (session) => {
       try {
         transitionState(session, "QUESTION_CLOSED");
@@ -241,7 +260,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     });
   });
 
-  app.post(API.SESSION_REVEAL, (req, res) => {
+  app.post(API.SESSION_REVEAL, requireInstructorKey, (req, res) => {
     withSession(req, res, (session) => {
       try {
         transitionState(session, "REVEAL");
@@ -257,7 +276,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     });
   });
 
-  app.post(API.SESSION_END, (req, res) => {
+  app.post(API.SESSION_END, requireInstructorKey, (req, res) => {
     withSession(req, res, (session) => {
       try {
         // Allow ending from LEADERBOARD or REVEAL
@@ -289,13 +308,30 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   });
 
   // Show leaderboard (REVEAL -> LEADERBOARD, without ending)
-  app.post(API.SESSION_LEADERBOARD_SHOW, (req, res) => {
+  app.post(API.SESSION_LEADERBOARD_SHOW, requireInstructorKey, (req, res) => {
     withSession(req, res, (session) => {
       try {
         transitionState(session, "LEADERBOARD");
         const quiz = getQuizForSession(session.week);
         notifyStateChange(session, req.params.id, quiz);
         res.json({ state: session.state });
+      } catch (e) {
+        if (e instanceof StateTransitionError) {
+          return res.status(400).json({ error: e.message });
+        }
+        throw e;
+      }
+    });
+  });
+
+  // Hide leaderboard (LEADERBOARD -> REVEAL, continue quiz flow)
+  app.post(API.SESSION_LEADERBOARD_HIDE, requireInstructorKey, (req, res) => {
+    withSession(req, res, (session) => {
+      try {
+        transitionState(session, "REVEAL");
+        const quiz = getQuizForSession(session.week);
+        notifyStateChange(session, req.params.id, quiz);
+        res.json({ state: session.state, questionIndex: session.currentQuestionIndex });
       } catch (e) {
         if (e instanceof StateTransitionError) {
           return res.status(400).json({ error: e.message });
@@ -350,6 +386,38 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         detectedAt: Date.now(),
       });
     }
+  });
+
+  app.get(API.SESSION_ACCESS_INFO, requireInstructorKey, async (req, res) => {
+    const session = getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    const fallbackBase = `http://localhost:${process.env.PORT || 3000}`;
+    const baseInfo = getCachedAccessInfo() || {
+      fullUrl: fallbackBase,
+      shortUrl: "",
+      qrCodeDataUrl: "",
+      qrTargetUrl: fallbackBase,
+      source: "lan-fallback" as const,
+      warning: "Access info not yet detected. Server may still be starting.",
+      detectedAt: Date.now(),
+    };
+
+    const joinFullUrl = buildJoinUrl(baseInfo.fullUrl, session.sessionCode);
+    const joinShortUrl = await generateShortUrl(joinFullUrl);
+    const qrCodeDataUrl = await generateQrDataUrl(joinFullUrl);
+
+    return res.json({
+      fullUrl: joinFullUrl,
+      shortUrl: joinShortUrl,
+      qrCodeDataUrl,
+      qrTargetUrl: joinFullUrl,
+      source: baseInfo.source,
+      warning: baseInfo.warning,
+      detectedAt: Date.now(),
+    });
   });
 
   return app;

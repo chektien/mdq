@@ -11,7 +11,8 @@ import {
   revealAnswer,
   endSession,
   showLeaderboard,
-  fetchAccessInfo,
+  hideLeaderboard,
+  fetchSessionAccessInfo,
   type QuizSummary,
   type CreateSessionResponse,
 } from "../hooks/api";
@@ -24,6 +25,7 @@ import QRPanel from "../components/QRPanel";
 type InstructorPhase = "setup" | "lobby" | "live" | "ended";
 
 export default function InstructorView() {
+  const instructorKey = (import.meta as { env?: { VITE_INSTRUCTOR_KEY?: string } }).env?.VITE_INSTRUCTOR_KEY || "";
   // Setup state
   const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<string>("");
@@ -37,7 +39,7 @@ export default function InstructorView() {
   const [totalQuestionsInQuiz, setTotalQuestionsInQuiz] = useState(0);
 
   // Socket connection (instructor role)
-  const sock = useSocket(sessionInfo?.sessionId ?? null, "instructor");
+  const sock = useSocket(sessionInfo?.sessionId ?? null, "instructor", instructorKey);
 
   // Derive phase from socket session state
   useEffect(() => {
@@ -71,9 +73,9 @@ export default function InstructorView() {
       if (quiz) setTotalQuestionsInQuiz(quiz.questionCount);
       setPhase("lobby");
 
-      // Fetch access info for QR/URL display
+      // Fetch session-specific access info for QR/URL display
       try {
-        const ai = await fetchAccessInfo();
+        const ai = await fetchSessionAccessInfo(info.sessionId);
         setAccessInfo(ai);
       } catch {
         // Non-critical
@@ -115,6 +117,15 @@ export default function InstructorView() {
     },
     [],
   );
+
+  const handleBackToSetup = useCallback(() => {
+    sock.disconnect();
+    setSessionInfo(null);
+    setAccessInfo(null);
+    setTotalQuestionsInQuiz(0);
+    setErrorMsg(null);
+    setPhase("setup");
+  }, [sock]);
 
   const sid = sessionInfo?.sessionId ?? "";
 
@@ -176,6 +187,12 @@ export default function InstructorView() {
   if (phase === "lobby") {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-8 p-8">
+        <button
+          onClick={handleBackToSetup}
+          className="absolute top-6 left-6 text-zinc-500 hover:text-zinc-300 text-sm"
+        >
+          &larr; Back to Setup
+        </button>
         <h1 className="text-2xl font-bold text-white">Waiting for Students</h1>
 
         {/* QR + Join Info */}
@@ -184,7 +201,6 @@ export default function InstructorView() {
             qrDataUrl={accessInfo.qrCodeDataUrl}
             fullUrl={accessInfo.fullUrl}
             shortUrl={accessInfo.shortUrl}
-            qrTargetUrl={accessInfo.qrTargetUrl}
             sessionCode={sessionInfo.sessionCode}
           />
         )}
@@ -263,6 +279,8 @@ export default function InstructorView() {
     <LiveView
       sock={sock}
       sessionId={sid}
+      sessionCode={sessionInfo?.sessionCode || ""}
+      accessInfo={accessInfo}
       totalQuestionsInQuiz={totalQuestionsInQuiz}
       loading={loading}
       errorMsg={errorMsg}
@@ -276,6 +294,8 @@ export default function InstructorView() {
 function LiveView({
   sock,
   sessionId,
+  sessionCode,
+  accessInfo,
   totalQuestionsInQuiz,
   loading,
   errorMsg,
@@ -283,6 +303,8 @@ function LiveView({
 }: {
   sock: ReturnType<typeof useSocket>;
   sessionId: string;
+  sessionCode: string;
+  accessInfo: AccessInfo | null;
   totalQuestionsInQuiz: number;
   loading: boolean;
   errorMsg: string | null;
@@ -291,6 +313,35 @@ function LiveView({
   const state = sock.sessionState as SessionState;
   const q = sock.currentQuestion as QuestionState | null;
   const rev = sock.reveal as RevealState | null;
+
+  const [reviewQuestionIndex, setReviewQuestionIndex] = useState<number | null>(null);
+  const [questionCache, setQuestionCache] = useState<Record<number, QuestionState>>({});
+  const [revealCache, setRevealCache] = useState<Record<number, RevealState>>({});
+
+  useEffect(() => {
+    if (!q) return;
+    setQuestionCache((prev) => ({ ...prev, [q.questionIndex]: q }));
+  }, [q]);
+
+  useEffect(() => {
+    if (!rev) return;
+    setRevealCache((prev) => ({ ...prev, [rev.questionIndex]: rev }));
+  }, [rev]);
+
+  const isReviewing = reviewQuestionIndex !== null;
+  const liveQuestionIndex = q?.questionIndex ?? rev?.questionIndex ?? -1;
+  const availableRevealIndices = Object.keys(revealCache)
+    .map((idx) => parseInt(idx, 10))
+    .filter((idx) => !Number.isNaN(idx))
+    .sort((a, b) => a - b);
+  const latestPriorReveal = availableRevealIndices.filter((idx) => idx < liveQuestionIndex).pop();
+
+  const displayQuestion = isReviewing && reviewQuestionIndex !== null
+    ? questionCache[reviewQuestionIndex] ?? null
+    : q;
+  const displayReveal = isReviewing && reviewQuestionIndex !== null
+    ? revealCache[reviewQuestionIndex] ?? null
+    : rev;
 
   // Determine which controls to show
   const canClose = state === "QUESTION_OPEN";
@@ -306,14 +357,14 @@ function LiveView({
       {/* Top bar: question progress + timer + participant count */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          {q && (
+          {displayQuestion && (
             <span className="text-zinc-400 text-lg font-medium">
-              Q{q.questionIndex + 1}/{totalQuestionsInQuiz}
+              Q{displayQuestion.questionIndex + 1}/{totalQuestionsInQuiz}
             </span>
           )}
-          {q && (
+          {displayQuestion && (
             <span className="text-zinc-600 text-sm">
-              {q.topic}
+              {displayQuestion.topic}
             </span>
           )}
         </div>
@@ -327,35 +378,43 @@ function LiveView({
           <span className="text-zinc-500 tabular-nums">
             {sock.participants?.count ?? 0} online
           </span>
+          {isReviewing && reviewQuestionIndex !== null && (
+            <span className="text-amber-300 text-sm font-medium">
+              Reviewing Q{reviewQuestionIndex + 1} (students stay on live state)
+            </span>
+          )}
         </div>
       </div>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col items-center justify-center gap-8 max-w-4xl mx-auto w-full">
         {/* Question display (for QUESTION_OPEN, QUESTION_CLOSED) */}
-        {q && (state === "QUESTION_OPEN" || state === "QUESTION_CLOSED") && (
+        {displayQuestion && (((state === "QUESTION_OPEN" || state === "QUESTION_CLOSED") && !isReviewing) || (isReviewing && !displayReveal)) && (
           <>
             {/* Timer */}
-            {state === "QUESTION_OPEN" && (
+            {state === "QUESTION_OPEN" && !isReviewing && (
               <Timer
                 remainingSec={sock.remainingSec}
-                totalSec={q.timeLimitSec}
+                totalSec={displayQuestion.timeLimitSec}
                 size={140}
               />
             )}
-            {state === "QUESTION_CLOSED" && (
+            {state === "QUESTION_CLOSED" && !isReviewing && (
               <div className="text-amber-400 text-2xl font-bold">Time's up</div>
+            )}
+            {isReviewing && (
+              <div className="text-amber-300 text-lg font-semibold">Review Mode</div>
             )}
 
             {/* Question text */}
             <div
               className="quiz-html text-2xl lg:text-3xl text-white text-center leading-relaxed max-w-3xl"
-              dangerouslySetInnerHTML={{ __html: q.text }}
+              dangerouslySetInnerHTML={{ __html: displayQuestion.text }}
             />
 
             {/* Options (display only, no interaction on instructor) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
-              {q.options.map((opt) => (
+              {displayQuestion.options.map((opt) => (
                 <div
                   key={opt.label}
                   className="bg-zinc-800 border border-zinc-700 rounded-xl px-5 py-4 flex items-start gap-3"
@@ -372,14 +431,14 @@ function LiveView({
             </div>
 
             {/* Distribution (visible after close) */}
-            {state === "QUESTION_CLOSED" && sock.distribution && (
+            {state === "QUESTION_CLOSED" && !isReviewing && sock.distribution && (
               <div className="w-full max-w-2xl mt-4">
                 <h3 className="text-zinc-400 text-sm uppercase tracking-wide mb-3 font-medium">
                   Response Distribution
                 </h3>
                 <DistributionChart
                   distribution={sock.distribution.distribution}
-                  labels={q.options.map((o) => o.label)}
+                  labels={displayQuestion.options.map((o) => o.label)}
                 />
               </div>
             )}
@@ -387,33 +446,33 @@ function LiveView({
         )}
 
         {/* Reveal view */}
-        {rev && state === "REVEAL" && q && (
+        {displayReveal && (((state === "REVEAL" && displayQuestion && !isReviewing) || (isReviewing && displayQuestion))) && (
           <>
             <div
               className="quiz-html text-xl lg:text-2xl text-zinc-300 text-center leading-relaxed max-w-3xl"
-              dangerouslySetInnerHTML={{ __html: q.text }}
+              dangerouslySetInnerHTML={{ __html: displayQuestion.text }}
             />
 
             <div className="w-full max-w-2xl">
               <DistributionChart
-                distribution={rev.distribution}
-                correctOptions={rev.correctOptions}
-                labels={q.options.map((o) => o.label)}
+                distribution={displayReveal.distribution}
+                correctOptions={displayReveal.correctOptions}
+                labels={displayQuestion.options.map((o) => o.label)}
                 showCorrect
               />
             </div>
 
-            {rev.explanation && (
+            {displayReveal.explanation && (
               <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-2xl w-full">
                 <h3 className="text-emerald-400 font-semibold mb-2">Explanation</h3>
-                <p className="text-emerald-100 text-lg leading-relaxed">{rev.explanation}</p>
+                <p className="text-emerald-100 text-lg leading-relaxed">{displayReveal.explanation}</p>
               </div>
             )}
           </>
         )}
 
         {/* Leaderboard view */}
-        {state === "LEADERBOARD" && (
+        {state === "LEADERBOARD" && !isReviewing && (
           <div className="w-full">
             <h2 className="text-2xl font-bold text-white text-center mb-6">Leaderboard</h2>
             <Leaderboard
@@ -435,7 +494,47 @@ function LiveView({
       {/* Control bar (sticky bottom) */}
       <div className="sticky bottom-0 bg-[#0f1117]/90 backdrop-blur-sm border-t border-zinc-800 py-4 -mx-6 px-6 lg:-mx-10 lg:px-10 mt-8">
         <div className="flex items-center justify-center gap-4 flex-wrap">
-          {canClose && (
+          {!isReviewing && latestPriorReveal !== undefined && (
+            <button
+              onClick={() => setReviewQuestionIndex(latestPriorReveal)}
+              className="bg-zinc-700 hover:bg-zinc-600 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
+            >
+              Review Previous
+            </button>
+          )}
+          {isReviewing && reviewQuestionIndex !== null && (
+            <button
+              onClick={() => {
+                const idx = availableRevealIndices.findIndex((v) => v === reviewQuestionIndex);
+                if (idx > 0) setReviewQuestionIndex(availableRevealIndices[idx - 1]);
+              }}
+              disabled={availableRevealIndices.findIndex((v) => v === reviewQuestionIndex) <= 0}
+              className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
+            >
+              Prev Review
+            </button>
+          )}
+          {isReviewing && reviewQuestionIndex !== null && (
+            <button
+              onClick={() => {
+                const idx = availableRevealIndices.findIndex((v) => v === reviewQuestionIndex);
+                if (idx >= 0 && idx < availableRevealIndices.length - 1) setReviewQuestionIndex(availableRevealIndices[idx + 1]);
+              }}
+              disabled={availableRevealIndices.findIndex((v) => v === reviewQuestionIndex) >= availableRevealIndices.length - 1}
+              className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
+            >
+              Next Review
+            </button>
+          )}
+          {isReviewing && (
+            <button
+              onClick={() => setReviewQuestionIndex(null)}
+              className="bg-zinc-700 hover:bg-zinc-600 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
+            >
+              Back to Live
+            </button>
+          )}
+          {!isReviewing && canClose && (
             <button
               onClick={() => onAction(() => closeQuestion(sessionId), "close")}
               disabled={loading}
@@ -444,7 +543,7 @@ function LiveView({
               Close Question
             </button>
           )}
-          {canReveal && (
+          {!isReviewing && canReveal && (
             <button
               onClick={() => onAction(() => revealAnswer(sessionId), "reveal")}
               disabled={loading}
@@ -453,7 +552,7 @@ function LiveView({
               Reveal Answer
             </button>
           )}
-          {canNext && (
+          {!isReviewing && canNext && (
             <button
               onClick={() => onAction(() => nextQuestion(sessionId), "next")}
               disabled={loading}
@@ -462,7 +561,7 @@ function LiveView({
               Next Question
             </button>
           )}
-          {canShowLeaderboard && (
+          {!isReviewing && canShowLeaderboard && (
             <button
               onClick={() => onAction(() => showLeaderboard(sessionId), "leaderboard")}
               disabled={loading}
@@ -471,7 +570,16 @@ function LiveView({
               Show Leaderboard
             </button>
           )}
-          {state === "LEADERBOARD" && (
+          {!isReviewing && state === "LEADERBOARD" && (
+            <button
+              onClick={() => onAction(() => hideLeaderboard(sessionId), "resume")}
+              disabled={loading}
+              className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
+            >
+              Back to Quiz
+            </button>
+          )}
+          {!isReviewing && state === "LEADERBOARD" && (
             <button
               onClick={() => onAction(() => endSession(sessionId), "end")}
               disabled={loading}
@@ -482,6 +590,21 @@ function LiveView({
           )}
         </div>
       </div>
+
+      {accessInfo && sessionCode && (
+        <div className="fixed top-4 right-4 z-20 bg-white text-zinc-900 rounded-xl shadow-xl border border-zinc-200 p-3 w-44">
+          {accessInfo.qrCodeDataUrl && (
+            <img
+              src={accessInfo.qrCodeDataUrl}
+              alt="Join QR"
+              className="w-full h-auto rounded-lg"
+            />
+          )}
+          <p className="text-[11px] text-zinc-500 mt-2 uppercase tracking-wide">Session Code</p>
+          <p className="font-mono text-xl font-bold tracking-[0.12em]">{sessionCode}</p>
+          <p className="text-[11px] text-zinc-500 mt-1">{sock.participants?.count ?? 0} online</p>
+        </div>
+      )}
     </div>
   );
 }

@@ -87,6 +87,15 @@ describe("Session Engine", () => {
       expect(session.state).toBe("LEADERBOARD");
     });
 
+    it("allows LEADERBOARD -> REVEAL for instructor resume", () => {
+      transitionState(session, "QUESTION_OPEN");
+      transitionState(session, "QUESTION_CLOSED");
+      transitionState(session, "REVEAL");
+      transitionState(session, "LEADERBOARD");
+      transitionState(session, "REVEAL");
+      expect(session.state).toBe("REVEAL");
+    });
+
     it("validates all transitions in STATE_TRANSITIONS map", () => {
       // Exhaustive check: every invalid pair is rejected
       const allStates: SessionState[] = [

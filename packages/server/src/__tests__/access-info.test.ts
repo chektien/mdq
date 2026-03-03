@@ -229,7 +229,7 @@ describe("detectAccessInfo", () => {
     expect(info.source).toBe("tailscale");
     expect(info.fullUrl).toBe("https://quiz-host.tailnet.ts.net");
     expect(info.shortUrl).toBe("https://short.url/quiz");
-    expect(info.qrTargetUrl).toBe("https://short.url/quiz");
+    expect(info.qrTargetUrl).toBe("https://quiz-host.tailnet.ts.net");
     expect(info.qrCodeDataUrl).toMatch(/^data:image\/png;base64,/);
     expect(info.warning).toBeUndefined();
     expect(typeof info.detectedAt).toBe("number");
@@ -290,7 +290,7 @@ describe("getCachedAccessInfo / setCachedAccessInfo", () => {
       fullUrl: "https://test.ts.net",
       shortUrl: "https://t.ly/test",
       qrCodeDataUrl: "data:image/png;base64,abc",
-      qrTargetUrl: "https://t.ly/test",
+      qrTargetUrl: "https://test.ts.net",
       source: "tailscale" as const,
       detectedAt: Date.now(),
     };

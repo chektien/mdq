@@ -168,8 +168,8 @@ export async function detectAccessInfo(
   // Generate short URL
   const shortUrl = await generateShortUrl(fullUrl, shortUrlProviders);
 
-  // Generate QR code. Prefer short URL when available.
-  const qrTargetUrl = shortUrl || fullUrl;
+  // Generate QR code from direct service URL (no shortener interstitial).
+  const qrTargetUrl = fullUrl;
   const qrCodeDataUrl = await generateQrDataUrl(qrTargetUrl);
 
   const info: AccessInfo = {

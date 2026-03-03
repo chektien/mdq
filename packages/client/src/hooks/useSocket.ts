@@ -95,7 +95,11 @@ export interface UseSocketReturn {
   disconnect: () => void;
 }
 
-export function useSocket(sessionId: string | null, role: "student" | "instructor"): UseSocketReturn {
+export function useSocket(
+  sessionId: string | null,
+  role: "student" | "instructor",
+  instructorKey?: string,
+): UseSocketReturn {
   const socketRef = useRef<Socket | null>(null);
   const answeredQuestionsRef = useRef<number[]>([]);
   const [connected, setConnected] = useState(false);
@@ -125,7 +129,7 @@ export function useSocket(sessionId: string | null, role: "student" | "instructo
     if (!sessionId) return;
 
     const socket = io({
-      auth: { sessionId, role },
+      auth: { sessionId, role, instructorKey },
       query: { sessionId },
       transports: ["websocket", "polling"],
     });
@@ -175,6 +179,10 @@ export function useSocket(sessionId: string | null, role: "student" | "instructo
 
     socket.on(SocketEvents.STUDENT_REJECTED, (data: { reason: string }) => {
       setError(data.reason);
+      const reason = data.reason.toLowerCase();
+      if (reason.includes("ended") || reason.includes("not found")) {
+        clearStoredSession();
+      }
     });
 
     // ── Question lifecycle ─────────────────
@@ -264,7 +272,7 @@ export function useSocket(sessionId: string | null, role: "student" | "instructo
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [sessionId, role]);
+  }, [sessionId, role, instructorKey]);
 
   const joinSession = useCallback(
     (studentId: string, displayName?: string) => {

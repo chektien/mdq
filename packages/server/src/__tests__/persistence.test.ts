@@ -4,6 +4,7 @@ import * as os from "os";
 import {
   saveSessionSnapshot,
   saveSubmissions,
+  saveResultsCsv,
   saveWeeklyResult,
   loadWeeklyResult,
   loadAllWeeklyResults,
@@ -122,6 +123,46 @@ describe("Persistence", () => {
       expect(data.sessionId).toBe(session.sessionId);
       expect(data.submissionCount).toBe(5);
       expect(data.submissions).toHaveLength(5);
+    });
+  });
+
+  describe("saveResultsCsv", () => {
+    it("writes per-student CSV with one row per studentId", () => {
+      const session = createSession("week01", "open");
+      const quiz = makeQuiz("week01", 2);
+
+      const firstJoin = addParticipant(session, "s001", "sock1", "Alice");
+      // Rejoin with same token should not create a second participant row
+      addParticipant(session, "s001", "sock2", "Alice", firstJoin.participant.sessionToken);
+      addParticipant(session, "s002", "sock3", "Bob");
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() - 1000;
+      recordSubmission(session, "s001", 0, ["A"]);
+
+      transitionState(session, "QUESTION_CLOSED");
+      transitionState(session, "REVEAL");
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 1;
+      session.questionStartedAt = Date.now() - 1500;
+      recordSubmission(session, "s001", 1, ["B"]);
+      recordSubmission(session, "s002", 1, ["A"]);
+
+      saveResultsCsv(session, quiz, tempDir);
+
+      const csvPath = path.join(tempDir, "submissions", `${session.sessionId}.csv`);
+      expect(fs.existsSync(csvPath)).toBe(true);
+
+      const lines = fs.readFileSync(csvPath, "utf-8").trim().split("\n");
+      expect(lines.length).toBe(3); // header + s001 + s002
+      expect(lines[0]).toContain("student_id");
+      expect(lines[0]).toContain("q1_selected");
+      expect(lines[0]).toContain("q2_correct");
+
+      const s001Rows = lines.filter((line) => line.includes(",s001,"));
+      expect(s001Rows).toHaveLength(1);
+      expect(s001Rows[0]).toContain("present");
     });
   });
 
@@ -285,6 +326,7 @@ describe("Persistence", () => {
 
       expect(fs.existsSync(path.join(tempDir, "sessions", `${session.sessionId}.json`))).toBe(true);
       expect(fs.existsSync(path.join(tempDir, "submissions", `${session.sessionId}.json`))).toBe(true);
+      expect(fs.existsSync(path.join(tempDir, "submissions", `${session.sessionId}.csv`))).toBe(true);
       expect(fs.existsSync(path.join(tempDir, "winners", "week01.json"))).toBe(true);
     });
 

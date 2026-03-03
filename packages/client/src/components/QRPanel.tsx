@@ -3,13 +3,11 @@ export default function QRPanel({
   qrDataUrl,
   fullUrl,
   shortUrl,
-  qrTargetUrl,
   sessionCode,
 }: {
   qrDataUrl: string;
   fullUrl: string;
   shortUrl: string;
-  qrTargetUrl: string;
   sessionCode: string;
 }) {
   const primaryUrl = shortUrl || fullUrl;
@@ -45,8 +43,6 @@ export default function QRPanel({
         >
           {primaryUrl}
         </a>
-        {shortUrl && <p className="text-zinc-400 text-sm break-all">Fallback URL: {fullUrl}</p>}
-        <p className="text-zinc-400 text-xs break-all">QR points to: {qrTargetUrl}</p>
       </div>
     </div>
   );

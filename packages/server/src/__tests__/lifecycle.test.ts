@@ -176,5 +176,31 @@ describe("REST API", () => {
       expect(res.body.entries).toBeDefined();
       expect(res.body.totalQuestions).toBe(3);
     });
+
+    it("returns session-specific join access info", async () => {
+      const createRes = await request(app)
+        .post("/api/session")
+        .send({ week: "week01" })
+        .expect(201);
+
+      const res = await request(app)
+        .get(`/api/session/${createRes.body.sessionId}/access-info`)
+        .expect(200);
+
+      expect(res.body.fullUrl).toContain(`/#/join/${createRes.body.sessionCode}`);
+      expect(res.body.qrTargetUrl).toContain(`/#/join/${createRes.body.sessionCode}`);
+    });
+
+    it("allows LEADERBOARD -> REVEAL resume", async () => {
+      await request(app).post(`/api/session/${sessionId}/start`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/leaderboard-show`).expect(200);
+
+      const res = await request(app)
+        .post(`/api/session/${sessionId}/leaderboard-hide`)
+        .expect(200);
+      expect(res.body.state).toBe("REVEAL");
+    });
   });
 });

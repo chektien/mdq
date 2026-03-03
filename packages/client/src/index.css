@@ -39,9 +39,16 @@ body {
   padding: 1em;
   border-radius: 8px;
   overflow-x: auto;
+  white-space: pre;
+  tab-size: 2;
   font-size: 0.85em;
 }
-.quiz-html pre code { background: none; padding: 0; }
+.quiz-html pre code {
+  background: none;
+  padding: 0;
+  white-space: pre;
+  font-family: var(--font-mono);
+}
 .quiz-html strong { color: #fff; font-weight: 600; }
 .quiz-html img { max-width: 100%; border-radius: 8px; }
 

@@ -20,6 +20,15 @@ D. Audio mixer
 
 time_limit: 25
 
+Consider this shader snippet:
+
+```glsl
+vec3 normal = normalize(vNormal);
+vec3 lightDir = normalize(uLightPos - vWorldPos);
+float lambert = max(dot(normal, lightDir), 0.0);
+vec3 color = baseColor * lambert;
+```
+
 **A dot(normal, lightDir) term primarily models what?**
 
 A. Specular highlights
