@@ -19,6 +19,7 @@ import * as path from "path";
 export interface AppOptions {
   quizDir?: string;
   dataDir?: string;
+  instanceId?: string;
   /** Called after a successful REST-driven state transition */
   onStateChange?: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => void;
 }
@@ -45,14 +46,22 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   // Parse options
   let quizDir: string | undefined;
   let dataDir: string | undefined;
+  let instanceId: string | undefined;
   let onStateChange: AppOptions["onStateChange"];
   if (typeof quizDirOrOpts === "string") {
     quizDir = quizDirOrOpts;
   } else if (quizDirOrOpts) {
     quizDir = quizDirOrOpts.quizDir;
     dataDir = quizDirOrOpts.dataDir;
+    instanceId = quizDirOrOpts.instanceId;
     onStateChange = quizDirOrOpts.onStateChange;
   }
+  const resolvedInstanceId = (instanceId || process.env.MDQ_INSTANCE_ID || "").trim() || `pid-${process.pid}`;
+
+  app.use((_req, res, next) => {
+    res.setHeader("x-mdq-instance-id", resolvedInstanceId);
+    next();
+  });
 
   // ── Quiz store ──────────────────────────────
   const quizzes = new Map<string, Quiz>();
@@ -66,13 +75,26 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     const next = new Map<string, Quiz>();
 
     for (const file of files) {
-      const md = fs.readFileSync(path.join(dirPath, file), "utf-8");
-      const result = parseQuizMarkdown(md, file);
-      if (result.quiz) {
-        next.set(result.quiz.week, result.quiz);
-      }
-      if (result.errors.length > 0) {
-        console.warn(`Parse warnings for ${file}:`, result.errors.map((e) => e.message));
+      const filePath = path.join(dirPath, file);
+      try {
+        const md = fs.readFileSync(filePath, "utf-8");
+        const result = parseQuizMarkdown(md, file);
+        if (result.quiz) {
+          next.set(result.quiz.week, result.quiz);
+        }
+        if (result.errors.length > 0) {
+          console.warn(`Parse warnings for ${file}:`, result.errors.map((e) => e.message));
+        }
+      } catch (error) {
+        const code =
+          error && typeof error === "object" && "code" in error
+            ? String((error as { code?: unknown }).code || "")
+            : "";
+        if (code === "ENOENT") {
+          console.warn(`Skipping deleted quiz file during load: ${file}`);
+          continue;
+        }
+        throw error;
       }
     }
 
@@ -100,11 +122,27 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     }
   }
 
+  function logActivity(message: string): void {
+    console.log(`[mdq activity] ${message}`);
+  }
+
   function buildJoinUrl(baseUrl: string, sessionCode: string): string {
     const normalized = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
     // Use a clean path instead of hash-based URL so QR scanners don't strip
     // the fragment. The server redirects /join/:code to /#/join/:code.
     return `${normalized}/join/${sessionCode}`;
+  }
+
+  function getRequestBaseUrl(req: express.Request): string {
+    const host = req.get("x-forwarded-host") || req.get("host");
+    const forwardedProto = req.get("x-forwarded-proto");
+    const protocol = (forwardedProto ? forwardedProto.split(",")[0] : req.protocol) || "http";
+
+    if (host) {
+      return `${protocol}://${host}`;
+    }
+
+    return `http://localhost:${process.env.PORT || 3000}`;
   }
 
   // Expose for testing and socket setup
@@ -114,7 +152,12 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   // ── Health ────────────────────────────────
   const startTime = Date.now();
   app.get(API.HEALTH, (_req, res) => {
-    res.json({ status: "ok", uptime: Date.now() - startTime });
+    res.json({
+      status: "ok",
+      uptime: Date.now() - startTime,
+      instanceId: resolvedInstanceId,
+      pid: process.pid,
+    });
   });
 
   // ── Quiz endpoints ────────────────────────
@@ -169,6 +212,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     }
     const session = createSession(week, mode);
     storeSession(session);
+    logActivity(`instructor created session id=${session.sessionId} code=${session.sessionCode} week=${week}`);
     res.status(201).json({
       sessionId: session.sessionId,
       sessionCode: session.sessionCode,
@@ -178,7 +222,8 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
 
   // ── Session lookup by code ─────────────────
   app.get(API.SESSION_BY_CODE, (req, res) => {
-    const session = getSessionByCode(req.params.code.toUpperCase());
+    const normalizedCode = (req.params.code || "").trim().toUpperCase();
+    const session = getSessionByCode(normalizedCode);
     if (!session) {
       return res.status(404).json({ error: "Session not found for that code" });
     }
@@ -211,6 +256,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         session.questionStartedAt = Date.now();
         const quiz = getQuizForSession(session.week);
         notifyStateChange(session, req.params.id, quiz);
+        logActivity(`instructor start session=${req.params.id} q=0 state=${session.state}`);
         res.json({ state: session.state, questionIndex: 0 });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -236,6 +282,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         session.currentQuestionIndex = nextIndex;
         session.questionStartedAt = Date.now();
         notifyStateChange(session, req.params.id, quiz);
+        logActivity(`instructor next session=${req.params.id} q=${nextIndex} state=${session.state}`);
         res.json({ state: session.state, questionIndex: nextIndex });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -252,6 +299,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         transitionState(session, "QUESTION_CLOSED");
         const quiz = getQuizForSession(session.week);
         notifyStateChange(session, req.params.id, quiz);
+        logActivity(`instructor close session=${req.params.id} q=${session.currentQuestionIndex} state=${session.state}`);
         res.json({ state: session.state, questionIndex: session.currentQuestionIndex });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -268,6 +316,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         transitionState(session, "REVEAL");
         const quiz = getQuizForSession(session.week);
         notifyStateChange(session, req.params.id, quiz);
+        logActivity(`instructor reveal session=${req.params.id} q=${session.currentQuestionIndex} state=${session.state}`);
         res.json({ state: session.state, questionIndex: session.currentQuestionIndex });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -299,6 +348,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         }
 
         notifyStateChange(session, req.params.id, quiz);
+        logActivity(`instructor end session=${req.params.id} state=ENDED`);
         res.json({ state: "ENDED" });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -313,9 +363,13 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   app.post(API.SESSION_LEADERBOARD_SHOW, requireInstructorKey, (req, res) => {
     withSession(req, res, (session) => {
       try {
+        if (session.state === "QUESTION_CLOSED") {
+          transitionState(session, "REVEAL");
+        }
         transitionState(session, "LEADERBOARD");
         const quiz = getQuizForSession(session.week);
         notifyStateChange(session, req.params.id, quiz);
+        logActivity(`instructor leaderboard-show session=${req.params.id} q=${session.currentQuestionIndex} state=${session.state}`);
         res.json({ state: session.state });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -330,9 +384,23 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   app.post(API.SESSION_LEADERBOARD_HIDE, requireInstructorKey, (req, res) => {
     withSession(req, res, (session) => {
       try {
-        transitionState(session, "REVEAL");
         const quiz = getQuizForSession(session.week);
+        if (!quiz) {
+          return res.status(500).json({ error: "Quiz data not found" });
+        }
+
+        const isLastQuestion = session.currentQuestionIndex >= quiz.questions.length - 1;
+        if (isLastQuestion) {
+          return res.json({
+            state: session.state,
+            questionIndex: session.currentQuestionIndex,
+            lockedOnLeaderboard: true,
+          });
+        }
+
+        transitionState(session, "REVEAL");
         notifyStateChange(session, req.params.id, quiz);
+        logActivity(`instructor leaderboard-hide session=${req.params.id} q=${session.currentQuestionIndex} state=${session.state}`);
         res.json({ state: session.state, questionIndex: session.currentQuestionIndex });
       } catch (e) {
         if (e instanceof StateTransitionError) {
@@ -372,17 +440,18 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   });
 
   // ── Access info ───────────────────────────
-  app.get(API.ACCESS_INFO, (_req, res) => {
+  app.get(API.ACCESS_INFO, (req, res) => {
     const info = getCachedAccessInfo();
     if (info) {
       res.json(info);
     } else {
       // Fallback: not yet detected
+      const fallbackBase = getRequestBaseUrl(req);
       res.json({
-        fullUrl: `http://localhost:${process.env.PORT || 3000}`,
+        fullUrl: fallbackBase,
         shortUrl: "",
         qrCodeDataUrl: "",
-        qrTargetUrl: `http://localhost:${process.env.PORT || 3000}`,
+        qrTargetUrl: fallbackBase,
         source: "lan-fallback",
         warning: "Access info not yet detected. Server may still be starting.",
         detectedAt: Date.now(),
@@ -396,7 +465,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       return res.status(404).json({ error: "Session not found" });
     }
 
-    const fallbackBase = `http://localhost:${process.env.PORT || 3000}`;
+    const fallbackBase = getRequestBaseUrl(req);
     const baseInfo = getCachedAccessInfo() || {
       fullUrl: fallbackBase,
       shortUrl: "",
