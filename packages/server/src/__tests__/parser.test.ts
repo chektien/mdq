@@ -111,6 +111,28 @@ D. Fourth
       expect(q.correctOptions).toEqual(["A", "C"]);
     });
 
+    it("uses full week key from variant filenames", () => {
+      const md = `# Quiz
+
+---
+
+## Topic
+
+**Question?**
+
+A. Yes
+B. No
+
+> Correct Answer: A
+> Overall Feedback: Explanation.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week09-lab.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.week).toBe("week09-lab");
+    });
+
     it("parses code blocks in question text", () => {
       const md = `# Quiz
 

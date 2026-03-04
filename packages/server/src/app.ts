@@ -71,7 +71,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       fs.mkdirSync(dirPath, { recursive: true });
       return 0;
     }
-    const files = fs.readdirSync(dirPath).filter((f) => f.match(/^week\d+(?:-quiz)?\.md$/));
+    const files = fs.readdirSync(dirPath).filter((f) => f.match(/^week\d+(?:-[a-z0-9]+)*\.md$/i));
     const next = new Map<string, Quiz>();
 
     for (const file of files) {

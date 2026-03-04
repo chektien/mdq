@@ -38,6 +38,30 @@ describe("REST API", () => {
       expect(w1).toBeDefined();
       expect(w1.questionCount).toBe(3);
     });
+
+    it("loads week and lab variant quizzes as distinct keys", async () => {
+      const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-quiz-variants-"));
+      const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week09.md"), fixtureWeek01, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week09-lab.md"), fixtureWeek01, "utf-8");
+
+      const variantApp = createApp(tempQuizDir);
+
+      try {
+        const listRes = await request(variantApp).get("/api/quizzes");
+        expect(listRes.status).toBe(200);
+        expect(listRes.body.find((q: { week: string }) => q.week === "week09")).toBeDefined();
+        expect(listRes.body.find((q: { week: string }) => q.week === "week09-lab")).toBeDefined();
+
+        const weekRes = await request(variantApp).get("/api/quiz/week09");
+        expect(weekRes.status).toBe(200);
+
+        const labRes = await request(variantApp).get("/api/quiz/week09-lab");
+        expect(labRes.status).toBe(200);
+      } finally {
+        fs.rmSync(tempQuizDir, { recursive: true, force: true });
+      }
+    });
   });
 
   describe("POST /api/quizzes/reload", () => {
