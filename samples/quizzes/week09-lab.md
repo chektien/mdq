@@ -2,6 +2,33 @@
 
 ---
 
+Run sequence: First Hand -> Open Brush -> Elixir -> Mission: ISS. There are 4 devices total (3 SIT + 1 Sean). These apps are free on the App Store and should still be available on managed SIT headsets via Individual Mode.
+
+## First Hand Activity: Embodiment
+
+In First Hand, you can see realistic virtual hands that move in sync with your real hand movements. You can directly touch buttons, grab objects, and even pull distant objects toward you with a "distance grab" gesture. Which factor most contributes to the sense of embodiment in this experience?
+
+A. High-resolution display panels
+B. Visuomotor synchrony: the virtual hands move in precise sync with your physical hands from a first-person perspective
+C. Spatial audio from the environment
+D. The use of teleportation for locomotion
+
+> Correct Answer: B. Visuomotor synchrony: the virtual hands move in precise sync with your physical hands from a first-person perspective
+
+---
+
+## First Hand Activity: Distance Grab Authenticity
+
+In First Hand, you can pull distant objects toward you using a "distance grab" gesture (pointing and then flicking your wrist). Where does this "distance grab" fall on the Interaction Authenticity spectrum?
+
+A. Natural Interaction: it maps 1:1 to how you grab objects in real life
+B. Augmented Natural Interaction: it starts with a real physical gesture (pointing and flicking) but produces an enhanced virtual effect (pulling objects from far away)
+C. Artificial (Magical) Interaction: there is no physical gesture involved at all
+
+> Correct Answer: B. Augmented Natural Interaction: it starts with a real physical gesture (pointing and flicking) but produces an enhanced virtual effect (pulling objects from far away)
+
+---
+
 ## Open Brush Activity: Interaction Authenticity
 
 In Open Brush, you draw 3D strokes by moving a controller through space and pressing the trigger. Where does this interaction fall on the spectrum?
@@ -37,31 +64,6 @@ C. Both are Explicit (active) since the user must move their hands
 D. Proximity responses are Artificial (Magical) Interaction; pinch/poke actions are Natural Interaction
 
 > Correct Answer: A. Proximity responses are Implicit (passive); pinch/poke actions are Explicit (active)
-
----
-
-## First Hand Activity: Embodiment
-
-In First Hand, you can see realistic virtual hands that move in sync with your real hand movements. You can directly touch buttons, grab objects, and even pull distant objects toward you with a "distance grab" gesture. Which factor most contributes to the sense of embodiment in this experience?
-
-A. High-resolution display panels
-B. Visuomotor synchrony: the virtual hands move in precise sync with your physical hands from a first-person perspective
-C. Spatial audio from the environment
-D. The use of teleportation for locomotion
-
-> Correct Answer: B. Visuomotor synchrony: the virtual hands move in precise sync with your physical hands from a first-person perspective
-
----
-
-## First Hand Activity: Distance Grab Authenticity
-
-In First Hand, you can pull distant objects toward you using a "distance grab" gesture (pointing and then flicking your wrist). Where does this "distance grab" fall on the Interaction Authenticity spectrum?
-
-A. Natural Interaction: it maps 1:1 to how you grab objects in real life
-B. Augmented Natural Interaction: it starts with a real physical gesture (pointing and flicking) but produces an enhanced virtual effect (pulling objects from far away)
-C. Artificial (Magical) Interaction: there is no physical gesture involved at all
-
-> Correct Answer: B. Augmented Natural Interaction: it starts with a real physical gesture (pointing and flicking) but produces an enhanced virtual effect (pulling objects from far away)
 
 ---
 
