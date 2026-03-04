@@ -28,16 +28,16 @@ D. Image-based scenes cannot include any audio
 
 ---
 
-## Interaction Concepts: Natural vs Artificial
+## Interaction Concepts: Interaction Authenticity
 
 In a VR fantasy workshop, learners turn a virtual crank by rotating their wrist as if using a real tool. They can also summon a shield by making a quick two-finger flick in mid-air. Which classification best matches these two interactions?
 
-A. Crank turning is natural, shield summon is magical
-B. Crank turning is augmented natural, shield summon is natural
-C. Crank turning is magical, shield summon is augmented natural
-D. Both are augmented natural because both use hand movement
+A. Crank turning is Natural Interaction, shield summon is Artificial (Magical) Interaction
+B. Crank turning is Augmented Natural Interaction, shield summon is Natural Interaction
+C. Crank turning is Artificial (Magical) Interaction, shield summon is Augmented Natural Interaction
+D. Both are Augmented Natural Interaction because both use hand movement
 
-> Correct Answer: A. Crank turning is natural, shield summon is magical
+> Correct Answer: A. Crank turning is Natural Interaction, shield summon is Artificial (Magical) Interaction
 
 ---
 
@@ -56,7 +56,7 @@ D. Spatial audio with head-related transfer functions
 
 ## Presence: Plausibility Illusion
 
-In the game SUPERHOT VR, time only moves when the player physically moves. This mechanic is entirely unrealistic, yet players report high immersion. Which concept best explains why an artificial interaction can still feel immersive?
+In the game SUPERHOT VR, time only moves when the player physically moves. This mechanic is entirely unrealistic, yet players report high immersion. Which concept best explains why an Artificial (Magical) Interaction can still feel immersive?
 
 A. Place illusion: the virtual space feels like a real location
 B. Plausibility illusion: the scenario responds consistently to the player, like these events are really happening
@@ -69,7 +69,7 @@ D. Fidelity: higher polygon counts increase presence
 
 ## Interaction Design: Fire-Safety Training
 
-You are designing a VR fire-safety training simulation. Trainees should learn to use a fire extinguisher to translate that skill to real-life. Which interaction approach provides the right level of authenticity?
+You are designing a VR fire-safety training simulation. Trainees should learn to use a fire extinguisher to translate that skill to real-life. Which interaction approach provides the right level of Interaction Authenticity?
 
 A. Trainee grab a virtual extinguisher that can be aimed and triggered to spray infinite virtual foam
 B. Trainee grab a virtual extinguisher that can be aimed and triggered, with virtual foam that depletes over time
