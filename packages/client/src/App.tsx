@@ -2,16 +2,28 @@ import { useState, useEffect } from "react";
 import InstructorView from "./views/InstructorView";
 import StudentView from "./views/StudentView";
 
+const DEFAULT_INSTRUCTOR_ROUTE_SEGMENT = "instructor";
+
+function normalizeRouteSegment(value?: string): string {
+  const trimmed = (value || "").trim().replace(/^\/+|\/+$/g, "");
+  return trimmed || DEFAULT_INSTRUCTOR_ROUTE_SEGMENT;
+}
+
+const INSTRUCTOR_ROUTE_SEGMENT = normalizeRouteSegment(
+  (import.meta as { env?: { VITE_INSTRUCTOR_ROUTE_SEGMENT?: string } }).env?.VITE_INSTRUCTOR_ROUTE_SEGMENT,
+);
+const INSTRUCTOR_HASH_ROUTE = `/${INSTRUCTOR_ROUTE_SEGMENT}`;
+
 /**
  * Simple hash-based routing:
  *   /             -> role picker (instructor or student)
- *   /instructor   -> instructor session setup + control
+ *   /<segment>    -> instructor session setup + control
  *   /join/:code   -> student join via session code
  *   /s/:sessionId -> student in-session (after join)
  */
 function getRoute(): { page: string; param?: string } {
   const hash = window.location.hash.replace(/^#/, "");
-  if (hash.startsWith("/instructor")) return { page: "instructor" };
+  if (hash === INSTRUCTOR_HASH_ROUTE || hash === `${INSTRUCTOR_HASH_ROUTE}/`) return { page: "instructor" };
   if (hash.startsWith("/join/")) return { page: "join", param: hash.split("/")[2] };
   if (hash.startsWith("/s/")) return { page: "student", param: hash.split("/")[2] };
   return { page: "home" };
@@ -45,7 +57,7 @@ export default function App() {
       </div>
       <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
         <a
-          href="#/instructor"
+          href={`#${INSTRUCTOR_HASH_ROUTE}`}
           className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-center py-4 px-6 rounded-xl transition-colors text-lg"
         >
           Instructor

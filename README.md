@@ -34,21 +34,45 @@ export INSTRUCTOR_KEY="choose-a-strong-local-secret"
 # required for instructor API calls from the browser
 export VITE_INSTRUCTOR_KEY="$INSTRUCTOR_KEY"
 
+# optional: override instructor hash route (build-time)
+# use a long cryptic segment for class use
+export VITE_INSTRUCTOR_ROUTE_SEGMENT="instructor"
+
 npm run start --workspace=@mdq/server
 ```
 
-Open `http://localhost:3000/#/instructor`.
+Open `http://localhost:3000/#/<instructor-route-segment>`.
+
+If `VITE_INSTRUCTOR_ROUTE_SEGMENT` is unset, the default segment is `instructor` (backward compatible local dev behavior).
 
 ### 2) iPad instructor flow (private)
 
-- On your iPad, open the same instructor route: `https://<your-mdq-host>/#/instructor`
-- Use only the instructor route on your iPad. Do not share this route in class.
-- The server will reject instructor control requests unless the key matches `INSTRUCTOR_KEY`.
+**Security model:** mdq serves one built client bundle to everyone (students and instructor). `VITE_INSTRUCTOR_KEY` and `VITE_INSTRUCTOR_ROUTE_SEGMENT` are injected at client build time. The key protects instructor API calls (server validates the header), but the instructor UI code still exists in the bundle.
+
+1. Build the client with instructor key and route segment:
+   ```bash
+   export VITE_INSTRUCTOR_KEY="$INSTRUCTOR_KEY"
+   export VITE_INSTRUCTOR_ROUTE_SEGMENT="instructor-9f2c7b1e4d8a6f3c"
+   npm run build --workspace=@mdq/client
+   ```
+
+2. On your iPad, open:
+
+   `https://<your-mdq-host>/#/<VITE_INSTRUCTOR_ROUTE_SEGMENT>`
+
+   Example:
+
+   `https://abc123.ts.net/#/instructor-9f2c7b1e4d8a6f3c`
+
+3. **Important limitation:** This longer route is only obscurity, not strong security. Do not treat it as authentication. Anyone who learns the route can open the instructor page, and a determined user could still inspect client code.
+
+**For classroom security:** Keep your Tailscale Funnel URL private. The security boundary is your private network (Tailscale) plus operational secrecy (don't share the instructor route with students).
 
 ### 3) student join flow (share this one)
 
 - Share only the student join URL or QR code from the instructor screen.
 - Student QR codes resolve to `/#/join/<SESSION_CODE>` and do not need the instructor key.
+- Student join flow does not depend on `VITE_INSTRUCTOR_ROUTE_SEGMENT`.
 
 Port fallback retries default to 10 attempts (`PORT_FALLBACKS=10`).
 
