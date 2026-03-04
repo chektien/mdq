@@ -1,8 +1,6 @@
 # mdq
 
-Design and manage your quizzes in clean, editable Markdown. No more clunky interfaces and proprietary nonsense.
-
-All you need is your computer and a free, secure private network like Tailscale.
+MCQs are passe. Enter MDQs. Simple Markdown quizzes, zero platform bloat. Bring your own machine and a private network like Tailscale (not sponsored).
 
 ## Open Source Repo Layout
 
@@ -27,17 +25,32 @@ This creates local `data/` directories and copies sample quizzes into `data/quiz
 
 ## Run
 
+### 1) Instructor setup (server machine)
+
 ```bash
-# optional but recommended for admin protection
+# required if you want instructor-only controls
 export INSTRUCTOR_KEY="choose-a-strong-local-secret"
 
-# if running the client in Vite dev mode, mirror it for browser requests
+# required for instructor API calls from the browser
 export VITE_INSTRUCTOR_KEY="$INSTRUCTOR_KEY"
 
 npm run start --workspace=@mdq/server
 ```
 
-Open `http://localhost:3000` and choose Instructor.
+Open `http://localhost:3000/#/instructor`.
+
+### 2) iPad instructor flow (private)
+
+- On your iPad, open the same instructor route: `https://<your-mdq-host>/#/instructor`
+- Use only the instructor route on your iPad. Do not share this route in class.
+- The server will reject instructor control requests unless the key matches `INSTRUCTOR_KEY`.
+
+### 3) student join flow (share this one)
+
+- Share only the student join URL or QR code from the instructor screen.
+- Student QR codes resolve to `/#/join/<SESSION_CODE>` and do not need the instructor key.
+
+Port fallback retries default to 10 attempts (`PORT_FALLBACKS=10`).
 
 For off-LAN access during class, expose your local server with Tailscale Funnel (or an equivalent secure tunnel):
 
@@ -47,11 +60,13 @@ tailscale funnel 3000
 
 Then share the generated `https://<machine>.ts.net` URL (or short URL / QR shown in the instructor screen).
 
+If students see `Session not found for that code`, verify your Tailscale Funnel is bound to the same port your active mdq server process is using.
+
 Student QR behavior:
 
 - QR codes resolve directly to `/#/join/<SESSION_CODE>`
 - students land on the join page with the code pre-filled
-- instructor controls require the optional `INSTRUCTOR_KEY` when configured
+- instructor controls require a matching `INSTRUCTOR_KEY` when configured
 
 ## Why This Works
 
