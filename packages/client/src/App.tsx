@@ -62,7 +62,7 @@ export default function App() {
             {" "}Human- and agent-friendly <span className="text-indigo-300">M</span>ark<span className="text-indigo-300">D</span>own <span className="text-indigo-300">Q</span>uizzes.
           </span>
           <br />
-          <span className="text-zinc-300">No clunky interfaces. No proprietary nonsense.</span>
+          <span className="text-zinc-300">No clunky interfaces. No proprietary nonsense. No database.</span>
           <br />
           <span className="text-zinc-400">Just your own machine and a public secure tunnel (like Tailscale).</span>
         </p>

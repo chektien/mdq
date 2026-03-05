@@ -2,9 +2,15 @@
 
 MCQs are passe. Enter MDQs. Human- and agent-friendly Markdown Quizzes.
 
-No clunky interfaces. No proprietary nonsense.
+No clunky interfaces. No proprietary nonsense. No database.
 
 Just your own machine and a public secure tunnel (like Tailscale).
+
+## Disclaimer
+
+MDQ is provided as-is, and you use it at your own risk.
+
+MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale or TinyURL.
 
 ## Open Source Repo Layout
 
@@ -14,8 +20,19 @@ Just your own machine and a public secure tunnel (like Tailscale).
   - `data/quizzes/`: your editable quiz source files
   - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
   - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
+- `docs/DEV-*.md`: local development planning docs (gitignored by naming convention)
 
 The `data/` folder is intentionally ignored so local state and access info do not get committed.
+
+## Demo
+
+![MDQ demo 1](docs/demo/mdq-demo-01.png)
+![MDQ demo 2](docs/demo/mdq-demo-02.png)
+![MDQ demo 3](docs/demo/mdq-demo-03.png)
+![MDQ demo 4](docs/demo/mdq-demo-04.png)
+![MDQ demo 5](docs/demo/mdq-demo-05.png)
+![MDQ demo 6](docs/demo/mdq-demo-06.png)
+![MDQ demo 7](docs/demo/mdq-demo-07.png)
 
 ## First-Time Setup
 
@@ -67,6 +84,8 @@ If `VITE_INSTRUCTOR_ROUTE_SEGMENT` is unset, the default segment is `instructor`
 3. Enter the instructor password on the login page. Login persists for the current browser session (refresh-safe) until the browser session ends.
 
 4. **Important limitation:** The longer route is still obscurity, not authentication by itself. Keep using a strong `INSTRUCTOR_PASSWORD` and avoid sharing your instructor route.
+
+Tip for classroom privacy and mobility: present from iPad, add MDQ to your iPad Home Screen, and launch it as a web app. This keeps browser chrome out of view, hides the full URL during projection, and lets you walk around while controlling the session.
 
 **For classroom security:** Keep your Tailscale Funnel URL private. The security boundary is your private network (Tailscale) plus operational secrecy (don't share the instructor route with students).
 
@@ -190,6 +209,7 @@ In summary, Docker offers structure, but may be overkill if you are running a si
 
 - Commit code changes under `packages/`, `docs/`, `samples/`, scripts, and config files
 - Keep personal/local files under `data/`
+- Keep local planning notes in `docs/` using `DEV-*.md` names so they stay untracked
 - Do not commit `.env*` or logs
 
 You can push to `main` without exposing local runtime artifacts if you keep private files in `data/`.
