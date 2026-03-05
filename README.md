@@ -17,6 +17,16 @@ Just your own machine and a public secure tunnel (like Tailscale).
 
 The `data/` folder is intentionally ignored so local state and access info do not get committed.
 
+## Demo
+
+![MDQ demo 1](docs/demo/mdq-demo-01.png)
+![MDQ demo 2](docs/demo/mdq-demo-02.png)
+![MDQ demo 3](docs/demo/mdq-demo-03.png)
+![MDQ demo 4](docs/demo/mdq-demo-04.png)
+![MDQ demo 5](docs/demo/mdq-demo-05.png)
+![MDQ demo 6](docs/demo/mdq-demo-06.png)
+![MDQ demo 7](docs/demo/mdq-demo-07.png)
+
 ## First-Time Setup
 
 ```bash
