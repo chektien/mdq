@@ -228,7 +228,7 @@ week03.md
 
 ## 8. Markdown Quiz File Format
 
-Quiz files follow the format established in the [d2l-quiz](https://github.com/chektien/d2l-quiz) repository, with minor adaptations for web rendering.
+Quiz files follow the format established in the d2l-quiz repository format, with minor adaptations for web rendering.
 
 ### File Naming Convention
 
@@ -328,9 +328,9 @@ This format is intentionally compatible with the d2l-quiz markdown format so tha
 
 ### Frontend (GitHub Pages)
 
-The built React application and the markdown quiz files are committed to the `chektien/mdq` repository. GitHub Pages serves the static frontend from the `gh-pages` branch (or `/docs` folder on `main`).
+The built React application and the markdown quiz files are committed to your `mdq` repository. GitHub Pages serves the static frontend from the `gh-pages` branch (or `/docs` folder on `main`).
 
-- URL: `https://chektien.github.io/mdq/`
+- URL: `https://<your-github-username>.github.io/mdq/`
 - The markdown quiz files are placed in a `quizzes/` directory within the repo.
 - The frontend fetches quiz file contents via the GitHub raw content URL or from the same static hosting.
 
