@@ -92,6 +92,20 @@ If `VITE_INSTRUCTOR_ROUTE_SEGMENT` is unset, the default segment is `instructor`
 
 Tip for classroom privacy and mobility: present from iPad, add MDQ to your iPad Home Screen, and launch it as a web app. This keeps browser chrome out of view, hides the full URL during projection, and lets you walk around while controlling the session.
 
+### iPad Home Screen bad-state recovery
+
+If the Home Screen app gets into a bad state during class:
+
+1. Force-close the Home Screen app and reopen it from the Home Screen icon.
+2. If it is still stuck, open normal Safari and load the same instructor URL (`https://<host>/#/<instructor-route-segment>`), then log in again.
+3. If Safari does not restore the active instructor controls, return to the Home Screen app and retry there.
+
+Current limitation:
+
+- Instructor auto-resume depends on browser-session storage from the same app context.
+- iPad Home Screen web app and normal Safari can behave like separate browser contexts.
+- Because of that, switching from Home Screen app to Safari may not reliably resume an already running instructor session today.
+
 **For classroom security:** Keep your Tailscale Funnel URL private. The security boundary is your private network (Tailscale) plus operational secrecy (don't share the instructor route with students).
 
 ### 3) student join flow (share this one)
