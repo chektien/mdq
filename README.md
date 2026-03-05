@@ -6,6 +6,12 @@ No clunky interfaces. No proprietary nonsense. No database.
 
 Just your own machine and a public secure tunnel (like Tailscale).
 
+## Disclaimer
+
+MDQ is provided as-is, and you use it at your own risk.
+
+MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale or TinyURL.
+
 ## Open Source Repo Layout
 
 - `packages/`: app code (safe to commit)
