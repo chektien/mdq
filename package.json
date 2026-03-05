@@ -14,8 +14,6 @@
     "verify": "./scripts/verify.sh",
     "verify:quick": "./scripts/verify.sh --quick",
     "verify:live": "bash ./scripts/verify-live-readiness.sh",
-    "artifacts:combined": "node scripts/rebuild-combined-session-artifacts.mjs",
-    "artifacts:leaderboard-shot": "node scripts/capture-leaderboard-temp.mjs",
     "test:e2e": "npx jest --testPathPattern e2e-lifecycle --forceExit --detectOpenHandles --config packages/server/jest.config.js",
     "test:e2e-live": "npx jest --testPathPattern e2e-live-readiness --forceExit --detectOpenHandles --config packages/server/jest.config.js",
     "test:load": "npx jest --testPathPattern load-smoke --forceExit --detectOpenHandles --config packages/server/jest.config.js"

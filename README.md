@@ -20,6 +20,7 @@ MDQ is an independent project and is not affiliated with, endorsed by, or sponso
   - `data/quizzes/`: your editable quiz source files
   - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
   - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
+- `docs/DEV-*.md`: local development planning docs (gitignored by naming convention)
 
 The `data/` folder is intentionally ignored so local state and access info do not get committed.
 
@@ -222,6 +223,7 @@ In summary, Docker offers structure, but may be overkill if you are running a si
 
 - Commit code changes under `packages/`, `docs/`, `samples/`, scripts, and config files
 - Keep personal/local files under `data/`
+- Keep local planning notes in `docs/` using `DEV-*.md` names so they stay untracked
 - Do not commit `.env*` or logs
 
 You can push to `main` without exposing local runtime artifacts if you keep private files in `data/`.
