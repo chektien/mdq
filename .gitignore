@@ -12,10 +12,14 @@ data/**
 !data/.gitkeep
 !data/quizzes/
 !data/quizzes/.gitkeep
+packages/server/data/
 **/data/sessions/
 **/data/submissions/
 **/data/winners/
 **/data/access/
+
+# Local development docs (do not publish)
+docs/DEV-*.md
 
 # Local logs
 *.log
