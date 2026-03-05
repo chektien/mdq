@@ -203,7 +203,7 @@ What is intentionally out of scope for this deployment model:
 
 ### Input Safety
 
-MDQ quizzes use button-based selections only, no free-text input. This minimizes risk because users can only interact in predefined ways. Injection or unexpected data is essentially impossible.
+Most quiz answering uses button-based selections, which limits payload shape. However, MDQ still accepts text input for fields like student ID and username, so normal input validation and output escaping remain important.
 
 ### Docker, Pros and Cons
 
