@@ -25,6 +25,7 @@ import QRPanel from "../components/QRPanel";
 
 type InstructorPhase = "setup" | "lobby" | "live" | "ended";
 const INSTRUCTOR_RESTORE_KEY = "mdquiz_instructor_session";
+const INSTRUCTOR_RESTORE_SUCCESS_NOTICE = "Resumed active session after refresh.";
 
 interface StoredInstructorRestore {
   sessionId: string;
@@ -142,7 +143,7 @@ export default function InstructorView() {
           // Non-critical
         }
 
-        setRestoreNotice("Resumed active session after refresh.");
+        setRestoreNotice(INSTRUCTOR_RESTORE_SUCCESS_NOTICE);
       })
       .catch((error) => {
         clearInstructorRestore();
@@ -222,6 +223,9 @@ export default function InstructorView() {
 
   const handleAction = useCallback(
     async (action: () => Promise<unknown>, label: string) => {
+      setRestoreNotice((current) => (
+        current === INSTRUCTOR_RESTORE_SUCCESS_NOTICE ? null : current
+      ));
       setLoading(true);
       setErrorMsg(null);
       try {
