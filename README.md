@@ -1,35 +1,10 @@
 # mdq
 
 MCQs are passe. Enter MDQs. Human- and agent-friendly Markdown Quizzes.
-
 No clunky interfaces. No database. No proprietary nonsense.
-
 Just your own machine and a public secure tunnel (like Tailscale).
 
-## Disclaimer
-
-MDQ is provided as-is, and you use it at your own risk. This was developed for personal use and shared in the spirit of open source, but it is not a polished commercial product. It may have security vulnerabilities, bugs, or data loss risks if used in production or with sensitive data. Always review the code and test in a safe environment before using it for real classes.
-
-MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale, TinyURL, or any other third-party services mentioned here.
-
-## Files
-
-- `packages/`: app code (safe to commit)
-- `samples/quizzes/`: tracked sample quiz markdown for onboarding
-- `data/`: local-only runtime and private instance data (gitignored)
-  - `data/quizzes/`: your editable quiz source files (you need to copy sample quizzes here on first setup)
-  - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
-  - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
-
-The `data/` folder is intentionally ignored so local state and access info do not get committed. Again, you need to copy sample quizzes from `samples/quizzes/` to `data/quizzes/` on first setup, but after that you can edit quiz markdown directly in `data/quizzes/` and it becomes your source of truth for quiz content.
-
-Server runtime note:
-
-- MDQ writes runtime artifacts to the repository root `data/` directory by default.
-- If you previously ran older builds, you may still have a local `packages/server/data/` folder from earlier path resolution.
-- `packages/server/data/` is local runtime output, not source. It is safe to delete locally when the server is stopped.
-
-## Demo
+## Demo Gallery
 
 ![MDQ demo 1](docs/demo/mdq-demo-01.png)
 ![MDQ demo 2](docs/demo/mdq-demo-02.png)
@@ -51,6 +26,23 @@ MDQ is optimized for a narrow classroom usage scenario:
 - agent-friendly quiz iteration without export/import overhead
 
 Because sessions are short and operationally simple, you do not need a large multi-tenant cloud quiz stack with heavy admin workflows and feature bloat.
+
+## Files
+
+- `packages/`: app code (safe to commit)
+- `samples/quizzes/`: tracked sample quiz markdown for onboarding
+- `data/`: local-only runtime and private instance data (gitignored)
+  - `data/quizzes/`: your editable quiz source files (you need to copy sample quizzes here on first setup)
+  - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
+  - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
+
+The `data/` folder is intentionally ignored so local state and access info do not get committed. Again, you need to copy sample quizzes from `samples/quizzes/` to `data/quizzes/` on first setup, but after that you can edit quiz markdown directly in `data/quizzes/` and it becomes your source of truth for quiz content.
+
+Server runtime note:
+
+- MDQ writes runtime artifacts to the repository root `data/` directory by default.
+- If you previously ran older builds, you may still have a local `packages/server/data/` folder from earlier path resolution.
+- `packages/server/data/` is local runtime output, not source. It is safe to delete locally when the server is stopped.
 
 ## First-Time Setup
 
@@ -245,3 +237,9 @@ Related docs:
 - Do not commit `.env*` or logs
 
 You can push to `main` without exposing local runtime artifacts if you keep private files in `data/`.
+
+## Disclaimer
+
+MDQ is provided as-is, and you use it at your own risk. This was developed for personal use and shared in the spirit of open source, but it is not a polished commercial product. It may have security vulnerabilities, bugs, or data loss risks if used in production or with sensitive data. Always review the code and test in a safe environment before using it for real classes.
+
+MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale, TinyURL, or any other third-party services mentioned here.
