@@ -61,10 +61,13 @@ export INSTRUCTOR_PASSWORD="choose-a-strong-local-secret"
 # use a long cryptic segment for class use
 export VITE_INSTRUCTOR_ROUTE_SEGMENT="instructor"
 
+npm run build
 npm run start --workspace=@mdq/server
 ```
 
-Open `http://localhost:3000/#/<instructor-route-segment>`.
+Open `http://localhost:<server-port>/#/<instructor-route-segment>`.
+
+Default server port is `3000`, with fallback retries enabled when that port is occupied.
 
 If `VITE_INSTRUCTOR_ROUTE_SEGMENT` is unset, the default segment is `instructor` (backward compatible local dev behavior).
 
@@ -138,8 +141,8 @@ Why Tailscale works (plain language):
 Student QR behavior:
 
 - QR codes resolve directly to `/#/join/<SESSION_CODE>`
-- students land on the join page with the code pre-filled
-- instructor controls require a valid login session when `INSTRUCTOR_PASSWORD` is configured
+- Students land on the join page with the code pre-filled
+- Instructor controls require a valid login session when `INSTRUCTOR_PASSWORD` is configured
 
 ## Why This Works
 
