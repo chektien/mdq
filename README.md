@@ -153,6 +153,11 @@ Student QR behavior:
 
 MDQ is optimized for a narrow classroom usage scenario:
 
+Integration note:
+
+- This project is intentionally built with tight operational integration around Tailscale (secure tunnel/Funnel) and TinyURL (short links in instructor flow).
+- The core MDQ logic does not depend on those specific vendors, so you can adapt the same flow to other tunnel providers and URL shorteners if your environment prefers different services.
+
 - short, synchronous quiz sessions
 - one instructor-led live room
 - simple leaderboard and answer distribution
