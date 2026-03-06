@@ -8,7 +8,7 @@ Just your own machine and a public secure tunnel (like Tailscale).
 
 ## Disclaimer
 
-MDQ is provided as-is, and you use it at your own risk.
+MDQ is provided as-is, and you use it at your own risk. This was developed for personal use and shared in the spirit of open source, but it is not a polished commercial product. It may have security vulnerabilities, bugs, or data loss risks if used in production or with sensitive data. Always review the code and test in a safe environment before using it for real classes.
 
 MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale or TinyURL.
 
@@ -128,6 +128,11 @@ tailscale funnel 3000
 Then share the generated `https://<machine>.ts.net` URL (or short URL / QR shown in the instructor screen).
 
 If students see `Session not found for that code`, verify your Tailscale Funnel is bound to the same port your active MDQ server process is using.
+
+After each quiz session ends:
+
+- Stop the MDQ server process (`Ctrl+C` in the terminal running `npm run start --workspace=@mdq/server`).
+- Turn off your active Tailscale Funnel/node exposure for the quiz host before leaving class.
 
 Why Tailscale works (plain language):
 
