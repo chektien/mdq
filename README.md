@@ -232,6 +232,7 @@ In summary, Docker offers structure, but may be overkill if you are running a si
 - Commit code changes under `packages/`, `docs/`, `samples/`, scripts, and config files
 - Keep personal/local files under `data/`
 - Keep local planning notes in `docs/` using `DEV-*.md` names so they stay untracked
+- Keep the local product requirements doc at `docs/DEV-PRD.md` (gitignored)
 - Keep public docs in `docs/` with non-`DEV-` names (for example runbooks or published evidence)
 - Do not commit `.env*` or logs
 
