@@ -164,6 +164,56 @@ B. undefined
       expect(q.textMd).toContain("const x = 42;");
     });
 
+    it("rewrites quiz image paths into the public data images route", () => {
+      const md = `# Quiz
+
+---
+
+## Visual Prompt
+
+![](../images/xr-setup.png)
+
+**Which device is shown?**
+
+A. Tablet
+B. Router
+
+> Correct Answer: A
+> Overall Feedback: The image shows the capture tablet.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.textHtml).toContain('src="/data/images/xr-setup.png"');
+      expect(q.textHtml).toContain('class="quiz-embedded-image"');
+    });
+
+    it("rewrites image paths inside answer options too", () => {
+      const md = `# Quiz
+
+---
+
+## Visual Options
+
+**Choose the correct device.**
+
+A. ![Correct](../images/devices/tablet.png)
+B. ![Incorrect](../images/devices/router.png)
+
+> Correct Answer: A
+> Overall Feedback: The tablet is the capture device.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.options[0].textHtml).toContain('src="/data/images/devices/tablet.png"');
+      expect(q.options[1].textHtml).toContain('src="/data/images/devices/router.png"');
+    });
+
     it("parses multiple questions from one file", () => {
       const md = `# Quiz (2 Questions)
 

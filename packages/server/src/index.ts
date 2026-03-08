@@ -22,6 +22,7 @@ const runtimeConfig = loadRuntimeConfig();
 const requestedPort = runtimeConfig.port || DEFAULT_PORT;
 const maxPortFallbacks = runtimeConfig.portFallbacks;
 const instanceId = runtimeConfig.instanceId || randomUUID();
+const dataDir = path.resolve(__dirname, "../../../data");
 const quizDir = runtimeConfig.quizDir || path.resolve(__dirname, "../../../data/quizzes");
 const clientDist = path.join(__dirname, "../../client/dist");
 
@@ -102,6 +103,7 @@ function sessionRoom(sessionId: string): string {
 
 const app = createApp({
   quizDir,
+  dataDir,
   instanceId,
   onStateChange: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => {
     const io = ioRef.current;
@@ -190,6 +192,7 @@ async function onListening(): Promise<void> {
     console.log(`Requested port ${requestedPort} unavailable, using fallback port ${boundPort}`);
   }
   console.log(`Port fallback retry limit: ${maxPortFallbacks}`);
+  console.log(`Data directory: ${dataDir}`);
   console.log(`Quiz directory: ${quizDir}`);
 
   // Detect access info (Tailscale/LAN) on startup

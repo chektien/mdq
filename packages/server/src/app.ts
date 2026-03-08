@@ -70,11 +70,21 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     onStateChange = quizDirOrOpts.onStateChange;
   }
   const resolvedInstanceId = (instanceId || process.env.MDQ_INSTANCE_ID || "").trim() || `pid-${process.pid}`;
+  const imagesDir = dataDir ? path.join(dataDir, "images") : undefined;
 
   app.use((_req, res, next) => {
     res.setHeader("x-mdq-instance-id", resolvedInstanceId);
     next();
   });
+
+  if (imagesDir && fs.existsSync(imagesDir)) {
+    app.use("/data/images", express.static(imagesDir, {
+      fallthrough: true,
+      index: false,
+      immutable: false,
+      maxAge: 0,
+    }));
+  }
 
   // ── Quiz store ──────────────────────────────
   const quizzes = new Map<string, Quiz>();

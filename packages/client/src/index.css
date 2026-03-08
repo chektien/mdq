@@ -68,7 +68,33 @@ body {
   word-break: normal;
 }
 .quiz-html strong { color: #fff; font-weight: 600; }
-.quiz-html img { max-width: 100%; border-radius: 8px; }
+.quiz-html img,
+.quiz-embedded-image {
+  display: block;
+  width: min(100%, 34rem);
+  max-width: 100%;
+  max-height: min(46vh, 24rem);
+  height: auto;
+  object-fit: contain;
+  margin: 1rem auto;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.16), transparent 62%),
+    rgba(15, 23, 42, 0.58);
+  box-shadow:
+    0 20px 45px rgba(15, 23, 42, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  padding: clamp(0.35rem, 1.4vw, 0.65rem);
+}
+
+@media (min-width: 1024px) {
+  .quiz-html img,
+  .quiz-embedded-image {
+    width: min(100%, 42rem);
+    max-height: min(52vh, 30rem);
+  }
+}
 
 /* ── Option button press ─────────────────── */
 .option-btn {

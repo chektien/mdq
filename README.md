@@ -18,6 +18,7 @@ MDQ is an independent project and is not affiliated with, endorsed by, or sponso
 - `samples/quizzes/`: tracked sample quiz markdown for onboarding
 - `data/`: local-only runtime and private instance data (gitignored)
   - `data/quizzes/`: your editable quiz source files
+  - `data/images/`: quiz image attachments referenced from markdown
   - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
   - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
 - `docs/DEV-*.md`: local development planning docs (gitignored by naming convention)
@@ -56,7 +57,7 @@ npm install
 npm run setup:local
 ```
 
-This creates local `data/` directories and copies sample quizzes into `data/quizzes/`.
+This creates local `data/` directories, including `data/images/`, and copies sample quizzes into `data/quizzes/`.
 
 ## Run
 
@@ -136,6 +137,33 @@ Student QR behavior:
 - students land on the join page with the code pre-filled
 - instructor controls require a valid login session when `INSTRUCTOR_PASSWORD` is configured
 
+## Quiz Markdown Format
+
+Each question lives in markdown, and question stems or option text can include standard markdown images.
+
+```markdown
+---
+
+## Example Topic: Image Prompt
+
+time_limit: 35
+
+![](../images/xr-setup.png)
+
+**Which device is responsible for scene capture in this setup?**
+
+A. The iPad
+B. The headset strap
+C. The HDMI adapter
+
+> Correct Answer: A
+> Overall Feedback: The iPad captures the source scan for reconstruction.
+```
+
+- Store image files in `data/images/`.
+- Reference them from quiz markdown with `![](../images/<filename>)`.
+- mdq rewrites that quiz-relative path to `/data/images/...` when rendering, so the same markdown works cleanly in the live frontend.
+
 ## Why This Works
 
 mdq is optimized for a narrow classroom usage scenario:
@@ -178,9 +206,9 @@ Design notes:
 
 ## Media Scope
 
-Images and embedded video in quiz content are a future enhancement.
+Image attachments are supported for quiz stems and option text through standard markdown syntax.
 
-For now, mdq assumes image or video context is shown by the instructor in slides during class, while the quiz app handles prompts, options, explanations, and scoring.
+Embedded video is still out of scope for now. Keep video context in slides or a separate instructor-controlled window while mdq handles the prompt, options, explanations, and scoring.
 
 ## Security and Risk
 
