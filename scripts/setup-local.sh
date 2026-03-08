@@ -24,4 +24,5 @@ cat <<EOF
 Local workspace is ready.
 - Editable quizzes: data/quizzes/
 - Runtime output: data/sessions/, data/submissions/, data/winners/, data/access/
+- Optional local config: copy data/config.example.json to data/config.json
 EOF

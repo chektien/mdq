@@ -16,17 +16,13 @@ import express from "express";
 import type { AddressInfo } from "net";
 import { randomUUID } from "crypto";
 import { execSync } from "child_process";
+import { loadRuntimeConfig } from "./config";
 
-function parsePort(raw: string | undefined, fallback: number): number {
-  const parsed = parseInt(raw || "", 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-const requestedPort = parsePort(process.env.PORT, DEFAULT_PORT);
-const DEFAULT_PORT_FALLBACKS = 10;
-const maxPortFallbacks = parsePort(process.env.PORT_FALLBACKS, DEFAULT_PORT_FALLBACKS);
-const instanceId = (process.env.MDQ_INSTANCE_ID || "").trim() || randomUUID();
-const quizDir = process.env.QUIZ_DIR || path.resolve(__dirname, "../../../data/quizzes");
+const runtimeConfig = loadRuntimeConfig();
+const requestedPort = runtimeConfig.port || DEFAULT_PORT;
+const maxPortFallbacks = runtimeConfig.portFallbacks;
+const instanceId = runtimeConfig.instanceId || randomUUID();
+const quizDir = runtimeConfig.quizDir || path.resolve(__dirname, "../../../data/quizzes");
 const clientDist = path.join(__dirname, "../../client/dist");
 
 // We need io available for the state change callback, so we use a container
@@ -187,6 +183,9 @@ async function onListening(): Promise<void> {
   const usedFallbackPort = boundPort !== requestedPort;
 
   console.log(`mdq server listening on port ${boundPort} (instance ${instanceId})`);
+  console.log(
+    `Runtime config: ${runtimeConfig.loadedFromFile ? runtimeConfig.configPath : "defaults only (data/config.json not found)"}`,
+  );
   if (usedFallbackPort) {
     console.log(`Requested port ${requestedPort} unavailable, using fallback port ${boundPort}`);
   }

@@ -39,7 +39,7 @@ export default function Leaderboard({
               key={entry.studentId}
               className={`
                 lb-row flex items-center gap-4 px-5 py-3 rounded-xl
-                ${isHighlighted ? "bg-indigo-600/30 border border-indigo-500/50" : "bg-zinc-800/80"}
+                ${isHighlighted ? "bg-indigo-600/30 border border-indigo-500/50" : "bg-zinc-800/80 border border-zinc-200"}
                 ${i < 3 ? "border border-zinc-700/50" : ""}
               `}
               style={{ animationDelay: `${i * 60}ms` }}
