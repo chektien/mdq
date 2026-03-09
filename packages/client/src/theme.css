@@ -216,6 +216,14 @@ html[data-theme="light"] .option-btn {
   box-shadow: 0 16px 30px rgba(95, 71, 46, 0.08);
 }
 
+html[data-theme="light"] .dist-row-shell {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--mdq-line);
+  border-radius: 1.4rem;
+  background: rgba(255, 250, 241, 0.7);
+  box-shadow: 0 12px 30px rgba(88, 64, 39, 0.08);
+}
+
 html[data-theme="light"] .option-marker {
   box-shadow: inset 0 0 0 1px rgba(117, 92, 62, 0.14);
 }
