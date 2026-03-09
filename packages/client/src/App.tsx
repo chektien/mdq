@@ -54,53 +54,32 @@ export default function App() {
   // Home: role picker
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center gap-8 p-6">
-      <div className="w-full max-w-5xl rounded-[2rem] border border-zinc-200 bg-white/75 px-6 py-10 shadow-[0_30px_90px_rgba(88,64,39,0.14)] backdrop-blur md:px-10 md:py-14">
-        <div className="text-center">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.35em] text-zinc-500">Markdown quiz studio</p>
-          <h1 className="text-5xl font-bold tracking-[0.08em] text-white md:text-6xl">mdq</h1>
-          <p className="mx-auto mt-5 max-w-3xl text-lg text-zinc-400 md:text-xl">
-            MCQs are passe. Enter <span className="font-semibold text-indigo-300">MDQ</span>s.
-            <span className="font-medium text-zinc-200">
-              {" "}Human- and agent-friendly <span className="text-indigo-300">M</span>ark<span className="text-indigo-300">D</span>own <span className="text-indigo-300">Q</span>uizzes.
-            </span>
-            <br />
-            <span className="text-zinc-300">No clunky interfaces. No proprietary nonsense. No database.</span>
-            <br />
-            <span className="text-zinc-400">Just your own machine and a public secure tunnel, ready for live teaching on desktop or mobile.</span>
-          </p>
-        </div>
-
-        <div className="mx-auto mt-8 grid max-w-3xl gap-4 text-left text-sm text-zinc-500 md:grid-cols-3">
-          <div className="rounded-2xl border border-zinc-200 bg-white/80 p-4">
-            <p className="font-semibold uppercase tracking-[0.18em] text-zinc-500">Write</p>
-            <p className="mt-2">Keep quizzes in Markdown and update them between classes without export steps.</p>
-          </div>
-          <div className="rounded-2xl border border-zinc-200 bg-white/80 p-4">
-            <p className="font-semibold uppercase tracking-[0.18em] text-zinc-500">Run</p>
-            <p className="mt-2">Host locally, show the join code, and keep the full classroom flow on one machine.</p>
-          </div>
-          <div className="rounded-2xl border border-zinc-200 bg-white/80 p-4">
-            <p className="font-semibold uppercase tracking-[0.18em] text-zinc-500">Share</p>
-            <p className="mt-2">Use the QR panel, short links, and Tailscale access when students are off the LAN.</p>
-          </div>
-        </div>
-
-        <div className="mx-auto mt-8 flex w-full max-w-sm flex-col gap-4 sm:flex-row">
-          <a
-            href={`#${INSTRUCTOR_HASH_ROUTE}`}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-center py-4 px-6 rounded-xl transition-colors text-lg"
-          >
-            Instructor
-          </a>
-          <a
-            href="#/join/"
-            className="flex-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-semibold text-center py-4 px-6 rounded-xl transition-colors text-lg"
-          >
-            Student
-          </a>
-        </div>
-
-        <p className="mt-5 text-center text-sm text-zinc-500">A calmer projector-friendly surface for fast live quizzes.</p>
+      <div className="text-center">
+        <h1 className="mb-2 text-4xl font-bold tracking-tight text-white">mdq</h1>
+        <p className="mx-auto max-w-3xl text-lg text-zinc-400">
+          MCQs are passe. Enter <span className="font-semibold text-indigo-300">MDQ</span>s.
+          <span className="font-medium text-zinc-200">
+            {" "}Human- and agent-friendly <span className="text-indigo-300">M</span>ark<span className="text-indigo-300">D</span>own <span className="text-indigo-300">Q</span>uizzes.
+          </span>
+          <br />
+          <span className="text-zinc-300">No clunky interfaces. No proprietary nonsense. No database.</span>
+          <br />
+          <span className="text-zinc-400">Just your own machine and a public secure tunnel (like Tailscale).</span>
+        </p>
+      </div>
+      <div className="flex w-full max-w-sm flex-col gap-4 sm:flex-row">
+        <a
+          href={`#${INSTRUCTOR_HASH_ROUTE}`}
+          className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-center py-4 px-6 rounded-xl transition-colors text-lg"
+        >
+          Instructor
+        </a>
+        <a
+          href="#/join/"
+          className="flex-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-semibold text-center py-4 px-6 rounded-xl transition-colors text-lg"
+        >
+          Student
+        </a>
       </div>
     </div>
   );

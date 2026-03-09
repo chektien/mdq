@@ -20,6 +20,7 @@ describe("loadRuntimeConfig", () => {
     expect(config.portFallbacks).toBe(10);
     expect(config.quizDir).toBe(path.join(root, "data", "quizzes"));
     expect(config.instanceId).toBe("");
+    expect(config.theme).toBe("dark");
   });
 
   it("loads runtime overrides from data/config.json", () => {
@@ -31,6 +32,7 @@ describe("loadRuntimeConfig", () => {
         portFallbacks: 4,
         quizDir: "./alt-quizzes",
         instanceId: "room-a",
+        theme: "light",
       }),
     );
 
@@ -41,13 +43,14 @@ describe("loadRuntimeConfig", () => {
     expect(config.portFallbacks).toBe(4);
     expect(config.quizDir).toBe(path.join(root, "data", "alt-quizzes"));
     expect(config.instanceId).toBe("room-a");
+    expect(config.theme).toBe("light");
   });
 
   it("lets environment variables override file config", () => {
     const root = createRoot();
     fs.writeFileSync(
       path.join(root, "data", "config.json"),
-      JSON.stringify({ port: 3100, portFallbacks: 4, quizDir: "./alt-quizzes", instanceId: "room-a" }),
+      JSON.stringify({ port: 3100, portFallbacks: 4, quizDir: "./alt-quizzes", instanceId: "room-a", theme: "light" }),
     );
 
     const config = loadRuntimeConfig({
@@ -57,6 +60,7 @@ describe("loadRuntimeConfig", () => {
         PORT_FALLBACKS: "1",
         QUIZ_DIR: path.join(root, "custom-quizzes"),
         MDQ_INSTANCE_ID: "room-b",
+        MDQ_THEME: "dark",
       },
     });
 
@@ -64,5 +68,6 @@ describe("loadRuntimeConfig", () => {
     expect(config.portFallbacks).toBe(1);
     expect(config.quizDir).toBe(path.join(root, "custom-quizzes"));
     expect(config.instanceId).toBe("room-b");
+    expect(config.theme).toBe("dark");
   });
 });

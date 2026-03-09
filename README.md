@@ -59,6 +59,46 @@ npm run setup:local
 
 This creates local `data/` directories, including `data/images/`, and copies sample quizzes into `data/quizzes/`.
 
+Optional local runtime settings live in `data/config.json` (copy from `data/config.example.json`). The tracked example now includes `theme`, which defaults to `dark` and also accepts `light`.
+
+## Tailscale Funnel Setup
+
+mdq works best when the instructor machine is reachable through Tailscale Funnel.
+
+If you are starting from scratch with your own personal Tailscale account, do this:
+
+1. Go to `https://tailscale.com/` and create an account.
+2. Install Tailscale on the computer that will run mdq.
+3. Sign in to Tailscale on that computer.
+4. Turn Tailscale on:
+
+```bash
+tailscale up
+```
+
+5. Check that Tailscale is working and note your `*.ts.net` device name:
+
+```bash
+tailscale status
+```
+
+6. Start mdq.
+7. In a second terminal, publish the same port with Funnel:
+
+```bash
+tailscale funnel 3000
+```
+
+8. Copy the public URL from Tailscale and use that in mdq.
+9. Share the mdq join URL, TinyURL, or QR code with students.
+
+Common gotchas:
+
+- If `tailscale status` does not show your device, finish signing in first.
+- If `tailscale funnel 3000` fails, Funnel is usually not enabled yet for your account or device in the Tailscale admin page.
+- If mdq starts on a port other than `3000`, run Funnel on that actual port instead.
+- When class ends, stop mdq and stop the Funnel exposure.
+
 ## Run
 
 ### 1) Instructor setup (server machine)
@@ -139,11 +179,35 @@ Student QR behavior:
 
 ## Quiz Markdown Format
 
-Each question lives in markdown, and question stems or option text can include standard markdown images.
+Each question supports the existing `time_limit:` metadata plus an optional `multi_select:` flag. Question stems and option text can also include standard markdown images.
 
 ```markdown
 ---
 
+## Example Topic: Selection Modes
+
+time_limit: 45
+multi_select: true
+
+**Which items belong in the release checklist?**
+
+A. Run verification
+B. Delete git history
+C. Write a short rollout note
+
+> Correct Answers: A, C
+> Overall Feedback: Verification plus a short note makes the release easier to trust and easier to hand off.
+```
+
+Rules:
+
+- Omit `multi_select:` for backward compatibility. mdq will still treat `> Correct Answers: ...` as multi-select and `> Correct Answer: ...` as single-select.
+- Use `multi_select: true` when you want students to be allowed to pick more than one option for that question.
+- Do not combine `multi_select: false` with multiple correct answers.
+
+Image attachments:
+
+```markdown
 ## Example Topic: Image Prompt
 
 time_limit: 35

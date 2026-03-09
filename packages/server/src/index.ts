@@ -105,6 +105,7 @@ const app = createApp({
   quizDir,
   dataDir,
   instanceId,
+  theme: runtimeConfig.theme,
   onStateChange: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => {
     const io = ioRef.current;
     if (!io) return;

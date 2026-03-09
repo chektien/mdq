@@ -1,4 +1,4 @@
-:root {
+html[data-theme="light"] {
   --mdq-paper: #f7f1e3;
   --mdq-paper-strong: #fffaf1;
   --mdq-card: rgba(255, 250, 241, 0.9);
@@ -19,20 +19,20 @@
   --mdq-shadow: 0 22px 60px rgba(79, 57, 34, 0.12);
 }
 
-html {
+html[data-theme="light"] {
   background:
     radial-gradient(circle at top, rgba(184, 92, 56, 0.12), transparent 34%),
     linear-gradient(180deg, #fbf6ea 0%, #f3ecdc 100%);
   color: var(--mdq-ink);
 }
 
-body {
+html[data-theme="light"] body {
   color: var(--mdq-ink);
   background: transparent;
 }
 
-body::before,
-body::after {
+html[data-theme="light"] body::before,
+html[data-theme="light"] body::after {
   content: "";
   position: fixed;
   inset: auto;
@@ -40,7 +40,7 @@ body::after {
   z-index: -1;
 }
 
-body::before {
+html[data-theme="light"] body::before {
   top: -12rem;
   right: -10rem;
   width: 28rem;
@@ -49,7 +49,7 @@ body::before {
   background: radial-gradient(circle, rgba(31, 111, 120, 0.16), transparent 68%);
 }
 
-body::after {
+html[data-theme="light"] body::after {
   left: -12rem;
   bottom: -12rem;
   width: 30rem;
@@ -58,188 +58,188 @@ body::after {
   background: radial-gradient(circle, rgba(184, 92, 56, 0.18), transparent 70%);
 }
 
-.quiz-html code,
-.quiz-html pre {
+html[data-theme="light"] .quiz-html code,
+html[data-theme="light"] .quiz-html pre {
   background: #f1e7d5;
   color: #433528;
 }
 
-.quiz-html strong {
+html[data-theme="light"] .quiz-html strong {
   color: var(--mdq-ink);
 }
 
-[class*="text-white"] {
+html[data-theme="light"] [class*="text-white"] {
   color: var(--mdq-ink) !important;
 }
 
-[class*="text-zinc-200"],
-[class*="text-zinc-300"] {
+html[data-theme="light"] [class*="text-zinc-200"],
+html[data-theme="light"] [class*="text-zinc-300"] {
   color: #4d4032 !important;
 }
 
-[class*="text-zinc-400"],
-[class*="text-zinc-500"],
-[class*="text-zinc-600"] {
+html[data-theme="light"] [class*="text-zinc-400"],
+html[data-theme="light"] [class*="text-zinc-500"],
+html[data-theme="light"] [class*="text-zinc-600"] {
   color: var(--mdq-muted) !important;
 }
 
-[class*="text-indigo-300"] {
+html[data-theme="light"] [class*="text-indigo-300"] {
   color: var(--mdq-accent) !important;
 }
 
-[class*="text-emerald-400"] {
+html[data-theme="light"] [class*="text-emerald-400"] {
   color: var(--mdq-success) !important;
 }
 
-[class*="text-amber-400"],
-[class*="text-amber-300"] {
+html[data-theme="light"] [class*="text-amber-400"],
+html[data-theme="light"] [class*="text-amber-300"] {
   color: var(--mdq-warning) !important;
 }
 
-[class*="text-red-400"],
-[class*="text-red-200"],
-[class*="text-red-300"] {
+html[data-theme="light"] [class*="text-red-400"],
+html[data-theme="light"] [class*="text-red-200"],
+html[data-theme="light"] [class*="text-red-300"] {
   color: var(--mdq-danger) !important;
 }
 
-[class*="bg-zinc-900"],
-[class*="bg-zinc-800"],
-[class*="bg-zinc-700"],
-[class*="bg-zinc-600"],
-[class*="bg-zinc-900/"],
-[class*="bg-zinc-800/"],
-[class*="bg-zinc-700/"] {
+html[data-theme="light"] [class*="bg-zinc-900"],
+html[data-theme="light"] [class*="bg-zinc-800"],
+html[data-theme="light"] [class*="bg-zinc-700"],
+html[data-theme="light"] [class*="bg-zinc-600"],
+html[data-theme="light"] [class*="bg-zinc-900/"],
+html[data-theme="light"] [class*="bg-zinc-800/"],
+html[data-theme="light"] [class*="bg-zinc-700/"] {
   background: var(--mdq-card) !important;
   box-shadow: var(--mdq-shadow);
 }
 
-[class*="bg-emerald-900/"],
-[class*="bg-emerald-600/"] {
+html[data-theme="light"] [class*="bg-emerald-900/"],
+html[data-theme="light"] [class*="bg-emerald-600/"] {
   background: rgba(46, 125, 90, 0.12) !important;
 }
 
-[class*="bg-red-900/"],
-[class*="bg-red-600/"] {
+html[data-theme="light"] [class*="bg-red-900/"],
+html[data-theme="light"] [class*="bg-red-600/"] {
   background: rgba(182, 74, 74, 0.12) !important;
 }
 
-[class*="bg-indigo-600"],
-[class*="hover:bg-indigo-500"] {
+html[data-theme="light"] [class*="bg-indigo-600"],
+html[data-theme="light"] [class*="hover:bg-indigo-500"] {
   background: var(--mdq-accent) !important;
   color: #fff8f1 !important;
   box-shadow: 0 18px 35px rgba(184, 92, 56, 0.24);
 }
 
-[class*="bg-emerald-600"],
-[class*="hover:bg-emerald-500"] {
+html[data-theme="light"] [class*="bg-emerald-600"],
+html[data-theme="light"] [class*="hover:bg-emerald-500"] {
   background: var(--mdq-success) !important;
   color: #f8fff9 !important;
 }
 
-[class*="bg-amber-600"],
-[class*="hover:bg-amber-500"] {
+html[data-theme="light"] [class*="bg-amber-600"],
+html[data-theme="light"] [class*="hover:bg-amber-500"] {
   background: var(--mdq-warning) !important;
   color: #fffaf3 !important;
 }
 
-[class*="bg-purple-600"],
-[class*="hover:bg-purple-500"] {
+html[data-theme="light"] [class*="bg-purple-600"],
+html[data-theme="light"] [class*="hover:bg-purple-500"] {
   background: var(--mdq-secondary) !important;
   color: #f4fbfb !important;
 }
 
-[class*="bg-red-600"],
-[class*="hover:bg-red-500"] {
+html[data-theme="light"] [class*="bg-red-600"],
+html[data-theme="light"] [class*="hover:bg-red-500"] {
   background: var(--mdq-danger) !important;
   color: #fff8f8 !important;
 }
 
-[class*="border-zinc-700"],
-[class*="border-zinc-800"],
-[class*="border-zinc-600"],
-[class*="border-zinc-200"] {
+html[data-theme="light"] [class*="border-zinc-700"],
+html[data-theme="light"] [class*="border-zinc-800"],
+html[data-theme="light"] [class*="border-zinc-600"],
+html[data-theme="light"] [class*="border-zinc-200"] {
   border-color: var(--mdq-line) !important;
 }
 
-[class*="border-indigo-500"],
-[class*="border-indigo-600"] {
+html[data-theme="light"] [class*="border-indigo-500"],
+html[data-theme="light"] [class*="border-indigo-600"] {
   border-color: rgba(184, 92, 56, 0.32) !important;
 }
 
-[class*="rounded-xl"],
-[class*="rounded-2xl"] {
+html[data-theme="light"] [class*="rounded-xl"],
+html[data-theme="light"] [class*="rounded-2xl"] {
   border-radius: 1.4rem;
 }
 
-[class*="focus:ring-indigo-500"] {
+html[data-theme="light"] [class*="focus:ring-indigo-500"] {
   --tw-ring-color: rgba(184, 92, 56, 0.26) !important;
 }
 
-input,
-select {
+html[data-theme="light"] input,
+html[data-theme="light"] select {
   color: var(--mdq-ink);
   caret-color: var(--mdq-accent);
 }
 
-input::placeholder {
+html[data-theme="light"] input::placeholder {
   color: var(--mdq-soft);
 }
 
-.option-btn {
+html[data-theme="light"] .option-btn {
   box-shadow: 0 16px 30px rgba(95, 71, 46, 0.08);
 }
 
-.option-marker {
+html[data-theme="light"] .option-marker {
   box-shadow: inset 0 0 0 1px rgba(117, 92, 62, 0.14);
 }
 
-.selection-mode-card-single {
+html[data-theme="light"] .selection-mode-card-single {
   border-color: rgba(184, 92, 56, 0.24);
   background: linear-gradient(135deg, rgba(255, 246, 235, 0.96), rgba(248, 237, 222, 0.92));
 }
 
-.selection-mode-card-single::after {
+html[data-theme="light"] .selection-mode-card-single::after {
   background: rgba(184, 92, 56, 0.14);
 }
 
-.selection-mode-card-multi {
+html[data-theme="light"] .selection-mode-card-multi {
   border-color: rgba(31, 111, 120, 0.24);
   background: linear-gradient(135deg, rgba(239, 248, 247, 0.98), rgba(230, 242, 240, 0.94));
 }
 
-.selection-mode-card-multi::after {
+html[data-theme="light"] .selection-mode-card-multi::after {
   background: rgba(31, 111, 120, 0.16);
 }
 
-.selection-mode-text,
-.selection-mode-label {
+html[data-theme="light"] .selection-mode-text,
+html[data-theme="light"] .selection-mode-label {
   color: var(--mdq-muted);
 }
 
-.selection-mode-chip-single {
+html[data-theme="light"] .selection-mode-chip-single {
   color: var(--mdq-accent);
   border-color: rgba(184, 92, 56, 0.2);
   background: var(--mdq-accent-soft);
 }
 
-.selection-mode-chip-multi {
+html[data-theme="light"] .selection-mode-chip-multi {
   color: var(--mdq-secondary);
   border-color: rgba(31, 111, 120, 0.24);
   background: var(--mdq-secondary-soft);
 }
 
-.lb-row {
+html[data-theme="light"] .lb-row {
   box-shadow: 0 14px 28px rgba(79, 57, 34, 0.08);
 }
 
-[class*="bg-[#0f1117]/90"] {
+html[data-theme="light"] [class*="bg-[#0f1117]/90"] {
   background: rgba(247, 241, 227, 0.84) !important;
   backdrop-filter: blur(18px);
 }
 
 @media (max-width: 640px) {
-  body::before,
-  body::after {
+  html[data-theme="light"] body::before,
+  html[data-theme="light"] body::after {
     width: 18rem;
     height: 18rem;
   }
