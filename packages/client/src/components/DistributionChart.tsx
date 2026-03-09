@@ -29,7 +29,7 @@ export default function DistributionChart({
           : "bg-indigo-500";
 
         return (
-          <div key={label} className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white/70 px-3 py-2 shadow-[0_12px_30px_rgba(88,64,39,0.08)]">
+          <div key={label} className="dist-row-shell flex items-center gap-3">
             <span
               className={`
                 w-10 text-center font-mono font-bold text-lg shrink-0 rounded-lg py-1
