@@ -9,13 +9,17 @@ interface RuntimeConfigFile {
   portFallbacks?: unknown;
   quizDir?: unknown;
   instanceId?: unknown;
+  theme?: unknown;
 }
+
+export type RuntimeTheme = "dark" | "light";
 
 export interface RuntimeConfig {
   port: number;
   portFallbacks: number;
   quizDir: string;
   instanceId: string;
+  theme: RuntimeTheme;
   configPath: string;
   loadedFromFile: boolean;
 }
@@ -65,6 +69,14 @@ function parseString(value: unknown): string | undefined {
   return trimmed || undefined;
 }
 
+function parseTheme(value: unknown): RuntimeTheme | undefined {
+  const normalized = parseString(value)?.toLowerCase();
+  if (normalized === "dark" || normalized === "light") {
+    return normalized;
+  }
+  return undefined;
+}
+
 function readRuntimeConfigFile(configPath: string): RuntimeConfigFile {
   if (!fs.existsSync(configPath)) {
     return {};
@@ -105,6 +117,7 @@ export function loadRuntimeConfig(options: RuntimeConfigLoadOptions = {}): Runti
       ?? DEFAULT_PORT_FALLBACKS,
     quizDir: resolveQuizDir(configDir, parseString(env.QUIZ_DIR) ?? parseString(fileConfig.quizDir), defaultQuizDir),
     instanceId: parseString(env.MDQ_INSTANCE_ID) ?? parseString(fileConfig.instanceId) ?? "",
+    theme: parseTheme(env.MDQ_THEME) ?? parseTheme(fileConfig.theme) ?? "dark",
     configPath,
     loadedFromFile: fs.existsSync(configPath),
   };

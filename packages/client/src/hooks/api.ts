@@ -37,6 +37,16 @@ export interface InstructorSessionStatus {
   configured: boolean;
 }
 
+export interface RuntimeClientConfig {
+  theme?: "dark" | "light";
+}
+
+export async function fetchRuntimeClientConfig(): Promise<RuntimeClientConfig> {
+  const res = await fetch("/api/runtime-config");
+  if (!res.ok) throw new Error("Failed to fetch runtime config");
+  return res.json();
+}
+
 export async function fetchInstructorSessionStatus(): Promise<InstructorSessionStatus> {
   const res = await fetch(apiPath(API.INSTRUCTOR_SESSION), { credentials: "same-origin" });
   if (!res.ok) throw new Error("Failed to verify instructor session");

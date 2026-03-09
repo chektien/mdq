@@ -16,6 +16,7 @@ Supported keys:
 - `portFallbacks`: how many higher ports mdq will try if the requested port is busy, defaults to `10`
 - `quizDir`: alternate quiz folder, resolved relative to `data/config.json` when you use a relative path
 - `instanceId`: stable label for this machine or classroom instance
+- `theme`: UI theme, `dark` by default, or set `light` to reuse the optional light palette
 
 Example:
 
@@ -24,7 +25,8 @@ Example:
   "port": 3100,
   "portFallbacks": 3,
   "quizDir": "./quizzes",
-  "instanceId": "seminar-room-a"
+  "instanceId": "seminar-room-a",
+  "theme": "dark"
 }
 ```
 
@@ -33,3 +35,4 @@ Practical extra customizations you can keep in the same file:
 - move quiz editing to another local folder with `quizDir`
 - reduce `portFallbacks` if you want mdq to fail fast instead of scanning many ports
 - set a memorable `instanceId` so logs and access checks are easier to read on shared teaching machines
+- switch to `theme: "light"` when you want the alternate light presentation for a room or event

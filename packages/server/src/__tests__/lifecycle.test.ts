@@ -95,6 +95,14 @@ describe("REST API", () => {
     });
   });
 
+  describe("GET /api/runtime-config", () => {
+    it("returns the configured runtime theme", async () => {
+      const res = await request(createApp({ quizDir, theme: "light" })).get("/api/runtime-config");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ theme: "light" });
+    });
+  });
+
   describe("GET /api/quizzes", () => {
     it("lists available quizzes", async () => {
       const res = await request(app).get("/api/quizzes");

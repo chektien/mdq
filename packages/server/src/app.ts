@@ -33,6 +33,7 @@ export interface AppOptions {
   quizDir?: string;
   dataDir?: string;
   instanceId?: string;
+  theme?: "dark" | "light";
   /** Called after a successful REST-driven state transition */
   onStateChange?: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => void;
 }
@@ -60,6 +61,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   let quizDir: string | undefined;
   let dataDir: string | undefined;
   let instanceId: string | undefined;
+  let theme: "dark" | "light" = "dark";
   let onStateChange: AppOptions["onStateChange"];
   if (typeof quizDirOrOpts === "string") {
     quizDir = quizDirOrOpts;
@@ -67,6 +69,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     quizDir = quizDirOrOpts.quizDir;
     dataDir = quizDirOrOpts.dataDir;
     instanceId = quizDirOrOpts.instanceId;
+    theme = quizDirOrOpts.theme || "dark";
     onStateChange = quizDirOrOpts.onStateChange;
   }
   const resolvedInstanceId = (instanceId || process.env.MDQ_INSTANCE_ID || "").trim() || `pid-${process.pid}`;
@@ -181,6 +184,10 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       instanceId: resolvedInstanceId,
       pid: process.pid,
     });
+  });
+
+  app.get("/api/runtime-config", (_req, res) => {
+    res.json({ theme });
   });
 
   app.get(API.INSTRUCTOR_SESSION, (req, res) => {
