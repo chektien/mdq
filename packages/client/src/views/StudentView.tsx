@@ -5,6 +5,7 @@ import { API } from "@mdq/shared";
 import type { SessionState } from "@mdq/shared";
 import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
+import QuizHtml from "../components/QuizHtml";
 
 function formatQuizLabel(quizKey: string): string {
   const normalized = quizKey.trim();
@@ -444,10 +445,7 @@ function QuestionView({
       </div>
 
       {/* Question text */}
-      <div
-        className="quiz-html text-lg text-white leading-relaxed mb-6"
-        dangerouslySetInnerHTML={{ __html: question.text }}
-      />
+      <QuizHtml className="quiz-html text-lg text-white leading-relaxed mb-6" html={question.text} />
 
       <div className={`selection-mode-card mb-5 rounded-2xl border px-4 py-3 ${question.allowsMultiple ? "selection-mode-card-multi" : "selection-mode-card-single"}`}>
         <div className="selection-mode-text">{selectionModeText}</div>
@@ -490,10 +488,7 @@ function QuestionView({
               >
                 {opt.label}
               </span>
-              <span
-                className="quiz-html text-zinc-200 pt-0.5"
-                dangerouslySetInnerHTML={{ __html: opt.text }}
-              />
+              <QuizHtml className="quiz-html text-zinc-200 pt-0.5" html={opt.text} as="span" />
             </button>
           );
         })}
@@ -566,10 +561,7 @@ function RevealView({
       </div>
 
       {/* Question text */}
-      <div
-        className="quiz-html text-base text-zinc-300 leading-relaxed mb-4"
-        dangerouslySetInnerHTML={{ __html: question.text }}
-      />
+      <QuizHtml className="quiz-html text-base text-zinc-300 leading-relaxed mb-4" html={question.text} />
 
       {/* Options with correct/incorrect marks */}
       <div className="space-y-2 mb-6">
@@ -593,10 +585,7 @@ function RevealView({
               >
                 {opt.label}
               </span>
-              <span
-                className="quiz-html text-zinc-200 pt-0.5"
-                dangerouslySetInnerHTML={{ __html: opt.text }}
-              />
+              <QuizHtml className="quiz-html text-zinc-200 pt-0.5" html={opt.text} as="span" />
             </div>
           );
         })}

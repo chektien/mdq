@@ -237,7 +237,7 @@ function renderMarkdown(md: string): string {
     const src = escapeHtml(resolveMarkdownImageHref(href));
     const alt = escapeHtml(text || "Quiz image");
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
-    return `<img class="quiz-embedded-image" src="${src}" alt="${alt}"${titleAttr} loading="lazy" decoding="async">`;
+    return `<img class="quiz-embedded-image" src="${src}" alt="${alt}"${titleAttr}>`;
   };
 
   // marked.parse can return string | Promise<string> depending on config,

@@ -22,6 +22,7 @@ import Timer from "../components/Timer";
 import DistributionChart from "../components/DistributionChart";
 import Leaderboard from "../components/Leaderboard";
 import QRPanel from "../components/QRPanel";
+import QuizHtml from "../components/QuizHtml";
 
 type InstructorPhase = "setup" | "lobby" | "live" | "ended";
 const INSTRUCTOR_RESTORE_KEY = "mdquiz_instructor_session";
@@ -556,9 +557,9 @@ function LiveView({
             )}
 
             {/* Question text */}
-            <div
+            <QuizHtml
               className="quiz-html text-2xl lg:text-3xl text-white text-center leading-relaxed max-w-3xl"
-              dangerouslySetInnerHTML={{ __html: displayQuestion.text }}
+              html={displayQuestion.text}
             />
 
             <div className={`selection-mode-chip ${displayQuestion.allowsMultiple ? "selection-mode-chip-multi" : "selection-mode-chip-single"}`}>
@@ -575,10 +576,7 @@ function LiveView({
                   <span className={`bg-zinc-700 text-zinc-300 font-mono font-bold w-9 h-9 flex items-center justify-center shrink-0 text-lg ${displayQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
                     {opt.label}
                   </span>
-                  <span
-                    className="quiz-html text-zinc-200 text-lg"
-                    dangerouslySetInnerHTML={{ __html: opt.text }}
-                  />
+                  <QuizHtml className="quiz-html text-zinc-200 text-lg" html={opt.text} as="span" />
                 </div>
               ))}
             </div>
@@ -601,9 +599,9 @@ function LiveView({
         {/* Reveal view */}
         {displayReveal && (((state === "REVEAL" && displayQuestion && !isReviewing) || (isReviewing && displayQuestion))) && (
           <>
-            <div
+            <QuizHtml
               className={`quiz-html text-center leading-relaxed max-w-3xl ${isReviewing ? "text-2xl lg:text-3xl text-white" : "text-xl lg:text-2xl text-zinc-300"}`}
-              dangerouslySetInnerHTML={{ __html: displayQuestion.text }}
+              html={displayQuestion.text}
             />
 
             {showDetailedRevealChoices && (
@@ -626,9 +624,10 @@ function LiveView({
                       >
                         {opt.label}
                       </span>
-                      <span
+                      <QuizHtml
                         className={`quiz-html pt-0.5 ${isCorrect ? "text-emerald-100" : "text-zinc-200"}`}
-                        dangerouslySetInnerHTML={{ __html: opt.text }}
+                        html={opt.text}
+                        as="span"
                       />
                     </div>
                   );
