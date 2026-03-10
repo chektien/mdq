@@ -69,14 +69,14 @@ tailscale up
 tailscale status
 ```
 
-6. Start mdq.
-7. In a second terminal, publish the same port with Funnel:
+6. Publish the mdq port with Funnel:
 
 ```bash
 tailscale funnel 3000
 ```
 
-8. Copy the public URL from Tailscale and use that in mdq.
+7. Start mdq.
+8. mdq auto-discovers the current Tailscale DNS name by calling `tailscale status --json` on startup, so a tailnet hostname change does not need a repo edit. The detected public base URL is cached locally in `data/access/current.json` and the instructor screen uses it to generate the join URL, TinyURL, and QR code.
 9. Share the mdq join URL, TinyURL, or QR code with students.
 
 Common gotchas:
@@ -84,6 +84,7 @@ Common gotchas:
 - If `tailscale status` does not show your device, finish signing in first.
 - If `tailscale funnel 3000` fails, Funnel is usually not enabled yet for your account or device in the Tailscale admin page.
 - If mdq starts on a port other than `3000`, run Funnel on that actual port instead.
+- If you rename the device or change the tailnet hostname, restart mdq so it refreshes `data/access/current.json` from the latest `tailscale status --json` output.
 - When class ends, stop mdq and stop the Funnel exposure.
 
 ## Run
@@ -145,7 +146,7 @@ For off-LAN access during class, expose your local server with Tailscale Funnel 
 tailscale funnel 3000
 ```
 
-Then share the generated `https://<machine>.ts.net` URL (or short URL / QR shown in the instructor screen).
+Then share the detected `https://<machine>.<tailnet>.ts.net` URL (or the short URL / QR shown in the instructor screen). mdq reads this from Tailscale automatically on startup.
 
 If students see `Session not found for that code`, verify your Tailscale Funnel is bound to the same port your active mdq server process is using.
 
