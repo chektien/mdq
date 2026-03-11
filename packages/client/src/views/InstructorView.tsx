@@ -590,6 +590,7 @@ function LiveView({
                 <DistributionChart
                   distribution={sock.distribution.distribution}
                   labels={displayQuestion.options.map((o) => o.label)}
+                  totalResponses={sock.answerCount?.submitted}
                 />
               </div>
             )}

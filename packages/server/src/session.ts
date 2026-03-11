@@ -131,6 +131,8 @@ export function recordSubmission(
   questionIndex: number,
   selectedOptions: string[],
 ): Submission {
+  const normalizedSelectedOptions = normalizeOptionSet(selectedOptions);
+
   if (session.state !== "QUESTION_OPEN") {
     throw new Error("Submissions only accepted during QUESTION_OPEN state.");
   }
@@ -139,7 +141,7 @@ export function recordSubmission(
       `Question index mismatch: expected ${session.currentQuestionIndex}, got ${questionIndex}.`,
     );
   }
-  if (!selectedOptions || selectedOptions.length === 0) {
+  if (!normalizedSelectedOptions || normalizedSelectedOptions.length === 0) {
     throw new Error("At least one option must be selected.");
   }
   if (!session.participants.has(studentId)) {
@@ -158,7 +160,7 @@ export function recordSubmission(
   const submission: Submission = {
     studentId,
     questionIndex,
-    selectedOptions,
+    selectedOptions: normalizedSelectedOptions,
     submittedAt: now,
     responseTimeMs: session.questionStartedAt ? now - session.questionStartedAt : 0,
   };
@@ -218,6 +220,17 @@ export function getAnsweredQuestions(session: Session, studentId: string): numbe
     .map((s) => s.questionIndex);
 }
 
+function normalizeOptionSet(options: string[]): string[] {
+  return [...new Set(options)].sort();
+}
+
+export function isExactOptionMatch(selectedOptions: string[], correctOptions: string[]): boolean {
+  const selected = normalizeOptionSet(selectedOptions);
+  const correct = normalizeOptionSet(correctOptions);
+
+  return selected.length === correct.length && selected.every((option, index) => option === correct[index]);
+}
+
 /**
  * Compute leaderboard for a session given correct answers per question.
  */
@@ -247,9 +260,7 @@ export function computeLeaderboard(
     const stats = studentStats.get(sub.studentId);
     if (!stats) continue;
 
-    const isCorrect =
-      sub.selectedOptions.length === correct.length &&
-      sub.selectedOptions.every((o) => correct.includes(o));
+    const isCorrect = isExactOptionMatch(sub.selectedOptions, correct);
 
     if (isCorrect) {
       stats.correctCount++;

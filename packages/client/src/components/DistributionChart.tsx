@@ -4,18 +4,21 @@ export default function DistributionChart({
   correctOptions,
   labels,
   showCorrect = false,
+  totalResponses,
 }: {
   distribution: Record<string, number>;
   correctOptions?: string[];
   labels?: string[];
   showCorrect?: boolean;
+  totalResponses?: number;
 }) {
   const entries = labels
     ? labels.map((l) => [l, distribution[l] || 0] as [string, number])
     : Object.entries(distribution).sort(([a], [b]) => a.localeCompare(b));
 
   const max = Math.max(1, ...entries.map(([, v]) => v));
-  const total = entries.reduce((sum, [, v]) => sum + v, 0);
+  const totalSelections = entries.reduce((sum, [, v]) => sum + v, 0);
+  const percentageBase = totalResponses && totalResponses > 0 ? totalResponses : totalSelections;
 
   return (
     <div className="space-y-3 w-full">
@@ -45,7 +48,7 @@ export default function DistributionChart({
               >
                 {count > 0 && (
                   <span className="text-white text-sm font-semibold tabular-nums">
-                    {count} ({total > 0 ? Math.round((count / total) * 100) : 0}%)
+                    {count} ({percentageBase > 0 ? Math.round((count / percentageBase) * 100) : 0}%)
                   </span>
                 )}
               </div>
