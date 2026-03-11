@@ -92,6 +92,12 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   // ── Quiz store ──────────────────────────────
   const quizzes = new Map<string, Quiz>();
 
+  function getQuestionHeadings(quiz: Quiz): string[] {
+    return quiz.questions.map((question) => (
+      question.subtopic ? `${question.topic}: ${question.subtopic}` : question.topic
+    ));
+  }
+
   function loadQuizzesFromDir(dirPath: string): number {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
@@ -290,6 +296,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       sessionId: session.sessionId,
       sessionCode: session.sessionCode,
       joinUrl: `/join/${session.sessionCode}`,
+      questionHeadings: getQuestionHeadings(quiz),
     });
   });
 
@@ -326,6 +333,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         state: session.state,
         currentQuestionIndex: session.currentQuestionIndex,
         questionCount: quiz.questions.length,
+        questionHeadings: getQuestionHeadings(quiz),
       });
     });
   });

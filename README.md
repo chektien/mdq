@@ -132,6 +132,8 @@ Tip for classroom privacy and mobility: present from iPad, add MDQ to your iPad 
 
 **For classroom security:** Keep your Tailscale Funnel URL private. The security boundary is your private network (Tailscale) plus operational secrecy (don't share the instructor route with students).
 
+While a quiz is running, the instructor screen also shows a `Next up` card with the next question's markdown heading. Use that as your cue in the lectorial slides before you tap `Next Question`.
+
 ### 3) student join flow (share this one)
 
 - Share only the student join URL or QR code from the instructor screen.
@@ -192,6 +194,7 @@ Rules:
 - Omit `multi_select:` for backward compatibility. mdq will still treat `> Correct Answers: ...` as multi-select and `> Correct Answer: ...` as single-select.
 - Use `multi_select: true` when you want students to be allowed to pick more than one option for that question.
 - Do not combine `multi_select: false` with multiple correct answers.
+- The instructor `Next up` preview uses the existing `## ...` question heading, including both sides of `Topic: Subtopic` when present.
 
 Image attachments:
 

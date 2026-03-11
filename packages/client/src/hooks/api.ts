@@ -21,6 +21,7 @@ export interface CreateSessionResponse {
   sessionId: string;
   sessionCode: string;
   joinUrl: string;
+  questionHeadings: string[];
 }
 
 export interface SessionRestoreResponse {
@@ -30,6 +31,7 @@ export interface SessionRestoreResponse {
   state: string;
   currentQuestionIndex: number;
   questionCount: number;
+  questionHeadings: string[];
 }
 
 export interface InstructorSessionStatus {

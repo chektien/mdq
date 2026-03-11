@@ -70,6 +70,7 @@ export default function InstructorView() {
   const [accessInfo, setAccessInfo] = useState<AccessInfo | null>(null);
   const [phase, setPhase] = useState<InstructorPhase>("setup");
   const [totalQuestionsInQuiz, setTotalQuestionsInQuiz] = useState(0);
+  const [questionHeadings, setQuestionHeadings] = useState<string[]>([]);
   const [quizLabel, setQuizLabel] = useState("");
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
   const restoreAttemptedRef = useRef(false);
@@ -124,11 +125,13 @@ export default function InstructorView() {
           sessionId: snapshot.sessionId,
           sessionCode: snapshot.sessionCode,
           joinUrl: `/join/${snapshot.sessionCode}`,
+          questionHeadings: snapshot.questionHeadings || [],
         };
 
         setSessionInfo(restoredInfo);
         setSelectedWeek(snapshot.week);
         setTotalQuestionsInQuiz(snapshot.questionCount);
+        setQuestionHeadings(snapshot.questionHeadings || []);
         setQuizLabel(formatQuizLabel(snapshot.week));
 
         if (snapshot.state === "LOBBY") {
@@ -188,6 +191,7 @@ export default function InstructorView() {
       setSessionInfo(info);
       const quiz = quizzes.find((q) => q.week === selectedWeek);
       if (quiz) setTotalQuestionsInQuiz(quiz.questionCount);
+      setQuestionHeadings(info.questionHeadings || []);
       setQuizLabel(formatQuizLabel(quiz?.week || selectedWeek));
       setRestoreNotice(null);
       setPhase("lobby");
@@ -246,6 +250,7 @@ export default function InstructorView() {
     setSessionInfo(null);
     setAccessInfo(null);
     setTotalQuestionsInQuiz(0);
+    setQuestionHeadings([]);
     setQuizLabel("");
     setRestoreNotice(null);
     setErrorMsg(null);
@@ -424,6 +429,7 @@ export default function InstructorView() {
       sessionCode={sessionInfo?.sessionCode || ""}
       accessInfo={accessInfo}
       totalQuestionsInQuiz={totalQuestionsInQuiz}
+      questionHeadings={questionHeadings}
       quizLabel={quizLabel}
       loading={loading}
       errorMsg={errorMsg}
@@ -441,6 +447,7 @@ function LiveView({
   sessionCode,
   accessInfo,
   totalQuestionsInQuiz,
+  questionHeadings,
   quizLabel,
   loading,
   errorMsg,
@@ -452,6 +459,7 @@ function LiveView({
   sessionCode: string;
   accessInfo: AccessInfo | null;
   totalQuestionsInQuiz: number;
+  questionHeadings: string[];
   quizLabel: string;
   loading: boolean;
   errorMsg: string | null;
@@ -491,6 +499,16 @@ function LiveView({
     ? revealCache[reviewQuestionIndex] ?? null
     : rev;
   const showDetailedRevealChoices = state === "REVEAL" && !!displayReveal && !!displayQuestion;
+  const getQuestionHeading = useCallback((questionIndex: number | null | undefined): string | null => {
+    if (questionIndex === null || questionIndex === undefined || questionIndex < 0) {
+      return null;
+    }
+    return questionHeadings[questionIndex] || null;
+  }, [questionHeadings]);
+  const displayHeading = getQuestionHeading(displayQuestion?.questionIndex) || displayQuestion?.topic || null;
+  const nextQuestionHeading = isReviewing
+    ? null
+    : getQuestionHeading(liveQuestionIndex >= 0 ? liveQuestionIndex + 1 : 0);
 
   // Determine which controls to show
   const canClose = state === "QUESTION_OPEN";
@@ -514,7 +532,7 @@ function LiveView({
           )}
           {displayQuestion && (
             <span className="text-zinc-600 text-sm">
-              {displayQuestion.topic}
+              {displayHeading}
             </span>
           )}
         </div>
@@ -538,6 +556,13 @@ function LiveView({
 
       {/* Main content */}
       <div className="flex-1 flex flex-col items-center justify-center gap-8 max-w-4xl mx-auto w-full">
+        {nextQuestionHeading && (
+          <div className="w-full max-w-3xl rounded-2xl border border-sky-500/30 bg-sky-500/10 px-5 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">Next up</p>
+            <p className="mt-2 text-lg text-sky-50">{nextQuestionHeading}</p>
+          </div>
+        )}
+
         {/* Question display (for QUESTION_OPEN, QUESTION_CLOSED) */}
         {displayQuestion && (((state === "QUESTION_OPEN" || state === "QUESTION_CLOSED") && !isReviewing) || (isReviewing && !displayReveal)) && (
           <>

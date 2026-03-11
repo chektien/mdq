@@ -233,6 +233,11 @@ describe("REST API", () => {
       expect(res.status).toBe(201);
       expect(res.body.sessionId).toBeTruthy();
       expect(res.body.sessionCode).toHaveLength(6);
+      expect(res.body.questionHeadings).toEqual([
+        "Intro: Definitions",
+        "Intro: Defaults",
+        "Intro: Multi-select",
+      ]);
     });
 
     it("rejects session creation without week", async () => {
@@ -444,6 +449,11 @@ describe("REST API", () => {
       expect(res.body.state).toBe("QUESTION_OPEN");
       expect(res.body.questionCount).toBe(3);
       expect(res.body.week).toBe("week01");
+      expect(res.body.questionHeadings).toEqual([
+        "Intro: Definitions",
+        "Intro: Defaults",
+        "Intro: Multi-select",
+      ]);
     });
 
     it("returns 410 for restore request on ended session", async () => {
