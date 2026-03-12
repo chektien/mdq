@@ -438,6 +438,28 @@ describe("REST API", () => {
       expect(res.body.qrTargetUrl).toContain(`/join/${createRes.body.sessionCode}`);
     });
 
+    it("returns public presentation metadata for an active session", async () => {
+      const createRes = await request(app)
+        .post("/api/session")
+        .send({ week: "week01" })
+        .expect(201);
+
+      const res = await request(app)
+        .get(`/api/session/${createRes.body.sessionId}/presentation`)
+        .set("Host", "quiz-host.local:3001")
+        .expect(200);
+
+      expect(res.body.sessionId).toBe(createRes.body.sessionId);
+      expect(res.body.sessionCode).toBe(createRes.body.sessionCode);
+      expect(res.body.questionHeadings).toEqual([
+        "Intro: Definitions",
+        "Intro: Defaults",
+        "Intro: Multi-select",
+      ]);
+      expect(res.body.accessInfo.fullUrl).toBe(`http://quiz-host.local:3001/join/${createRes.body.sessionCode}`);
+      expect(res.body.accessInfo.presentationUrl).toBe(`http://quiz-host.local:3001/#/present/${createRes.body.sessionId}`);
+    });
+
     it("returns instructor restore snapshot for active session", async () => {
       await request(app).post(`/api/session/${sessionId}/start`).expect(200);
 

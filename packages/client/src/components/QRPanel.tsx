@@ -4,11 +4,13 @@ export default function QRPanel({
   fullUrl,
   shortUrl,
   sessionCode,
+  presentationUrl,
 }: {
   qrDataUrl: string;
   fullUrl: string;
   shortUrl: string;
   sessionCode: string;
+  presentationUrl?: string;
 }) {
   const primaryUrl = shortUrl || fullUrl;
 
@@ -44,6 +46,16 @@ export default function QRPanel({
           {primaryUrl}
         </a>
         <p className="text-xs text-zinc-500">Scan or type the link to join on any device.</p>
+        {presentationUrl && (
+          <a
+            href={presentationUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex rounded-full border border-zinc-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-700 transition-colors hover:border-indigo-300 hover:text-indigo-600"
+          >
+            Open presentation view
+          </a>
+        )}
       </div>
     </div>
   );

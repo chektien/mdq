@@ -7,8 +7,8 @@
   ],
   "scripts": {
     "setup:local": "bash ./scripts/setup-local.sh",
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspace=@mdq/shared && npm run build --workspace=@mdq/server && npm run build --workspace=@mdq/client",
+    "test": "npm run build --workspace=@mdq/shared && npm run test --workspace=@mdq/server",
     "lint": "eslint packages/*/src --ext .ts,.tsx",
     "typecheck": "tsc --build packages/shared packages/server packages/client",
     "verify": "./scripts/verify.sh",

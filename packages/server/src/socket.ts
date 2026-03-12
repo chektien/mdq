@@ -247,10 +247,11 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
     const role = socket.handshake.auth?.role as string
       || socket.handshake.query?.role as string;
 
-    if (role === "instructor") {
+    if (role === "instructor" || role === "presentation") {
+      const isInstructor = role === "instructor";
       if (isInstructorAuthEnabled()) {
         const sessionToken = getInstructorSessionFromCookie(socket.handshake.headers.cookie);
-        if (!sessionToken || !hasValidInstructorSession(sessionToken)) {
+        if (isInstructor && (!sessionToken || !hasValidInstructorSession(sessionToken))) {
           socket.emit(SocketEvents.STUDENT_REJECTED, { reason: "Instructor login required" });
           logActivity(`reject instructor socket=${socket.id} session=${sessionId} reason=unauthenticated`);
           socket.disconnect();
@@ -258,16 +259,15 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
         }
       }
       socket.join(sessionRoom(sessionId));
-      logActivity(`instructor connected session=${sessionId} socket=${socket.id}`);
+      logActivity(`${isInstructor ? "instructor" : "presentation"} connected session=${sessionId} socket=${socket.id}`);
 
       // Send current participant list immediately
       broadcastParticipants(io, session, sessionId);
       emitInstructorStateSnapshot(socket, session);
 
-      // Track disconnect for instructor
+      // Track disconnect for read-only display connections
       socket.on("disconnect", () => {
-        // Nothing to clean up for instructor; room membership is auto-removed by Socket.IO
-        logActivity(`instructor disconnected session=${sessionId} socket=${socket.id}`);
+        logActivity(`${isInstructor ? "instructor" : "presentation"} disconnected session=${sessionId} socket=${socket.id}`);
       });
     }
 

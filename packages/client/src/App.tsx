@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from "react";
 import InstructorView from "./views/InstructorView";
+import PresentationView from "./views/PresentationView";
 import StudentView from "./views/StudentView";
 import { fetchInstructorSessionStatus, loginInstructor } from "./hooks/api";
 
@@ -21,12 +22,14 @@ const INSTRUCTOR_HASH_ROUTE = `/${INSTRUCTOR_ROUTE_SEGMENT}`;
  *   /<segment>    -> instructor session setup + control
  *   /join/:code   -> student join via session code
  *   /s/:sessionId -> student in-session (after join)
+ *   /present/:id  -> read-only projector view for an active session
  */
 function getRoute(): { page: string; param?: string } {
   const hash = window.location.hash.replace(/^#/, "");
   if (hash === INSTRUCTOR_HASH_ROUTE || hash === `${INSTRUCTOR_HASH_ROUTE}/`) return { page: "instructor" };
   if (hash.startsWith("/join/")) return { page: "join", param: hash.split("/")[2] };
   if (hash.startsWith("/s/")) return { page: "student", param: hash.split("/")[2] };
+  if (hash.startsWith("/present/")) return { page: "presentation", param: hash.split("/")[2] };
   return { page: "home" };
 }
 
@@ -49,6 +52,10 @@ export default function App() {
 
   if (route.page === "student") {
     return <StudentView initialSessionId={route.param} />;
+  }
+
+  if (route.page === "presentation" && route.param) {
+    return <PresentationView sessionId={route.param} />;
   }
 
   // Home: role picker
