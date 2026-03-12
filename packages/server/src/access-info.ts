@@ -48,13 +48,13 @@ export interface ShortUrlProvider {
 }
 
 /**
- * TinyURL provider (free, no API key needed).
+ * is.gd provider (free, no API key, no ads).
  */
-export const tinyUrlProvider: ShortUrlProvider = {
-  name: "tinyurl",
+export const isgdProvider: ShortUrlProvider = {
+  name: "is.gd",
   generate: async (longUrl: string): Promise<string | null> => {
     try {
-      const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+      const apiUrl = `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`;
       const response = await fetch(apiUrl, {
         signal: AbortSignal.timeout(5000),
       });
@@ -83,7 +83,7 @@ export const tinyUrlProvider: ShortUrlProvider = {
  */
 export async function generateShortUrl(
   longUrl: string,
-  providers: ShortUrlProvider[] = [tinyUrlProvider],
+  providers: ShortUrlProvider[] = [isgdProvider],
 ): Promise<string> {
   for (const provider of providers) {
     try {
