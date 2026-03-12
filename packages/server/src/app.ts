@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { API, Quiz, Session, SessionState } from "@mdq/shared";
+import { API, AccessInfo, Quiz, Session, SessionState } from "@mdq/shared";
 import {
   createSession,
   storeSession,
@@ -163,6 +163,38 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     // Use a clean path instead of hash-based URL so QR scanners don't strip
     // the fragment. The server redirects /join/:code to /#/join/:code.
     return `${normalized}/join/${sessionCode}`;
+  }
+
+  function buildPresentationUrl(baseUrl: string, sessionId: string): string {
+    const normalized = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+    return `${normalized}/#/present/${sessionId}`;
+  }
+
+  async function buildSessionAccessInfo(baseUrl: string, sessionId: string, sessionCode: string): Promise<AccessInfo> {
+    const baseInfo = getCachedAccessInfo() || {
+      fullUrl: baseUrl,
+      shortUrl: "",
+      qrCodeDataUrl: "",
+      qrTargetUrl: baseUrl,
+      source: "lan-fallback" as const,
+      warning: "Access info not yet detected. Server may still be starting.",
+      detectedAt: Date.now(),
+    };
+
+    const joinFullUrl = buildJoinUrl(baseInfo.fullUrl, sessionCode);
+    const joinShortUrl = await generateShortUrl(joinFullUrl);
+    const qrCodeDataUrl = await generateQrDataUrl(joinFullUrl);
+
+    return {
+      fullUrl: joinFullUrl,
+      shortUrl: joinShortUrl,
+      qrCodeDataUrl,
+      qrTargetUrl: joinFullUrl,
+      presentationUrl: buildPresentationUrl(baseInfo.fullUrl, sessionId),
+      source: baseInfo.source,
+      warning: baseInfo.warning,
+      detectedAt: Date.now(),
+    };
   }
 
   function getRequestBaseUrl(req: express.Request): string {
@@ -591,28 +623,34 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     }
 
     const fallbackBase = getRequestBaseUrl(req);
-    const baseInfo = getCachedAccessInfo() || {
-      fullUrl: fallbackBase,
-      shortUrl: "",
-      qrCodeDataUrl: "",
-      qrTargetUrl: fallbackBase,
-      source: "lan-fallback" as const,
-      warning: "Access info not yet detected. Server may still be starting.",
-      detectedAt: Date.now(),
-    };
+    return res.json(await buildSessionAccessInfo(fallbackBase, session.sessionId, session.sessionCode));
+  });
 
-    const joinFullUrl = buildJoinUrl(baseInfo.fullUrl, session.sessionCode);
-    const joinShortUrl = await generateShortUrl(joinFullUrl);
-    const qrCodeDataUrl = await generateQrDataUrl(joinFullUrl);
+  app.get(API.SESSION_PRESENTATION, async (req, res) => {
+    const session = getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    if (session.state === "ENDED") {
+      return res.status(410).json({ error: "Session has ended" });
+    }
+
+    const quiz = getQuizForSession(session.week);
+    if (!quiz) {
+      return res.status(500).json({ error: "Quiz data not found" });
+    }
+
+    const fallbackBase = getRequestBaseUrl(req);
+    const accessInfo = await buildSessionAccessInfo(fallbackBase, session.sessionId, session.sessionCode);
 
     return res.json({
-      fullUrl: joinFullUrl,
-      shortUrl: joinShortUrl,
-      qrCodeDataUrl,
-      qrTargetUrl: joinFullUrl,
-      source: baseInfo.source,
-      warning: baseInfo.warning,
-      detectedAt: Date.now(),
+      sessionId: session.sessionId,
+      sessionCode: session.sessionCode,
+      week: session.week,
+      state: session.state,
+      questionCount: quiz.questions.length,
+      questionHeadings: getQuestionHeadings(quiz),
+      accessInfo,
     });
   });
 

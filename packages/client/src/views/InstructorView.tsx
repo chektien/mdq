@@ -338,6 +338,7 @@ export default function InstructorView() {
             fullUrl={accessInfo.fullUrl}
             shortUrl={accessInfo.shortUrl}
             sessionCode={sessionInfo.sessionCode}
+            presentationUrl={accessInfo.presentationUrl}
           />
         )}
         {!accessInfo && sessionInfo && (
@@ -816,6 +817,16 @@ function LiveView({
           <p className="text-[11px] text-zinc-500 mt-2 uppercase tracking-wide">Session Code</p>
           <p className="font-mono text-xl font-bold tracking-[0.12em]">{sessionCode}</p>
           <p className="text-[11px] text-zinc-500 mt-1">{sock.participants?.count ?? 0} online</p>
+          {accessInfo.presentationUrl && (
+            <a
+              href={accessInfo.presentationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 block text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-600 hover:text-indigo-500"
+            >
+              Presentation view
+            </a>
+          )}
         </div>
       )}
     </div>
