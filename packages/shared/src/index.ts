@@ -83,6 +83,7 @@ export interface QuestionOpenPayload {
   text: string; // rendered HTML
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
+  isPoll?: boolean;
   timeLimitSec: number;
   startedAt: number; // unix ms
 }
@@ -125,6 +126,7 @@ export interface ResultsRevealPayload {
   correctOptions: string[];
   explanation: string;
   distribution: Record<string, number>;
+  isPoll?: boolean;
 }
 
 export interface LeaderboardEntry {
@@ -194,6 +196,7 @@ export interface Question {
   options: QuestionOption[];
   correctOptions: string[];
   allowsMultiple: boolean;
+  isPoll?: boolean;
   explanation: string;
   timeLimitSec: number;
 }

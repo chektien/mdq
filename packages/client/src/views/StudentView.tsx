@@ -5,7 +5,9 @@ import { API } from "@mdq/shared";
 import type { SessionState } from "@mdq/shared";
 import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
+import DistributionChart from "../components/DistributionChart";
 import QuizHtml from "../components/QuizHtml";
+import { getQuestionModeText } from "../questionMode";
 
 function formatQuizLabel(quizKey: string): string {
   const normalized = quizKey.trim();
@@ -425,9 +427,11 @@ function QuestionView({
   };
 
   const isClosed = state === "QUESTION_CLOSED";
-  const selectionModeText = question.allowsMultiple
-    ? "You can select multiple answers"
-    : "Select only one answer";
+  const selectionModeText = getQuestionModeText(question.allowsMultiple, question.isPoll);
+  const submitLabel = question.isPoll
+    ? question.allowsMultiple ? "Submit Votes" : "Submit Vote"
+    : question.allowsMultiple ? "Submit Selections" : "Submit Answer";
+  const submittedLabel = question.isPoll ? "Vote submitted" : "Answer submitted";
 
   return (
     <div className="min-h-dvh flex flex-col p-4 pb-safe">
@@ -498,7 +502,7 @@ function QuestionView({
       <div className="mt-4 pt-4 border-t border-zinc-800">
         {submitted ? (
           <div className="text-center py-3">
-            <span className="text-emerald-400 font-semibold">Answer submitted</span>
+            <span className="text-emerald-400 font-semibold">{submittedLabel}</span>
           </div>
         ) : isClosed ? (
           <div className="text-center py-3">
@@ -510,7 +514,7 @@ function QuestionView({
             disabled={selected.length === 0}
             className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-semibold py-4 rounded-xl transition-colors text-lg"
           >
-            {question.allowsMultiple ? "Submit Selections" : "Submit Answer"}
+            {submitLabel}
           </button>
         )}
       </div>
@@ -543,6 +547,33 @@ function RevealView({
     submittedOptions.every((o) => reveal.correctOptions.includes(o));
 
   const didAnswer = submittedOptions.length > 0;
+  const isPoll = reveal.isPoll || question.isPoll;
+
+  const bannerClass = isPoll
+    ? didAnswer
+      ? "bg-sky-600/15 border border-sky-400/40"
+      : "bg-zinc-800 border border-zinc-700"
+    : isCorrect
+      ? "bg-emerald-600/20 border border-emerald-500/50"
+      : didAnswer
+        ? "bg-red-600/20 border border-red-500/50"
+        : "bg-zinc-800 border border-zinc-700";
+
+  const bannerTextClass = isPoll
+    ? didAnswer ? "text-sky-300" : "text-zinc-400"
+    : isCorrect
+      ? "text-emerald-400"
+      : didAnswer
+        ? "text-red-400"
+        : "text-zinc-400";
+
+  const bannerText = isPoll
+    ? didAnswer ? "Poll results" : "No vote submitted"
+    : isCorrect
+      ? "Correct!"
+      : didAnswer
+        ? "Incorrect"
+        : "No answer submitted";
 
   return (
     <div className="min-h-dvh flex flex-col p-4 pb-safe">
@@ -550,14 +581,10 @@ function RevealView({
       <div
         className={`
           text-center py-4 rounded-xl mb-4
-          ${isCorrect ? "bg-emerald-600/20 border border-emerald-500/50" : didAnswer ? "bg-red-600/20 border border-red-500/50" : "bg-zinc-800 border border-zinc-700"}
+          ${bannerClass}
         `}
       >
-        <span
-          className={`text-2xl font-bold ${isCorrect ? "text-emerald-400" : didAnswer ? "text-red-400" : "text-zinc-400"}`}
-        >
-          {isCorrect ? "Correct!" : didAnswer ? "Incorrect" : "No answer submitted"}
-        </span>
+        <span className={`text-2xl font-bold ${bannerTextClass}`}>{bannerText}</span>
       </div>
 
       {/* Question text */}
@@ -568,19 +595,37 @@ function RevealView({
         {question.options.map((opt) => {
           const correct = reveal.correctOptions.includes(opt.label);
           const chosen = submittedOptions.includes(opt.label);
+          const optionClass = isPoll
+            ? chosen
+              ? "border-sky-500/50 bg-sky-600/10"
+              : "border-zinc-800 bg-zinc-800/50"
+            : correct
+              ? "border-emerald-500/50 bg-emerald-600/10"
+              : chosen
+                ? "border-red-500/50 bg-red-600/10"
+                : "border-zinc-800 bg-zinc-800/50";
+          const markerClass = isPoll
+            ? chosen
+              ? "bg-sky-600 text-white"
+              : "bg-zinc-700 text-zinc-400"
+            : correct
+              ? "bg-emerald-600 text-white"
+              : chosen
+                ? "bg-red-600 text-white"
+                : "bg-zinc-700 text-zinc-400";
 
           return (
             <div
               key={opt.label}
               className={`
                 flex items-start gap-3 px-4 py-3 rounded-xl border-2
-                ${correct ? "border-emerald-500/50 bg-emerald-600/10" : chosen ? "border-red-500/50 bg-red-600/10" : "border-zinc-800 bg-zinc-800/50"}
+                ${optionClass}
               `}
             >
               <span
                 className={`
                   w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm
-                  ${correct ? "bg-emerald-600 text-white" : chosen ? "bg-red-600 text-white" : "bg-zinc-700 text-zinc-400"}
+                  ${markerClass}
                 `}
               >
                 {opt.label}
@@ -590,6 +635,19 @@ function RevealView({
           );
         })}
       </div>
+
+      {isPoll && (
+        <div className="mb-6">
+          <h3 className="mb-3 text-zinc-400 text-xs uppercase tracking-wide font-medium">
+            Poll distribution
+          </h3>
+          <DistributionChart
+            distribution={reveal.distribution}
+            labels={question.options.map((opt) => opt.label)}
+            totalResponses={Object.values(reveal.distribution).reduce((sum, count) => sum + count, 0)}
+          />
+        </div>
+      )}
 
       {/* Explanation */}
       {reveal.explanation && (

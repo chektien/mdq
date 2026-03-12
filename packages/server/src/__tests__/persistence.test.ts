@@ -476,6 +476,77 @@ describe("Persistence", () => {
       expect(summary).toContain("| Rank | Student ID | Name | Correct | Total Time (ms) |");
       expect(summary).toContain("| 1 | s001 | Alice | 2/2 |");
     });
+
+    it("excludes poll questions from score summaries and CSV correctness fields", () => {
+      const session = createSession("week01", "open");
+      const quiz: Quiz = {
+        week: "week01",
+        title: "Week Quiz",
+        sourceFile: "week01.md",
+        questions: [
+          {
+            index: 0,
+            topic: "Live Poll",
+            textMd: "How are you feeling?",
+            textHtml: "<p>How are you feeling?</p>",
+            options: [
+              { label: "A", textMd: "Great", textHtml: "Great" },
+              { label: "B", textMd: "Okay", textHtml: "Okay" },
+            ],
+            correctOptions: [],
+            allowsMultiple: false,
+            isPoll: true,
+            explanation: "Thanks for the signal.",
+            timeLimitSec: 20,
+          },
+          {
+            index: 1,
+            topic: "Scored Question",
+            textMd: "Which option is correct?",
+            textHtml: "<p>Which option is correct?</p>",
+            options: [
+              { label: "A", textMd: "Correct", textHtml: "Correct" },
+              { label: "B", textMd: "Incorrect", textHtml: "Incorrect" },
+            ],
+            correctOptions: ["A"],
+            allowsMultiple: false,
+            explanation: "A is correct.",
+            timeLimitSec: 20,
+          },
+        ],
+      };
+
+      addParticipant(session, "s001", "sock1", "Alice");
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() - 1000;
+      recordSubmission(session, "s001", 0, ["B"]);
+
+      transitionState(session, "QUESTION_CLOSED");
+      transitionState(session, "REVEAL");
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 1;
+      session.questionStartedAt = Date.now() - 1000;
+      recordSubmission(session, "s001", 1, ["A"]);
+
+      saveResultsCsv(session, quiz, tempDir);
+      saveSessionSummaryMarkdown(session, quiz, tempDir);
+
+      const csvPath = getSessionResultsCsvPath(session, tempDir);
+      const [headerLine, rowLine] = fs.readFileSync(csvPath, "utf-8").trim().split("\n");
+      const headers = headerLine.split(",");
+      const row = rowLine.split(",");
+
+      expect(row[headers.indexOf("correct_count")]).toBe("1");
+      expect(row[headers.indexOf("q1_correct")]).toBe("");
+      expect(row[headers.indexOf("q2_correct")]).toBe("1");
+
+      const summaryPath = getSessionSummaryMarkdownPath(session, tempDir);
+      const summary = fs.readFileSync(summaryPath, "utf-8");
+      expect(summary).toContain("| Q1 | Poll |");
+      expect(summary).toContain("- Scored Questions: 1");
+      expect(summary).toContain("- Average Score: 1.00 / 1 (100.0%)");
+    });
   });
 });
 

@@ -23,6 +23,7 @@ import DistributionChart from "../components/DistributionChart";
 import Leaderboard from "../components/Leaderboard";
 import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
+import { getQuestionModeText, getRevealActionLabel } from "../questionMode";
 
 type InstructorPhase = "setup" | "lobby" | "live" | "ended";
 const INSTRUCTOR_RESTORE_KEY = "mdquiz_instructor_session";
@@ -520,6 +521,10 @@ function LiveView({
     q.questionIndex < totalQuestionsInQuiz - 1;
   const canShowLeaderboard = state === "REVEAL";
   const isFinalQuestion = liveQuestionIndex >= totalQuestionsInQuiz - 1;
+  const displayQuestionModeText = displayQuestion
+    ? getQuestionModeText(displayQuestion.allowsMultiple, displayQuestion.isPoll)
+    : "";
+  const liveRevealActionLabel = getRevealActionLabel(q?.isPoll === true);
 
   return (
     <div className={`min-h-dvh flex flex-col p-6 lg:p-10 ${accessInfo && sessionCode ? "lg:pr-56" : ""}`}>
@@ -589,7 +594,7 @@ function LiveView({
             />
 
             <div className={`selection-mode-chip ${displayQuestion.allowsMultiple ? "selection-mode-chip-multi" : "selection-mode-chip-single"}`}>
-              {displayQuestion.allowsMultiple ? "Students can pick multiple options" : "Students can pick one option"}
+              {displayQuestionModeText}
             </div>
 
             {/* Options (display only, no interaction on instructor) */}
@@ -631,7 +636,36 @@ function LiveView({
               html={displayQuestion.text}
             />
 
-            {showDetailedRevealChoices && (
+            {showDetailedRevealChoices && displayReveal.isPoll && (
+              <>
+                <div className="w-full max-w-2xl space-y-2">
+                  {displayQuestion.options.map((opt) => (
+                    <div
+                      key={opt.label}
+                      className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 flex items-start gap-3"
+                    >
+                      <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm bg-zinc-700 text-zinc-300">
+                        {opt.label}
+                      </span>
+                      <QuizHtml className="quiz-html pt-0.5 text-zinc-200" html={opt.text} as="span" />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="w-full max-w-2xl">
+                  <h3 className="text-zinc-400 text-sm uppercase tracking-wide mb-3 font-medium">
+                    Poll Results
+                  </h3>
+                  <DistributionChart
+                    distribution={displayReveal.distribution}
+                    labels={displayQuestion.options.map((o) => o.label)}
+                    totalResponses={Object.values(displayReveal.distribution).reduce((sum, count) => sum + count, 0)}
+                  />
+                </div>
+              </>
+            )}
+
+            {showDetailedRevealChoices && !displayReveal.isPoll && (
               <div className="w-full max-w-2xl space-y-2">
                 {displayQuestion.options.map((opt) => {
                   const isCorrect = displayReveal.correctOptions.includes(opt.label);
@@ -757,7 +791,7 @@ function LiveView({
               disabled={loading}
               className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
             >
-              Reveal Answer
+              {liveRevealActionLabel}
             </button>
           )}
           {!isReviewing && canNext && (
