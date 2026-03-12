@@ -1,9 +1,7 @@
 # mdq
 
 MCQs are passe. Enter MDQs. Human- and agent-friendly Markdown Quizzes.
-
-No clunky interfaces. No proprietary nonsense. No database.
-
+No clunky interfaces. No database. No proprietary nonsense.
 Just your own machine and a public secure tunnel (like Tailscale).
 
 ## Disclaimer
@@ -48,12 +46,42 @@ Images are resized to max dimension 1400px for a lighter repo footprint.
 ![MDQ demo 4](docs/demo/mdq-demo-04.png)
 ![MDQ demo 5](docs/demo/mdq-demo-05.png)
 ![MDQ demo 6](docs/demo/mdq-demo-06.png)
-![MDQ demo 7](docs/demo/mdq-demo-07.png)
+
+## Why This Works
+
+MDQ is optimized for a narrow classroom usage scenario:
+- This project is intentionally built with tight operational integration around Tailscale (secure tunnel/Funnel) and TinyURL (short links in instructor flow).
+- The core MDQ logic does not depend on those specific vendors, so you can adapt the same flow to other tunnel providers and URL shorteners if your environment prefers different services.
+- short, synchronous quiz sessions
+- one instructor-led live room
+- simple leaderboard and answer distribution
+- markdown files as the source of truth
+- zero-friction quiz updates: edit markdown in `data/quizzes/`, click `Reload Quiz Files`, and run the next session
+- agent-friendly quiz iteration without export/import overhead
+
+Because sessions are short and operationally simple, you do not need a large multi-tenant cloud quiz stack with heavy admin workflows and feature bloat.
+
+## Files
+
+- `packages/`: app code (safe to commit)
+- `samples/quizzes/`: tracked sample quiz markdown for onboarding
+- `data/`: local-only runtime and private instance data (gitignored)
+  - `data/quizzes/`: your editable quiz source files (you need to copy sample quizzes here on first setup)
+  - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
+  - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
+
+The `data/` folder is intentionally ignored so local state and access info do not get committed. Again, you need to copy sample quizzes from `samples/quizzes/` to `data/quizzes/` on first setup, but after that you can edit quiz markdown directly in `data/quizzes/` and it becomes your source of truth for quiz content.
+
+Server runtime note:
+
+- MDQ writes runtime artifacts to the repository root `data/` directory by default.
+- If you previously ran older builds, you may still have a local `packages/server/data/` folder from earlier path resolution.
+- `packages/server/data/` is local runtime output, not source. It is safe to delete locally when the server is stopped.
 
 ## First-Time Setup
 
 ```bash
-cd ~/repos/mdq
+cd /path/to/mdq
 npm install
 npm run setup:local
 ```
@@ -113,14 +141,17 @@ export INSTRUCTOR_PASSWORD="choose-a-strong-local-secret"
 # use a long cryptic segment for class use
 export VITE_INSTRUCTOR_ROUTE_SEGMENT="instructor"
 
+npm run build
 npm run start --workspace=@mdq/server
 ```
 
-Open `http://localhost:3000/#/<instructor-route-segment>`.
+Open `http://localhost:<server-port>/#/<instructor-route-segment>`.
+
+Default server port is `3000`, with fallback retries enabled when that port is occupied.
 
 If `VITE_INSTRUCTOR_ROUTE_SEGMENT` is unset, the default segment is `instructor` (backward compatible local dev behavior).
 
-### 2) iPad instructor flow (private)
+**For classroom security:** Assume students can see the final Tailscale host URL (TinyURL redirects reveal it, and MDQ QR codes target the full join URL directly). Treat join links as classroom-shareable, and protect instructor controls with a strong `INSTRUCTOR_PASSWORD` plus a non-obvious instructor route.
 
 **Security model:** mdq serves one built client bundle to everyone (students and instructor). `VITE_INSTRUCTOR_ROUTE_SEGMENT` is build-time routing only. Real instructor access is gated by a server-side login cookie created after entering `INSTRUCTOR_PASSWORD`. The password is never bundled into client code.
 
@@ -164,22 +195,27 @@ tailscale funnel 3000
 
 Then share the detected `https://<machine>.<tailnet>.ts.net` URL (or the short URL / QR shown in the instructor screen). mdq reads this from Tailscale automatically on startup.
 
-If students see `Session not found for that code`, verify your Tailscale Funnel is bound to the same port your active mdq server process is using.
+If students see `Session not found for that code`, verify your Tailscale Funnel is bound to the same port your active MDQ server process is using.
+
+After each quiz session ends:
+
+- Stop the MDQ server process (`Ctrl+C` in the terminal running `npm run start --workspace=@mdq/server`).
+- Turn off your active Tailscale Funnel/node exposure for the quiz host before leaving class.
 
 Why Tailscale works (plain language):
 
-- Tailscale creates a secure, encrypted path between your class devices and your mdq server.
+- Tailscale creates a secure, encrypted path between your class devices and your MDQ server.
 - For normal Tailscale access, each device must be signed in and approved first.
 - With Funnel, anyone who has the URL can reach that one published quiz page.
-- When you run `tailscale funnel 3000`, you are publishing only the mdq web app on that one port.
+- When you run `tailscale funnel 3000`, you are publishing only the MDQ web app on that one port.
 - This is not the same as opening your whole computer. It does not expose your files, terminal, or other apps unless you explicitly publish those too.
 - If the link is shared outside class, outsiders could still reach the quiz page, so keep session links short-lived and private.
 
 Student QR behavior:
 
 - QR codes resolve directly to `/#/join/<SESSION_CODE>`
-- students land on the join page with the code pre-filled
-- instructor controls require a valid login session when `INSTRUCTOR_PASSWORD` is configured
+- Students land on the join page with the code pre-filled
+- Instructor controls require a valid login session when `INSTRUCTOR_PASSWORD` is configured
 
 ## Quiz Markdown Format
 
@@ -233,18 +269,43 @@ C. The HDMI adapter
 - Reference them from quiz markdown with `![](../images/<filename>)`.
 - mdq rewrites that quiz-relative path to `/data/images/...` when rendering, so the same markdown works cleanly in the live frontend.
 
-## Why This Works
+## iPad usage and troubleshooting (optional)
 
-mdq is optimized for a narrow classroom usage scenario:
+Most deployments can ignore this section. Use it only if you run instructor controls from iPad during class.
 
-- short, synchronous quiz sessions
-- one instructor-led live room
-- simple leaderboard and answer distribution
-- markdown files as the source of truth
-- zero-friction quiz updates: edit markdown in `data/quizzes/`, click `Reload Quiz Files`, and run the next session
-- agent-friendly quiz iteration without export/import overhead
+### iPad instructor flow (optional)
 
-Because sessions are short and operationally simple, you do not need a large multi-tenant cloud quiz stack with heavy admin workflows and feature bloat.
+Security model: MDQ serves one built client bundle to everyone (students and instructor). `VITE_INSTRUCTOR_ROUTE_SEGMENT` is build-time routing only. Real instructor access is gated by a server-side login cookie created after entering `INSTRUCTOR_PASSWORD`.
+
+1. Build the client with a non-default instructor route segment:
+   ```bash
+   export VITE_INSTRUCTOR_ROUTE_SEGMENT="instructor-9f2c7b1e4d8a6f3c"
+   npm run build --workspace=@mdq/client
+   ```
+2. Open `https://<your-mdq-host>/#/<VITE_INSTRUCTOR_ROUTE_SEGMENT>` on iPad.
+3. Log in with `INSTRUCTOR_PASSWORD`.
+
+Tip: adding MDQ to iPad Home Screen hides browser chrome and can make projector presentation cleaner.
+
+### iPad Home Screen recovery
+
+If the Home Screen app gets into a bad state during class:
+
+1. Force-close the Home Screen app and reopen it from the Home Screen icon.
+2. If still stuck, open Safari and load the same instructor URL (`https://<host>/#/<instructor-route-segment>`), then log in again.
+3. If Safari does not restore active instructor controls, return to the Home Screen app and retry there.
+
+Current limitation:
+
+- Instructor auto-resume depends on browser-session storage from the same app context.
+- iPad Home Screen web app and normal Safari can behave like separate browser contexts.
+- Switching from Home Screen app to Safari may not reliably resume an already running instructor session.
+
+Verification status for `VITE_INSTRUCTOR_ROUTE_SEGMENT`:
+
+- Covered by type/build checks and server integration tests in this repo.
+- Smoke-tested by building with a non-default route segment and validating instructor login flow against that hash route.
+- There is currently no dedicated client unit test that isolates hash-route parsing logic, so validate your exact route string before live class.
 
 ## Architecture
 
@@ -255,7 +316,7 @@ Instructor Browser                 Student Browsers
        |                                 |
        +-------------+-------------------+
                      |
-             Node.js + Express + Socket.IO (mdq server)
+             Node.js + Express + Socket.IO (MDQ server)
                      |
           +----------+-----------+
           |                      |
@@ -281,7 +342,7 @@ Embedded video is still out of scope for now. Keep video context in slides or a 
 
 ## Security and Risk
 
-The primary security boundary is your private network tunnel (for example, Tailscale Funnel) plus ephemeral classroom sessions.
+The primary protection model is instructor authentication plus session scoping and careful link sharing. Tailscale Funnel still provides encrypted transport, but Funnel URLs are publicly reachable by anyone who has the link.
 
 Worst-case scenarios and realistic impact:
 
@@ -300,7 +361,7 @@ What is intentionally out of scope for this deployment model:
 
 ### Input Safety
 
-MDQ quizzes use button-based selections only, no free-text input. This minimizes risk because users can only interact in predefined ways. Injection or unexpected data is essentially impossible.
+Most quiz answering uses button-based selections, which limits payload shape. However, MDQ still accepts text input for fields like student ID and username, so normal input validation and output escaping remain important.
 
 ### Docker, Pros and Cons
 
@@ -314,13 +375,24 @@ Cons:
 - Slight complexity: you need to manage a Dockerfile and container setup.
 - Overhead: minimal extra resource use, but not essential for a simple class deployment.
 
-In summary, Docker offers structure, but may be overkill if you are running a simple Node.js quiz with controlled input. As long as you keep your app scoped, you are in good shape.
+In summary, Docker offers structure, but may be overkill if you are running a simple Node.js quiz with controlled input. As long as you keep your app scoped, this is mostly sufficient but of course containerizing is always an option for extra isolation.
 
 ## Safe Contribution Workflow
 
+Related docs:
+
+- `docs/classquiz-analysis.md`: ClassQuiz codebase summary and MDQ feature roadmap notes
 - Commit code changes under `packages/`, `docs/`, `samples/`, scripts, and config files
 - Keep personal/local files under `data/`
 - Keep local planning notes in `docs/` using `DEV-*.md` names so they stay untracked
+- Keep the local product requirements doc at `docs/DEV-PRD.md` (gitignored)
+- Keep public docs in `docs/` with non-`DEV-` names (for example runbooks or published evidence)
 - Do not commit `.env*` or logs
 
 You can push to `main` without exposing local runtime artifacts if you keep private files in `data/`.
+
+## Disclaimer
+
+MDQ is provided as-is, and you use it at your own risk. This was developed for personal use and shared in the spirit of open source, but it is not a polished commercial product. It may have security vulnerabilities, bugs, or data loss risks if used in production or with sensitive data. Always review the code and test in a safe environment before using it for real classes.
+
+MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale, TinyURL, or any other third-party services mentioned here.
