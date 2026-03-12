@@ -3,14 +3,26 @@ import { Server } from "socket.io";
 import { io as ioClient, Socket as ClientSocket } from "socket.io-client";
 import request from "supertest";
 import { createApp } from "../app";
-import { setupSocket, clearSessionTimers, startQuestionTimer } from "../socket";
+import {
+  setupSocket,
+  clearSessionTimers,
+  startQuestionTimer,
+  broadcastReveal,
+  broadcastLeaderboard,
+} from "../socket";
 import {
   clearAllSessions,
   storeSession,
   createSession,
   transitionState,
 } from "../session";
-import { SocketEvents, Quiz } from "@mdq/shared";
+import {
+  SocketEvents,
+  Quiz,
+  QuestionOpenPayload,
+  ResultsRevealPayload,
+  LeaderboardUpdatePayload,
+} from "@mdq/shared";
 import { clearInstructorSessionsForTests } from "../instructor-auth";
 import * as path from "path";
 import { AddressInfo } from "net";
@@ -22,11 +34,12 @@ describe("Socket.IO Integration", () => {
   let ioServer: Server;
   let port: number;
   let baseUrl: string;
+  let quizzes: Map<string, Quiz>;
 
   beforeAll((done) => {
     const app = createApp(quizDir);
     httpServer = createServer(app);
-    const quizzes = (app as unknown as { _quizzes: Map<string, Quiz> })._quizzes;
+    quizzes = (app as unknown as { _quizzes: Map<string, Quiz> })._quizzes;
     ioServer = setupSocket(httpServer, quizzes);
     httpServer.listen(0, () => {
       port = (httpServer.address() as AddressInfo).port;
@@ -947,6 +960,62 @@ describe("Socket.IO Integration", () => {
       student.disconnect();
       delete process.env.INSTRUCTOR_PASSWORD;
       clearInstructorSessionsForTests();
+    });
+
+    it("marks poll questions in socket payloads and excludes them from leaderboard totals", async () => {
+      const quiz = quizzes.get("week01");
+      expect(quiz).toBeDefined();
+      const originalQuestion = { ...quiz!.questions[0], correctOptions: [...quiz!.questions[0].correctOptions] };
+
+      try {
+        quiz!.questions[0] = {
+          ...quiz!.questions[0],
+          isPoll: true,
+          correctOptions: [],
+        };
+
+        const session = createSession("week01", "open");
+        storeSession(session);
+
+        const student = createClient(session.sessionId);
+        student.connect();
+        const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+        student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+        await joinedPromise;
+
+        transitionState(session, "QUESTION_OPEN");
+        session.currentQuestionIndex = 0;
+        session.questionStartedAt = Date.now() - 1000;
+
+        const instructor = createInstructorClient(session.sessionId);
+        const openPromise = waitForEvent<QuestionOpenPayload>(instructor, SocketEvents.QUESTION_OPEN);
+        instructor.connect();
+        const open = await openPromise;
+
+        expect(open.isPoll).toBe(true);
+        expect(open.allowsMultiple).toBe(false);
+
+        transitionState(session, "QUESTION_CLOSED");
+        transitionState(session, "REVEAL");
+        const revealPromise = waitForEvent<ResultsRevealPayload>(instructor, SocketEvents.RESULTS_REVEAL);
+        broadcastReveal(ioServer, session, session.sessionId, quiz!);
+        const reveal = await revealPromise;
+
+        expect(reveal.isPoll).toBe(true);
+        expect(reveal.correctOptions).toEqual([]);
+
+        transitionState(session, "LEADERBOARD");
+        const leaderboardPromise = waitForEvent<LeaderboardUpdatePayload>(instructor, SocketEvents.LEADERBOARD_UPDATE);
+        broadcastLeaderboard(ioServer, session, session.sessionId, quiz!);
+        const leaderboard = await leaderboardPromise;
+
+        expect(leaderboard.totalQuestions).toBe(quiz!.questions.filter((question) => !question.isPoll).length);
+
+        instructor.disconnect();
+        student.disconnect();
+      } finally {
+        quiz!.questions[0] = originalQuestion;
+      }
     });
 
     it("instructor reconnect during REVEAL receives current reveal context", async () => {

@@ -16,6 +16,7 @@ import {
   computeCumulativeLeaderboard,
   persistSessionProgressOnReveal,
 } from "./persistence";
+import { buildScoredCorrectAnswersMap, getScoredQuestionCount } from "./scoring";
 import { getCachedAccessInfo, generateQrDataUrl, generateShortUrl } from "./access-info";
 import {
   INSTRUCTOR_SESSION_COOKIE,
@@ -574,14 +575,11 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       if (!quiz) {
         return res.status(500).json({ error: "Quiz data not found" });
       }
-      const correctAnswersMap = new Map<number, string[]>();
-      quiz.questions.forEach((q, i) => {
-        correctAnswersMap.set(i, q.correctOptions);
-      });
+      const correctAnswersMap = buildScoredCorrectAnswersMap(quiz);
       const entries = computeLeaderboard(session, correctAnswersMap);
       res.json({
         entries,
-        totalQuestions: quiz.questions.length,
+        totalQuestions: getScoredQuestionCount(quiz),
       });
     });
   });

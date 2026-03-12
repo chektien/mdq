@@ -116,6 +116,13 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
     }
   }
 
+  const questionTypeMatch = block.match(/^question_type:\s*([a-z_]+)\s*$/im);
+  const questionType = questionTypeMatch?.[1].trim().toLowerCase();
+  if (questionType && questionType !== "poll") {
+    throw new QuizParseError(sourceFile, index, `Unsupported question_type: ${questionType}`);
+  }
+  const isPoll = questionType === "poll";
+
   const multiSelectMatch = block.match(/^multi_select:\s*(true|false|yes|no|1|0)\s*$/im);
 
   // 3. Extract answer options (lines starting with A., B., C., etc.)
@@ -137,7 +144,12 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
   const correctMultiMatch = block.match(/^>\s*Correct\s+Answers:\s*(.+)$/m);
 
   let correctOptions: string[];
-  if (correctMultiMatch) {
+  if (isPoll) {
+    if (correctSingleMatch || correctMultiMatch) {
+      throw new QuizParseError(sourceFile, index, "Poll questions must not define correct answers");
+    }
+    correctOptions = [];
+  } else if (correctMultiMatch) {
     correctOptions = correctMultiMatch[1].split(",").map((s) => s.trim().charAt(0));
   } else if (correctSingleMatch) {
     correctOptions = [correctSingleMatch[1]];
@@ -155,7 +167,9 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
 
   const allowsMultiple = multiSelectMatch
     ? parseBooleanField(multiSelectMatch[1])
-    : correctOptions.length > 1;
+    : isPoll
+      ? false
+      : correctOptions.length > 1;
 
   if (!allowsMultiple && correctOptions.length > 1) {
     throw new QuizParseError(
@@ -176,6 +190,7 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
   let textLines = lines.slice(h2LineIdx + 1, firstOptionLineIdx);
   // Remove time_limit line from text
   textLines = textLines.filter((l) => !/^time_limit:\s*\d+/i.test(l.trim()));
+  textLines = textLines.filter((l) => !/^question_type:\s*[a-z_]+$/i.test(l.trim()));
   textLines = textLines.filter((l) => !/^multi_select:\s*(true|false|yes|no|1|0)$/i.test(l.trim()));
   const textMd = textLines.join("\n").trim();
 
@@ -198,6 +213,7 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
     options,
     correctOptions,
     allowsMultiple,
+    isPoll,
     explanation,
     timeLimitSec,
   };

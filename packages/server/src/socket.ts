@@ -18,6 +18,7 @@ import {
   computeLeaderboard,
 } from "./session";
 import { Session } from "@mdq/shared";
+import { buildScoredCorrectAnswersMap, getScoredQuestionCount } from "./scoring";
 import {
   isInstructorAuthEnabled,
   getInstructorSessionFromCookie,
@@ -60,6 +61,7 @@ function buildQuestionOpenPayload(session: Session): {
   text: string;
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
+  isPoll: boolean;
   timeLimitSec: number;
   startedAt: number;
 } | null {
@@ -79,6 +81,7 @@ function buildQuestionOpenPayload(session: Session): {
     text: question.textHtml,
     options: question.options.map((o) => ({ label: o.label, text: o.textHtml })),
     allowsMultiple: question.allowsMultiple,
+    isPoll: question.isPoll === true,
     timeLimitSec: question.timeLimitSec,
     startedAt: session.questionStartedAt || Date.now(),
   };
@@ -131,6 +134,7 @@ function emitInstructorStateSnapshot(socket: Socket, session: Session): void {
       correctOptions: question.correctOptions,
       explanation: question.explanation,
       distribution: getDistribution(session, session.currentQuestionIndex),
+      isPoll: question.isPoll === true,
     });
     socket.emit(SocketEvents.ANSWER_COUNT, {
       questionIndex: session.currentQuestionIndex,
@@ -140,12 +144,11 @@ function emitInstructorStateSnapshot(socket: Socket, session: Session): void {
   }
 
   if (session.state === "LEADERBOARD" && quiz) {
-    const correctMap = new Map<number, string[]>();
-    quiz.questions.forEach((q, i) => correctMap.set(i, q.correctOptions));
+    const correctMap = buildScoredCorrectAnswersMap(quiz);
     const entries = computeLeaderboard(session, correctMap);
     socket.emit(SocketEvents.LEADERBOARD_UPDATE, {
       entries,
-      totalQuestions: quiz.questions.length,
+      totalQuestions: getScoredQuestionCount(quiz),
     });
   }
 }
@@ -190,17 +193,17 @@ function emitJoinStateSnapshot(socket: Socket, session: Session, isReconnect: bo
       correctOptions: question.correctOptions,
       explanation: question.explanation,
       distribution: getDistribution(session, session.currentQuestionIndex),
+      isPoll: question.isPoll === true,
     });
     return;
   }
 
   if (session.state === "LEADERBOARD") {
-    const correctMap = new Map<number, string[]>();
-    quiz.questions.forEach((q, i) => correctMap.set(i, q.correctOptions));
+    const correctMap = buildScoredCorrectAnswersMap(quiz);
     const entries = computeLeaderboard(session, correctMap);
     socket.emit(SocketEvents.LEADERBOARD_UPDATE, {
       entries,
-      totalQuestions: quiz.questions.length,
+      totalQuestions: getScoredQuestionCount(quiz),
     });
   }
 }
@@ -467,6 +470,7 @@ export function broadcastQuestionOpen(
     text: q.textHtml,
     options: q.options.map((o) => ({ label: o.label, text: o.textHtml })),
     allowsMultiple: q.allowsMultiple,
+    isPoll: q.isPoll === true,
     timeLimitSec: q.timeLimitSec,
     startedAt: session.questionStartedAt,
   });
@@ -496,6 +500,7 @@ export function broadcastReveal(
     correctOptions: q.correctOptions,
     explanation: q.explanation,
     distribution: dist,
+    isPoll: q.isPoll === true,
   });
 
   io.to(sessionRoom(sessionId)).emit(SocketEvents.SESSION_STATE, {
@@ -513,13 +518,12 @@ export function broadcastLeaderboard(
   sessionId: string,
   quiz: Quiz,
 ): void {
-  const correctMap = new Map<number, string[]>();
-  quiz.questions.forEach((q, i) => correctMap.set(i, q.correctOptions));
+  const correctMap = buildScoredCorrectAnswersMap(quiz);
   const entries = computeLeaderboard(session, correctMap);
 
   io.to(sessionRoom(sessionId)).emit(SocketEvents.LEADERBOARD_UPDATE, {
     entries,
-    totalQuestions: quiz.questions.length,
+    totalQuestions: getScoredQuestionCount(quiz),
   });
 
   io.to(sessionRoom(sessionId)).emit(SocketEvents.SESSION_STATE, {

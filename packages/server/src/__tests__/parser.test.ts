@@ -138,6 +138,61 @@ C. Third
       expect(result.quiz!.questions[0].allowsMultiple).toBe(true);
     });
 
+    it("parses poll questions without correct answers", () => {
+      const md = `# Quiz
+
+---
+
+## Live Poll
+
+question_type: poll
+
+**How are you feeling about the topic?**
+
+A. Great
+B. Okay
+C. Lost
+
+> Overall Feedback: Thanks for the signal.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.isPoll).toBe(true);
+      expect(q.correctOptions).toEqual([]);
+      expect(q.allowsMultiple).toBe(false);
+    });
+
+    it("supports multi-select poll questions", () => {
+      const md = `# Quiz
+
+---
+
+## Live Poll
+
+question_type: poll
+multi_select: true
+
+**Which topics need more revision?**
+
+A. Testing
+B. Networking
+C. Git
+
+> Overall Feedback: Thanks for the signal.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.isPoll).toBe(true);
+      expect(q.allowsMultiple).toBe(true);
+      expect(q.correctOptions).toEqual([]);
+    });
+
     it("uses full week key from variant filenames", () => {
       const md = `# Quiz
 
@@ -329,6 +384,30 @@ B. No
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0]).toBeInstanceOf(QuizParseError);
       expect(result.errors[0].detail).toContain("Missing correct answer");
+    });
+
+    it("rejects poll questions that declare correct answers", () => {
+      const md = `# Quiz
+
+---
+
+## Invalid Poll
+
+question_type: poll
+
+**How are you feeling?**
+
+A. Great
+B. Unsure
+
+> Correct Answer: A
+
+---
+`;
+      const result = parseQuizMarkdown(md, "test.md");
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toBeInstanceOf(QuizParseError);
+      expect(result.errors[0].detail).toContain("must not define correct answers");
     });
 
     it("rejects multi_select false when multiple correct answers are declared", () => {

@@ -225,7 +225,7 @@ Student QR behavior:
 
 ## Quiz Markdown Format
 
-Each question supports the existing `time_limit:` metadata plus an optional `multi_select:` flag. Question stems and option text can also include standard markdown images.
+Each question supports the existing `time_limit:` metadata plus optional `multi_select:` and `question_type:` flags. Question stems and option text can also include standard markdown images.
 
 ```markdown
 ---
@@ -249,8 +249,30 @@ Rules:
 
 - Omit `multi_select:` for backward compatibility. mdq will still treat `> Correct Answers: ...` as multi-select and `> Correct Answer: ...` as single-select.
 - Use `multi_select: true` when you want students to be allowed to pick more than one option for that question.
+- Use `question_type: poll` when you want a non-scored poll question. Poll questions must not include `> Correct Answer:` or `> Correct Answers:` lines.
+- Poll questions still respect `multi_select:`. Omit it for a single-choice poll, or set `multi_select: true` for a multi-select poll.
 - Do not combine `multi_select: false` with multiple correct answers.
 - The instructor `Next up` preview uses the existing `## ...` question heading, including both sides of `Topic: Subtopic` when present.
+
+Poll example:
+
+```markdown
+---
+
+## Example Topic: Live Poll
+
+question_type: poll
+time_limit: 20
+
+**How confident do you feel about today's topic right now?**
+
+A. Very confident
+B. Mostly confident
+C. Still unsure
+D. Completely lost
+
+> Overall Feedback: Thanks, this helps pace the discussion.
+```
 
 Image attachments:
 
