@@ -3,7 +3,6 @@ import type { SessionState } from "@mdq/shared";
 import { fetchPresentationSession, type PresentationSessionResponse } from "../hooks/api";
 import { useSocket, type QuestionState, type RevealState } from "../hooks/useSocket";
 import Timer from "../components/Timer";
-import DistributionChart from "../components/DistributionChart";
 import Leaderboard from "../components/Leaderboard";
 import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
@@ -177,27 +176,41 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
               {getQuestionModeText(currentQuestion.allowsMultiple, currentQuestion.isPoll)}
             </div>
 
-            <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
-              {currentQuestion.options.map((option) => (
-                <div key={option.label} className="flex items-start gap-3 rounded-xl border border-zinc-700 bg-zinc-800 px-5 py-4">
-                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center bg-zinc-700 text-lg font-bold text-zinc-300 ${currentQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
-                    {option.label}
-                  </span>
-                  <QuizHtml className="quiz-html text-lg text-zinc-200" html={option.text} as="span" />
+            {(() => {
+              const dist = state === "QUESTION_CLOSED" ? sock.distribution?.distribution : null;
+              const totalResponses = sock.answerCount?.submitted ?? 0;
+              const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
+              return (
+                <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 gap-3 sm:grid-cols-2"}`}>
+                  {currentQuestion.options.map((option) => {
+                    const count = dist?.[option.label] ?? 0;
+                    const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                    const pctOfTotal = totalResponses > 0 ? Math.round((count / totalResponses) * 100) : 0;
+                    return (
+                      <div key={option.label} className="relative rounded-xl border border-zinc-700 bg-zinc-800 overflow-hidden">
+                        {dist && (
+                          <div
+                            className="bar-fill absolute inset-0 bg-indigo-500/30 rounded-xl"
+                            style={{ width: `${Math.max(pct, 2)}%` }}
+                          />
+                        )}
+                        <div className="relative flex items-center gap-3 px-5 py-4">
+                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center bg-zinc-700 text-lg font-bold text-zinc-300 ${currentQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
+                            {option.label}
+                          </span>
+                          <QuizHtml className="quiz-html text-lg text-zinc-200 flex-1" html={option.text} as="span" />
+                          {dist && count > 0 && (
+                            <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
+                              {count} ({pctOfTotal}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-
-            {state === "QUESTION_CLOSED" && sock.distribution && (
-              <div className="mt-4 w-full max-w-2xl">
-                <h3 className="mb-3 text-sm font-medium uppercase tracking-wide text-zinc-400">Response Distribution</h3>
-                <DistributionChart
-                  distribution={sock.distribution.distribution}
-                  labels={currentQuestion.options.map((option) => option.label)}
-                  totalResponses={sock.answerCount?.submitted}
-                />
-              </div>
-            )}
+              );
+            })()}
           </>
         )}
 
@@ -208,48 +221,65 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
               html={currentQuestion.text}
             />
 
-            <div className="w-full max-w-2xl space-y-2">
-              {currentQuestion.options.map((option) => {
-                const isCorrect = reveal.correctOptions.includes(option.label);
-                const rowClass = reveal.isPoll
-                  ? "border-zinc-800 bg-zinc-900/60"
-                  : isCorrect
-                    ? "border-emerald-500/60 bg-emerald-600/15"
-                    : "border-zinc-800 bg-zinc-900/60";
-                const markerClass = reveal.isPoll
-                  ? "bg-zinc-700 text-zinc-300"
-                  : isCorrect
-                    ? "bg-emerald-600 text-white"
-                    : "bg-zinc-700 text-zinc-300";
-                const textClass = reveal.isPoll
-                  ? "text-zinc-200"
-                  : isCorrect
-                    ? "text-emerald-100"
-                    : "text-zinc-200";
-                return (
-                  <div
-                    key={option.label}
-                    className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${rowClass}`}
-                  >
-                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-sm font-bold ${markerClass}`}>
-                      {option.label}
-                    </span>
-                    <QuizHtml className={`quiz-html pt-0.5 ${textClass}`} html={option.text} as="span" />
-                  </div>
-                );
-              })}
-            </div>
+            {(() => {
+              const dist = reveal.distribution;
+              const maxCount = Math.max(1, ...Object.values(dist));
+              const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);
+              return (
+                <div className="w-full max-w-2xl space-y-2">
+                  {currentQuestion.options.map((option) => {
+                    const isCorrect = reveal.correctOptions.includes(option.label);
+                    const count = dist[option.label] ?? 0;
+                    const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                    const pctOfTotal = totalSelections > 0 ? Math.round((count / totalSelections) * 100) : 0;
 
-            {reveal.isPoll && (
-              <div className="w-full max-w-2xl">
-                <h3 className="mb-3 text-sm font-medium uppercase tracking-wide text-zinc-400">Poll Results</h3>
-                <DistributionChart
-                  distribution={reveal.distribution}
-                  labels={currentQuestion.options.map((option) => option.label)}
-                  totalResponses={Object.values(reveal.distribution).reduce((sum, count) => sum + count, 0)}
-                />
-              </div>
-            )}
+                    const borderClass = reveal.isPoll
+                      ? "border-zinc-800"
+                      : isCorrect
+                        ? "border-emerald-500/60"
+                        : "border-zinc-800";
+                    const barColor = reveal.isPoll
+                      ? "bg-indigo-500/30"
+                      : isCorrect
+                        ? "bg-emerald-500/25"
+                        : "bg-zinc-600/25";
+                    const markerClass = reveal.isPoll
+                      ? "bg-zinc-700 text-zinc-300"
+                      : isCorrect
+                        ? "bg-emerald-600 text-white"
+                        : "bg-zinc-700 text-zinc-300";
+                    const textClass = reveal.isPoll
+                      ? "text-zinc-200"
+                      : isCorrect
+                        ? "text-emerald-100"
+                        : "text-zinc-200";
+
+                    return (
+                      <div
+                        key={option.label}
+                        className={`relative rounded-xl border bg-zinc-900/60 overflow-hidden ${borderClass}`}
+                      >
+                        <div
+                          className={`bar-fill absolute inset-0 rounded-xl ${barColor}`}
+                          style={{ width: `${Math.max(pct, 2)}%` }}
+                        />
+                        <div className="relative flex items-center gap-3 px-4 py-3">
+                          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-sm font-bold ${markerClass}`}>
+                            {option.label}
+                          </span>
+                          <QuizHtml className={`quiz-html pt-0.5 flex-1 ${textClass}`} html={option.text} as="span" />
+                          {count > 0 && (
+                            <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !reveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
+                              {count} ({pctOfTotal}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {reveal.explanation && (
               <div className="w-full max-w-2xl rounded-xl border border-emerald-700/50 bg-emerald-900/30 p-6">
