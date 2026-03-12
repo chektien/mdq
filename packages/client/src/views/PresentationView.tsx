@@ -127,7 +127,7 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
           <p className="text-sm uppercase tracking-[0.22em] text-zinc-500">Presentation Mode</p>
           <h1 className="mt-2 text-3xl font-bold text-white">Session Ended</h1>
         </div>
-        <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions || totalQuestions} maxRows={15} />
+        <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions ?? totalQuestions} maxRows={15} />
       </div>
     );
   }
@@ -265,7 +265,7 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
             <h2 className="mb-6 text-center text-2xl font-bold text-white">
               {quizLabel ? `Leaderboard for ${quizLabel.toUpperCase()}` : "Leaderboard"}
             </h2>
-            <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions || totalQuestions} maxRows={10} />
+            <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions ?? totalQuestions} maxRows={10} />
           </div>
         )}
       </div>
