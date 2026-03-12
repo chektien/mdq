@@ -410,7 +410,7 @@ export default function InstructorView() {
         )}
         <Leaderboard
           entries={sock.leaderboard}
-          totalQuestions={sock.totalQuestions || totalQuestionsInQuiz}
+          totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
           maxRows={15}
         />
         <a
@@ -713,7 +713,7 @@ function LiveView({
             </h2>
             <Leaderboard
               entries={sock.leaderboard}
-              totalQuestions={sock.totalQuestions || totalQuestionsInQuiz}
+              totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
               maxRows={10}
             />
           </div>
