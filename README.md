@@ -181,6 +181,12 @@ Student QR behavior:
 - students land on the join page with the code pre-filled
 - instructor controls require a valid login session when `INSTRUCTOR_PASSWORD` is configured
 
+### 4) presentation mode (read-only projector view)
+
+- Open the session-scoped `Presentation view` link from the authenticated instructor screen when you want a second display that mirrors the instructor presentation without controls.
+- The presentation route is intentionally not linked from the public home page. A code-based public entry point would let students discover the live projector feed and watch answer distribution before submitting.
+- The presentation screen stays read-only. It never renders instructor action buttons or calls instructor REST actions.
+
 ## Quiz Markdown Format
 
 Each question supports the existing `time_limit:` metadata plus an optional `multi_select:` flag. Question stems and option text can also include standard markdown images.

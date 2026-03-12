@@ -733,6 +733,14 @@ describe("Socket.IO Integration", () => {
       });
     }
 
+    function createPresentationClient(sessionId: string): ClientSocket {
+      return ioClient(baseUrl, {
+        autoConnect: false,
+        auth: { sessionId, role: "presentation" },
+        transports: ["websocket"],
+      });
+    }
+
     it("instructor receives SESSION_PARTICIPANTS when a student joins", async () => {
       const session = createSession("week01", "open");
       storeSession(session);
@@ -893,6 +901,52 @@ describe("Socket.IO Integration", () => {
       clearSessionTimers(session.sessionId);
       instructor.disconnect();
       student.disconnect();
+    });
+
+    it("presentation view connects without instructor auth and receives live snapshot", async () => {
+      process.env.INSTRUCTOR_PASSWORD = "presentation-test-secret";
+      clearInstructorSessionsForTests();
+
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const student = createClient(session.sessionId);
+      student.connect();
+      const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+      student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() - 1000;
+
+      const presentation = createPresentationClient(session.sessionId);
+      const participantsPromise = waitForEvent<{ count: number }>(presentation, SocketEvents.SESSION_PARTICIPANTS);
+      const statePromise = waitForEvent<{ state: string; questionIndex?: number }>(presentation, SocketEvents.SESSION_STATE);
+      const openPromise = waitForEvent<{ questionIndex: number }>(presentation, SocketEvents.QUESTION_OPEN);
+      const countPromise = waitForEvent<{ questionIndex: number; submitted: number; total: number }>(presentation, SocketEvents.ANSWER_COUNT);
+
+      presentation.connect();
+
+      const [participants, state, open, count] = await Promise.all([
+        participantsPromise,
+        statePromise,
+        openPromise,
+        countPromise,
+      ]);
+
+      expect(participants.count).toBe(1);
+      expect(state.state).toBe("QUESTION_OPEN");
+      expect(state.questionIndex).toBe(0);
+      expect(open.questionIndex).toBe(0);
+      expect(count.submitted).toBe(0);
+      expect(count.total).toBe(1);
+
+      clearSessionTimers(session.sessionId);
+      presentation.disconnect();
+      student.disconnect();
+      delete process.env.INSTRUCTOR_PASSWORD;
+      clearInstructorSessionsForTests();
     });
 
     it("instructor reconnect during REVEAL receives current reveal context", async () => {

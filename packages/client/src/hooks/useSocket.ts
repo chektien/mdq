@@ -112,7 +112,7 @@ export interface UseSocketReturn {
 
 export function useSocket(
   sessionId: string | null,
-  role: "student" | "instructor",
+  role: "student" | "instructor" | "presentation",
 ): UseSocketReturn {
   const socketRef = useRef<Socket | null>(null);
   const answeredQuestionsRef = useRef<number[]>([]);

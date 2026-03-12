@@ -34,6 +34,16 @@ export interface SessionRestoreResponse {
   questionHeadings: string[];
 }
 
+export interface PresentationSessionResponse {
+  sessionId: string;
+  sessionCode: string;
+  week: string;
+  state: string;
+  questionCount: number;
+  questionHeadings: string[];
+  accessInfo: AccessInfo;
+}
+
 export interface InstructorSessionStatus {
   authenticated: boolean;
   configured: boolean;
@@ -190,6 +200,15 @@ export async function fetchSessionStateForRestore(sessionId: string): Promise<Se
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || "Failed to restore session state");
+  }
+  return res.json();
+}
+
+export async function fetchPresentationSession(sessionId: string): Promise<PresentationSessionResponse> {
+  const res = await fetch(apiPath(API.SESSION_PRESENTATION, { id: sessionId }));
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to load presentation session");
   }
   return res.json();
 }

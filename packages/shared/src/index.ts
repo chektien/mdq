@@ -170,6 +170,7 @@ export const API = {
   SESSION_LEADERBOARD_HIDE: "/api/session/:id/leaderboard-hide",
   SESSION_STATE_RESTORE: "/api/session/:id/state",
   SESSION_ACCESS_INFO: "/api/session/:id/access-info",
+  SESSION_PRESENTATION: "/api/session/:id/presentation",
   SESSION_BY_CODE: "/api/session/by-code/:code",
   ACCESS_INFO: "/api/access-info",
   QR_CODE: "/api/qr/:sessionId.png",
@@ -277,6 +278,7 @@ export interface AccessInfo {
   shortUrl: string;
   qrCodeDataUrl: string;
   qrTargetUrl: string;
+  presentationUrl?: string;
   source: "tailscale" | "lan-fallback";
   warning?: string;
   detectedAt: number;
