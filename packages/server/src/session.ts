@@ -310,6 +310,16 @@ export function getSessionByCode(code: string): Session | undefined {
   return id ? sessionStore.get(id) : undefined;
 }
 
+export function getActiveSessions(): { sessionId: string; sessionCode: string; state: string }[] {
+  const results: { sessionId: string; sessionCode: string; state: string }[] = [];
+  for (const session of sessionStore.values()) {
+    if (session.state !== "ENDED") {
+      results.push({ sessionId: session.sessionId, sessionCode: session.sessionCode, state: session.state });
+    }
+  }
+  return results;
+}
+
 export function clearAllSessions(): void {
   sessionStore.clear();
   sessionCodeIndex.clear();

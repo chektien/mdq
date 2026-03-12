@@ -8,7 +8,7 @@ Just your own machine and a public secure tunnel (like Tailscale).
 
 MDQ is provided as-is, and you use it at your own risk.
 
-MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale or TinyURL.
+MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale or is.gd.
 
 ## Open Source Repo Layout
 
@@ -36,7 +36,7 @@ The `data/` folder is intentionally ignored so local state and access info do no
 ## Why This Works
 
 MDQ is optimized for a narrow classroom usage scenario:
-- This project is intentionally built with tight operational integration around Tailscale (secure tunnel/Funnel) and TinyURL (short links in instructor flow).
+- This project is intentionally built with tight operational integration around Tailscale (secure tunnel/Funnel) and is.gd (short links in instructor flow).
 - The core MDQ logic does not depend on those specific vendors, so you can adapt the same flow to other tunnel providers and URL shorteners if your environment prefers different services.
 - short, synchronous quiz sessions
 - one instructor-led live room
@@ -104,8 +104,8 @@ tailscale funnel 3000
 ```
 
 7. Start mdq.
-8. mdq auto-discovers the current Tailscale DNS name by calling `tailscale status --json` on startup, so a tailnet hostname change does not need a repo edit. The detected public base URL is cached locally in `data/access/current.json` and the instructor screen uses it to generate the join URL, TinyURL, and QR code.
-9. Share the mdq join URL, TinyURL, or QR code with students.
+8. mdq auto-discovers the current Tailscale DNS name by calling `tailscale status --json` on startup, so a tailnet hostname change does not need a repo edit. The detected public base URL is cached locally in `data/access/current.json` and the instructor screen uses it to generate the join URL, is.gd, and QR code.
+9. Share the mdq join URL, is.gd, or QR code with students.
 
 Common gotchas:
 
@@ -137,7 +137,7 @@ Default server port is `3000`, with fallback retries enabled when that port is o
 
 If `VITE_INSTRUCTOR_ROUTE_SEGMENT` is unset, the default segment is `instructor` (backward compatible local dev behavior).
 
-**For classroom security:** Assume students can see the final Tailscale host URL (TinyURL redirects reveal it, and MDQ QR codes target the full join URL directly). Treat join links as classroom-shareable, and protect instructor controls with a strong `INSTRUCTOR_PASSWORD` plus a non-obvious instructor route.
+**For classroom security:** Assume students can see the final Tailscale host URL (is.gd redirects reveal it, and MDQ QR codes target the full join URL directly). Treat join links as classroom-shareable, and protect instructor controls with a strong `INSTRUCTOR_PASSWORD` plus a non-obvious instructor route.
 
 **Security model:** mdq serves one built client bundle to everyone (students and instructor). `VITE_INSTRUCTOR_ROUTE_SEGMENT` is build-time routing only. Real instructor access is gated by a server-side login cookie created after entering `INSTRUCTOR_PASSWORD`. The password is never bundled into client code.
 
@@ -208,6 +208,31 @@ Student QR behavior:
 - Open the session-scoped `Presentation view` link from the authenticated instructor screen when you want a second display that mirrors the instructor presentation without controls.
 - The presentation route is intentionally not linked from the public home page. A code-based public entry point would let students discover the live projector feed and monitor the session outside the instructor flow.
 - The presentation screen stays read-only. It never renders instructor action buttons or calls instructor REST actions.
+
+### 5) mock students (for testing)
+
+Spawn fake students that join a session and answer questions randomly:
+
+```bash
+npx tsx scripts/mock-students.ts <sessionId|sessionCode> [count=10] [serverUrl=http://localhost:3000]
+```
+
+Accepts either a 6-character session code (e.g. `P2KU9R`) or a full session ID. The script resolves codes via the API automatically.
+
+If no session is specified, the script auto-detects the only active session. When instructor auth is enabled, the script uses `INSTRUCTOR_PASSWORD` from the environment to authenticate.
+
+Examples:
+
+```bash
+npx tsx scripts/mock-students.ts                # auto-detect active session
+npx tsx scripts/mock-students.ts 20             # auto-detect, 20 students
+npx tsx scripts/mock-students.ts P2KU9R         # by session code (no auth needed)
+npx tsx scripts/mock-students.ts P2KU9R 50      # 50 students
+```
+
+Students connect with staggered timing and answer each question after a random delay. `Ctrl+C` disconnects them all.
+
+Requires `socket.io-client` to be resolvable — run `npm install -D socket.io-client` at the repo root if needed.
 
 ## Quiz Markdown Format
 
@@ -409,4 +434,4 @@ You can push to `main` without exposing local runtime artifacts if you keep priv
 
 MDQ is provided as-is, and you use it at your own risk. This was developed for personal use and shared in the spirit of open source, but it is not a polished commercial product. It may have security vulnerabilities, bugs, or data loss risks if used in production or with sensitive data. Always review the code and test in a safe environment before using it for real classes.
 
-MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale, TinyURL, or any other third-party services mentioned here.
+MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale, is.gd, or any other third-party services mentioned here.

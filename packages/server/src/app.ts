@@ -9,6 +9,7 @@ import {
   transitionState,
   StateTransitionError,
   computeLeaderboard,
+  getActiveSessions,
 } from "./session";
 import { parseQuizMarkdown } from "./parser";
 import {
@@ -223,6 +224,10 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       instanceId: resolvedInstanceId,
       pid: process.pid,
     });
+  });
+
+  app.get("/api/sessions/active", requireInstructorAuth, (_req, res) => {
+    res.json(getActiveSessions());
   });
 
   app.get("/api/runtime-config", (_req, res) => {
