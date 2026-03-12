@@ -1,4 +1,4 @@
-# Week 00 Quiz: Localhost Smoke Test (3 Questions)
+# Week 00 Quiz: Localhost Smoke Test (4 Questions)
 
 ---
 
@@ -36,6 +36,24 @@ D. The student can see their student ID and optional display name were accepted
 
 > Correct Answers: A, D
 > Overall Feedback: A valid join keeps the student in the lobby until the instructor starts, and the accepted student identity should carry into the live session.
+
+---
+
+## System Check: Readiness Pulse
+
+time_limit: 20
+question_type: poll
+
+The instructor wants a quick pulse check before the final smoke-test step.
+
+**Which mdq view are you currently looking at during this test run?**
+
+A. Instructor controls
+B. Student question screen
+C. Projected presentation view
+D. I am between screens right now
+
+> Overall Feedback: This poll confirms which surface each tester is validating, without changing the score.
 
 ---
 
