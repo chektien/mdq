@@ -1,6 +1,9 @@
 import { Quiz, Question, QuestionOption, DEFAULT_TIME_LIMIT_SEC } from "@mdq/shared";
 import { marked } from "marked";
 
+const QUIZ_IMAGE_SOURCE_PREFIX = "../images/";
+const QUIZ_IMAGE_PUBLIC_PREFIX = "/data/images/";
+
 /** Error describing a problem in a specific question block */
 export class QuizParseError extends Error {
   constructor(
@@ -113,6 +116,8 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
     }
   }
 
+  const multiSelectMatch = block.match(/^multi_select:\s*(true|false|yes|no|1|0)\s*$/im);
+
   // 3. Extract answer options (lines starting with A., B., C., etc.)
   const optionLines: { label: string; text: string; lineIndex: number }[] = [];
   const optionRegex = /^([A-Z])\.\s+(.+)$/;
@@ -148,6 +153,18 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
     }
   }
 
+  const allowsMultiple = multiSelectMatch
+    ? parseBooleanField(multiSelectMatch[1])
+    : correctOptions.length > 1;
+
+  if (!allowsMultiple && correctOptions.length > 1) {
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      "multi_select: false cannot be used with multiple correct answers",
+    );
+  }
+
   // 5. Extract explanation from blockquote
   const feedbackMatch = block.match(/^>\s*Overall\s+Feedback:\s*(.+)$/m);
   const explanation = feedbackMatch ? feedbackMatch[1].trim() : "";
@@ -159,6 +176,7 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
   let textLines = lines.slice(h2LineIdx + 1, firstOptionLineIdx);
   // Remove time_limit line from text
   textLines = textLines.filter((l) => !/^time_limit:\s*\d+/i.test(l.trim()));
+  textLines = textLines.filter((l) => !/^multi_select:\s*(true|false|yes|no|1|0)$/i.test(l.trim()));
   const textMd = textLines.join("\n").trim();
 
   // 7. Render markdown to HTML
@@ -179,15 +197,51 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
     textHtml,
     options,
     correctOptions,
+    allowsMultiple,
     explanation,
     timeLimitSec,
   };
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function resolveMarkdownImageHref(href: string): string {
+  const normalizedHref = href.trim().replace(/\\/g, "/");
+  if (!normalizedHref.startsWith(QUIZ_IMAGE_SOURCE_PREFIX)) {
+    return normalizedHref;
+  }
+
+  const relativePath = normalizedHref.slice(QUIZ_IMAGE_SOURCE_PREFIX.length);
+  const segments = relativePath.replace(/^\/+/, "").split("/").filter(Boolean);
+  if (segments.length === 0 || segments.some((segment) => segment === "." || segment === "..")) {
+    return normalizedHref;
+  }
+
+  return `${QUIZ_IMAGE_PUBLIC_PREFIX}${segments.join("/")}`;
+}
+
+function parseBooleanField(value: string): boolean {
+  return /^(true|yes|1)$/i.test(value.trim());
+}
+
 /** Render markdown to HTML using marked (synchronous) */
 function renderMarkdown(md: string): string {
+  const renderer = new marked.Renderer();
+  renderer.image = (href: string, title: string | null, text: string): string => {
+    const src = escapeHtml(resolveMarkdownImageHref(href));
+    const alt = escapeHtml(text || "Quiz image");
+    const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
+    return `<img class="quiz-embedded-image" src="${src}" alt="${alt}"${titleAttr}>`;
+  };
+
   // marked.parse can return string | Promise<string> depending on config,
   // but with default (sync) config it returns string
-  const result = marked.parse(md, { async: false }) as string;
+  const result = marked.parse(md, { async: false, renderer }) as string;
   return result.trim();
 }

@@ -95,6 +95,14 @@ describe("REST API", () => {
     });
   });
 
+  describe("GET /api/runtime-config", () => {
+    it("returns the configured runtime theme", async () => {
+      const res = await request(createApp({ quizDir, theme: "light" })).get("/api/runtime-config");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ theme: "light" });
+    });
+  });
+
   describe("GET /api/quizzes", () => {
     it("lists available quizzes", async () => {
       const res = await request(app).get("/api/quizzes");
@@ -180,6 +188,34 @@ describe("REST API", () => {
     });
   });
 
+  describe("GET /data/images/*", () => {
+    it("serves quiz attachment files from the data images directory", async () => {
+      const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-images-quiz-"));
+      const tempDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-images-data-"));
+      const imageDir = path.join(tempDataDir, "images");
+      fs.mkdirSync(imageDir, { recursive: true });
+
+      const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
+
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="#f59e0b"/></svg>';
+      fs.writeFileSync(path.join(imageDir, "xr-setup.svg"), svg, "utf-8");
+
+      const imageApp = createApp({ quizDir: tempQuizDir, dataDir: tempDataDir });
+
+      try {
+        const res = await request(imageApp).get("/data/images/xr-setup.svg");
+        expect(res.status).toBe(200);
+        const bodyText = Buffer.isBuffer(res.body) ? res.body.toString("utf-8") : String(res.text || "");
+        expect(bodyText).toContain("<svg");
+        expect(res.headers["content-type"]).toContain("image/svg+xml");
+      } finally {
+        fs.rmSync(tempQuizDir, { recursive: true, force: true });
+        fs.rmSync(tempDataDir, { recursive: true, force: true });
+      }
+    });
+  });
+
   describe("Session lifecycle", () => {
     let sessionId: string;
 
@@ -197,6 +233,11 @@ describe("REST API", () => {
       expect(res.status).toBe(201);
       expect(res.body.sessionId).toBeTruthy();
       expect(res.body.sessionCode).toHaveLength(6);
+      expect(res.body.questionHeadings).toEqual([
+        "Intro: Definitions",
+        "Intro: Defaults",
+        "Intro: Multi-select",
+      ]);
     });
 
     it("rejects session creation without week", async () => {
@@ -408,6 +449,11 @@ describe("REST API", () => {
       expect(res.body.state).toBe("QUESTION_OPEN");
       expect(res.body.questionCount).toBe(3);
       expect(res.body.week).toBe("week01");
+      expect(res.body.questionHeadings).toEqual([
+        "Intro: Definitions",
+        "Intro: Defaults",
+        "Intro: Multi-select",
+      ]);
     });
 
     it("returns 410 for restore request on ended session", async () => {

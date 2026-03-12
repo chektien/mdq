@@ -9,7 +9,7 @@ import {
   Submission,
   DATA_DIR,
 } from "@mdq/shared";
-import { computeLeaderboard } from "./session";
+import { computeLeaderboard, isExactOptionMatch } from "./session";
 
 const sessionRevealTimestamps = new Map<string, Map<number, number>>();
 const DEFAULT_DATA_DIR = path.resolve(__dirname, "../../../", DATA_DIR);
@@ -189,10 +189,7 @@ export interface SummaryWriteResult {
 }
 
 function isSubmissionCorrect(submission: Submission, correctOptions: string[]): boolean {
-  return (
-    submission.selectedOptions.length === correctOptions.length
-    && submission.selectedOptions.every((opt) => correctOptions.includes(opt))
-  );
+  return isExactOptionMatch(submission.selectedOptions, correctOptions);
 }
 
 /**

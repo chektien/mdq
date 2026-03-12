@@ -59,6 +59,7 @@ function buildQuestionOpenPayload(session: Session): {
   topic: string;
   text: string;
   options: { label: string; text: string }[];
+  allowsMultiple: boolean;
   timeLimitSec: number;
   startedAt: number;
 } | null {
@@ -77,6 +78,7 @@ function buildQuestionOpenPayload(session: Session): {
     topic: question.topic,
     text: question.textHtml,
     options: question.options.map((o) => ({ label: o.label, text: o.textHtml })),
+    allowsMultiple: question.allowsMultiple,
     timeLimitSec: question.timeLimitSec,
     startedAt: session.questionStartedAt || Date.now(),
   };
@@ -334,6 +336,14 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
       }
 
       try {
+        const quiz = quizStore.get(session.week);
+        const question = quiz?.questions[session.currentQuestionIndex];
+        if (!question) {
+          throw new Error(`Question ${session.currentQuestionIndex + 1} not found.`);
+        }
+        if (payload.questionIndex === session.currentQuestionIndex && !question.allowsMultiple && payload.selectedOptions.length > 1) {
+          throw new Error("This question accepts one answer only.");
+        }
         recordSubmission(session, studentId, payload.questionIndex, payload.selectedOptions);
         socket.emit(SocketEvents.ANSWER_ACCEPTED, { questionIndex: payload.questionIndex });
 
@@ -456,6 +466,7 @@ export function broadcastQuestionOpen(
     topic: q.topic,
     text: q.textHtml,
     options: q.options.map((o) => ({ label: o.label, text: o.textHtml })),
+    allowsMultiple: q.allowsMultiple,
     timeLimitSec: q.timeLimitSec,
     startedAt: session.questionStartedAt,
   });

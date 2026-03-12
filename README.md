@@ -4,7 +4,27 @@ MCQs are passe. Enter MDQs. Human- and agent-friendly Markdown Quizzes.
 No clunky interfaces. No database. No proprietary nonsense.
 Just your own machine and a public secure tunnel (like Tailscale).
 
-## Demo Gallery
+## Disclaimer
+
+MDQ is provided as-is, and you use it at your own risk.
+
+MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale or TinyURL.
+
+## Open Source Repo Layout
+
+- `packages/`: app code (safe to commit)
+- `samples/quizzes/`: tracked sample smoke quiz markdown for onboarding
+- `samples/images/`: tracked sample image assets copied into local runtime storage
+- `data/`: local-only runtime and private instance data (gitignored)
+  - `data/quizzes/`: your editable quiz source files
+  - `data/images/`: quiz image attachments referenced from markdown
+  - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
+  - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
+- `docs/DEV-*.md`: local development planning docs (gitignored by naming convention)
+
+The `data/` folder is intentionally ignored so local state and access info do not get committed.
+
+## Demo
 
 ![MDQ demo 1](docs/demo/mdq-demo-01.png)
 ![MDQ demo 2](docs/demo/mdq-demo-02.png)
@@ -52,7 +72,48 @@ npm install
 npm run setup:local
 ```
 
-This creates local `data/` directories and copies sample quizzes into `data/quizzes/`.
+This creates local `data/` directories, including `data/images/`, then copies the sample smoke quiz into `data/quizzes/week00.md` and the sample SVG attachment into `data/images/`.
+
+Optional local runtime settings live in `data/config.json` (copy from `data/config.example.json`). The tracked example now includes `theme`, which defaults to `dark` and also accepts `light`.
+
+## Tailscale Funnel Setup
+
+mdq works best when the instructor machine is reachable through Tailscale Funnel.
+
+If you are starting from scratch with your own personal Tailscale account, do this:
+
+1. Go to `https://tailscale.com/` and create an account.
+2. Install Tailscale on the computer that will run mdq.
+3. Sign in to Tailscale on that computer.
+4. Turn Tailscale on:
+
+```bash
+tailscale up
+```
+
+5. Check that Tailscale is working and note your `*.ts.net` device name:
+
+```bash
+tailscale status
+```
+
+6. Publish the mdq port with Funnel:
+
+```bash
+tailscale funnel 3000
+```
+
+7. Start mdq.
+8. mdq auto-discovers the current Tailscale DNS name by calling `tailscale status --json` on startup, so a tailnet hostname change does not need a repo edit. The detected public base URL is cached locally in `data/access/current.json` and the instructor screen uses it to generate the join URL, TinyURL, and QR code.
+9. Share the mdq join URL, TinyURL, or QR code with students.
+
+Common gotchas:
+
+- If `tailscale status` does not show your device, finish signing in first.
+- If `tailscale funnel 3000` fails, Funnel is usually not enabled yet for your account or device in the Tailscale admin page.
+- If mdq starts on a port other than `3000`, run Funnel on that actual port instead.
+- If you rename the device or change the tailnet hostname, restart mdq so it refreshes `data/access/current.json` from the latest `tailscale status --json` output.
+- When class ends, stop mdq and stop the Funnel exposure.
 
 ## Run
 
@@ -78,7 +139,33 @@ If `VITE_INSTRUCTOR_ROUTE_SEGMENT` is unset, the default segment is `instructor`
 
 **For classroom security:** Assume students can see the final Tailscale host URL (TinyURL redirects reveal it, and MDQ QR codes target the full join URL directly). Treat join links as classroom-shareable, and protect instructor controls with a strong `INSTRUCTOR_PASSWORD` plus a non-obvious instructor route.
 
-### 2) student join flow (share this one)
+**Security model:** mdq serves one built client bundle to everyone (students and instructor). `VITE_INSTRUCTOR_ROUTE_SEGMENT` is build-time routing only. Real instructor access is gated by a server-side login cookie created after entering `INSTRUCTOR_PASSWORD`. The password is never bundled into client code.
+
+1. Build the client with route segment:
+   ```bash
+   export VITE_INSTRUCTOR_ROUTE_SEGMENT="instructor-9f2c7b1e4d8a6f3c"
+   npm run build --workspace=@mdq/client
+   ```
+
+2. On your iPad, open:
+
+   `https://<your-mdq-host>/#/<VITE_INSTRUCTOR_ROUTE_SEGMENT>`
+
+   Example:
+
+   `https://abc123.ts.net/#/instructor-9f2c7b1e4d8a6f3c`
+
+3. Enter the instructor password on the login page. Login persists for the current browser session (refresh-safe) until the browser session ends.
+
+4. **Important limitation:** The longer route is still obscurity, not authentication by itself. Keep using a strong `INSTRUCTOR_PASSWORD` and avoid sharing your instructor route.
+
+Tip for classroom privacy and mobility: present from iPad, add MDQ to your iPad Home Screen, and launch it as a web app. This keeps browser chrome out of view, hides the full URL during projection, and lets you walk around while controlling the session.
+
+**For classroom security:** Keep your Tailscale Funnel URL private. The security boundary is your private network (Tailscale) plus operational secrecy (don't share the instructor route with students).
+
+While a quiz is running, the instructor screen also shows a `Next up` card with the next question's markdown heading. Use that as your cue in the lectorial slides before you tap `Next Question`.
+
+### 3) student join flow (share this one)
 
 - Share only the student join URL or QR code from the instructor screen.
 - Student QR codes resolve to `/#/join/<SESSION_CODE>` and do not need instructor login.
@@ -92,7 +179,7 @@ For off-LAN access during class, expose your local server with Tailscale Funnel 
 tailscale funnel 3000
 ```
 
-Then share the generated `https://<machine>.ts.net` URL (or short URL / QR shown in the instructor screen).
+Then share the detected `https://<machine>.<tailnet>.ts.net` URL (or the short URL / QR shown in the instructor screen). mdq reads this from Tailscale automatically on startup.
 
 If students see `Session not found for that code`, verify your Tailscale Funnel is bound to the same port your active MDQ server process is using.
 
@@ -115,6 +202,58 @@ Student QR behavior:
 - QR codes resolve directly to `/#/join/<SESSION_CODE>`
 - Students land on the join page with the code pre-filled
 - Instructor controls require a valid login session when `INSTRUCTOR_PASSWORD` is configured
+
+## Quiz Markdown Format
+
+Each question supports the existing `time_limit:` metadata plus an optional `multi_select:` flag. Question stems and option text can also include standard markdown images.
+
+```markdown
+---
+
+## Example Topic: Selection Modes
+
+time_limit: 45
+multi_select: true
+
+**Which items belong in the release checklist?**
+
+A. Run verification
+B. Delete git history
+C. Write a short rollout note
+
+> Correct Answers: A, C
+> Overall Feedback: Verification plus a short note makes the release easier to trust and easier to hand off.
+```
+
+Rules:
+
+- Omit `multi_select:` for backward compatibility. mdq will still treat `> Correct Answers: ...` as multi-select and `> Correct Answer: ...` as single-select.
+- Use `multi_select: true` when you want students to be allowed to pick more than one option for that question.
+- Do not combine `multi_select: false` with multiple correct answers.
+- The instructor `Next up` preview uses the existing `## ...` question heading, including both sides of `Topic: Subtopic` when present.
+
+Image attachments:
+
+```markdown
+## Example Topic: Image Prompt
+
+time_limit: 35
+
+![](../images/xr-setup.png)
+
+**Which device is responsible for scene capture in this setup?**
+
+A. The iPad
+B. The headset strap
+C. The HDMI adapter
+
+> Correct Answer: A
+> Overall Feedback: The iPad captures the source scan for reconstruction.
+```
+
+- Store image files in `data/images/`.
+- Reference them from quiz markdown with `![](../images/<filename>)`.
+- mdq rewrites that quiz-relative path to `/data/images/...` when rendering, so the same markdown works cleanly in the live frontend.
 
 ## iPad usage and troubleshooting (optional)
 
@@ -183,9 +322,9 @@ Design notes:
 
 ## Media Scope
 
-Images and embedded video in quiz content are a future enhancement.
+Image attachments are supported for quiz stems and option text through standard markdown syntax.
 
-For now, MDQ assumes image or video context is shown by the instructor in slides during class, while the quiz app handles prompts, options, explanations, and scoring.
+Embedded video is still out of scope for now. Keep video context in slides or a separate instructor-controlled window while mdq handles the prompt, options, explanations, and scoring.
 
 ## Security and Risk
 

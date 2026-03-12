@@ -348,6 +348,19 @@ describe("Socket.IO Integration", () => {
       const rejected = await rejectedPromise;
       expect(rejected.reason).toContain("mismatch");
     });
+
+    it("rejects multiple selections for single-select questions", async () => {
+      const rejectedPromise = waitForEvent<{ reason: string }>(
+        client,
+        SocketEvents.ANSWER_REJECTED,
+      );
+      client.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        selectedOptions: ["A", "B"],
+      });
+      const rejected = await rejectedPromise;
+      expect(rejected.reason).toContain("one answer only");
+    });
   });
 
   describe("reconnect during open question", () => {

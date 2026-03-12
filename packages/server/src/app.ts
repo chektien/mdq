@@ -33,6 +33,7 @@ export interface AppOptions {
   quizDir?: string;
   dataDir?: string;
   instanceId?: string;
+  theme?: "dark" | "light";
   /** Called after a successful REST-driven state transition */
   onStateChange?: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => void;
 }
@@ -60,6 +61,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   let quizDir: string | undefined;
   let dataDir: string | undefined;
   let instanceId: string | undefined;
+  let theme: "dark" | "light" = "dark";
   let onStateChange: AppOptions["onStateChange"];
   if (typeof quizDirOrOpts === "string") {
     quizDir = quizDirOrOpts;
@@ -67,17 +69,34 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     quizDir = quizDirOrOpts.quizDir;
     dataDir = quizDirOrOpts.dataDir;
     instanceId = quizDirOrOpts.instanceId;
+    theme = quizDirOrOpts.theme || "dark";
     onStateChange = quizDirOrOpts.onStateChange;
   }
   const resolvedInstanceId = (instanceId || process.env.MDQ_INSTANCE_ID || "").trim() || `pid-${process.pid}`;
+  const imagesDir = dataDir ? path.join(dataDir, "images") : undefined;
 
   app.use((_req, res, next) => {
     res.setHeader("x-mdq-instance-id", resolvedInstanceId);
     next();
   });
 
+  if (imagesDir && fs.existsSync(imagesDir)) {
+    app.use("/data/images", express.static(imagesDir, {
+      fallthrough: true,
+      index: false,
+      immutable: false,
+      maxAge: 0,
+    }));
+  }
+
   // ── Quiz store ──────────────────────────────
   const quizzes = new Map<string, Quiz>();
+
+  function getQuestionHeadings(quiz: Quiz): string[] {
+    return quiz.questions.map((question) => (
+      question.subtopic ? `${question.topic}: ${question.subtopic}` : question.topic
+    ));
+  }
 
   function loadQuizzesFromDir(dirPath: string): number {
     if (!fs.existsSync(dirPath)) {
@@ -171,6 +190,10 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       instanceId: resolvedInstanceId,
       pid: process.pid,
     });
+  });
+
+  app.get("/api/runtime-config", (_req, res) => {
+    res.json({ theme });
   });
 
   app.get(API.INSTRUCTOR_SESSION, (req, res) => {
@@ -273,6 +296,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       sessionId: session.sessionId,
       sessionCode: session.sessionCode,
       joinUrl: `/join/${session.sessionCode}`,
+      questionHeadings: getQuestionHeadings(quiz),
     });
   });
 
@@ -309,6 +333,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         state: session.state,
         currentQuestionIndex: session.currentQuestionIndex,
         questionCount: quiz.questions.length,
+        questionHeadings: getQuestionHeadings(quiz),
       });
     });
   });

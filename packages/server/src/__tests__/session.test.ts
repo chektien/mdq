@@ -6,6 +6,7 @@ import {
   getDistribution,
   getSubmissionCount,
   computeLeaderboard,
+  isExactOptionMatch,
   StateTransitionError,
 } from "../session";
 import { Session, SessionState, STATE_TRANSITIONS } from "@mdq/shared";
@@ -216,6 +217,11 @@ describe("Session Engine", () => {
       expect(session.submissions).toHaveLength(1);
     });
 
+    it("normalizes multi-select submissions before storing", () => {
+      const sub = recordSubmission(session, "S001", 0, ["D", "A", "D"]);
+      expect(sub.selectedOptions).toEqual(["A", "D"]);
+    });
+
     it("rejects duplicate submission", () => {
       recordSubmission(session, "S001", 0, ["B"]);
       expect(() => recordSubmission(session, "S001", 0, ["A"])).toThrow(
@@ -355,6 +361,13 @@ describe("Session Engine", () => {
       // S002 and S003 both have 1 correct, tiebreak by total time
       expect(board[1].correctCount).toBe(1);
       expect(board[2].correctCount).toBe(1);
+    });
+
+    it("treats multi-select answers as exact sets", () => {
+      expect(isExactOptionMatch(["D", "A"], ["A", "D"])).toBe(true);
+      expect(isExactOptionMatch(["A", "D", "A"], ["A", "D"])).toBe(true);
+      expect(isExactOptionMatch(["A"], ["A", "D"])).toBe(false);
+      expect(isExactOptionMatch(["A", "B"], ["A", "D"])).toBe(false);
     });
   });
 });

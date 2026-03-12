@@ -31,6 +31,9 @@ cooldown() {
   fi
 }
 
+run_step "Building shared contracts" npm run build --workspace @mdq/shared
+cooldown
+
 run_step "Running targeted live E2E regression (serial)" npx jest --runInBand --testPathPattern e2e-live-readiness --forceExit --detectOpenHandles --config packages/server/jest.config.js
 cooldown
 
