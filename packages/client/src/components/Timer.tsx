@@ -34,7 +34,7 @@ export default function Timer({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#27272a"
+          stroke="#e7d9c4"
           strokeWidth="8"
         />
         {/* Progress arc */}

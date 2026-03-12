@@ -46,6 +46,7 @@ function makeQuiz(week = "week01", questionCount = 2): Quiz {
       { label: "B", textMd: "Option B", textHtml: "Option B" },
     ],
     correctOptions: ["A"],
+    allowsMultiple: false,
     explanation: `A is correct for Q${i + 1}`,
     timeLimitSec: 20,
   }));

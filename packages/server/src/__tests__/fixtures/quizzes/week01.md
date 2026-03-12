@@ -35,6 +35,7 @@ D. 60
 ## Intro: Multi-select
 
 time_limit: 45
+multi_select: true
 
 **Which are XR modalities? (Select all that apply)**
 

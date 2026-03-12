@@ -1,0 +1,7 @@
+{
+  "port": 2081,
+  "portFallbacks": 10,
+  "quizDir": "./quizzes",
+  "instanceId": "classroom-imac",
+  "theme": "dark"
+}

@@ -10,6 +10,9 @@ dist/
 # Local runtime and private instance data
 data/**
 !data/.gitkeep
+!data/config.example.json
+!data/images/
+!data/images/.gitkeep
 !data/quizzes/
 !data/quizzes/.gitkeep
 packages/server/data/

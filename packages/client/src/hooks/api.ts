@@ -21,6 +21,7 @@ export interface CreateSessionResponse {
   sessionId: string;
   sessionCode: string;
   joinUrl: string;
+  questionHeadings: string[];
 }
 
 export interface SessionRestoreResponse {
@@ -30,11 +31,22 @@ export interface SessionRestoreResponse {
   state: string;
   currentQuestionIndex: number;
   questionCount: number;
+  questionHeadings: string[];
 }
 
 export interface InstructorSessionStatus {
   authenticated: boolean;
   configured: boolean;
+}
+
+export interface RuntimeClientConfig {
+  theme?: "dark" | "light";
+}
+
+export async function fetchRuntimeClientConfig(): Promise<RuntimeClientConfig> {
+  const res = await fetch("/api/runtime-config");
+  if (!res.ok) throw new Error("Failed to fetch runtime config");
+  return res.json();
 }
 
 export async function fetchInstructorSessionStatus(): Promise<InstructorSessionStatus> {

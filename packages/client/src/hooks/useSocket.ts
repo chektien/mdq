@@ -63,6 +63,7 @@ export interface QuestionState {
   topic: string;
   text: string;
   options: { label: string; text: string }[];
+  allowsMultiple: boolean;
   timeLimitSec: number;
   startedAt: number;
 }
@@ -206,6 +207,7 @@ export function useSocket(
         topic: data.topic,
         text: data.text,
         options: data.options,
+        allowsMultiple: data.allowsMultiple,
         timeLimitSec: data.timeLimitSec,
         startedAt: data.startedAt,
       });

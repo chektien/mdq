@@ -55,8 +55,8 @@ export default function App() {
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center gap-8 p-6">
       <div className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-white mb-2">mdq</h1>
-        <p className="text-zinc-400 text-lg max-w-3xl mx-auto">
+        <h1 className="mb-2 text-4xl font-bold tracking-tight text-white">mdq</h1>
+        <p className="mx-auto max-w-3xl text-lg text-zinc-400">
           MCQs are passe. Enter <span className="font-semibold text-indigo-300">MDQ</span>s.
           <span className="font-medium text-zinc-200">
             {" "}Human- and agent-friendly <span className="text-indigo-300">M</span>ark<span className="text-indigo-300">D</span>own <span className="text-indigo-300">Q</span>uizzes.
@@ -67,7 +67,7 @@ export default function App() {
           <span className="text-zinc-400">Just your own machine and a public secure tunnel (like Tailscale).</span>
         </p>
       </div>
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
+      <div className="flex w-full max-w-sm flex-col gap-4 sm:flex-row">
         <a
           href={`#${INSTRUCTOR_HASH_ROUTE}`}
           className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-center py-4 px-6 rounded-xl transition-colors text-lg"

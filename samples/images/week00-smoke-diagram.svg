@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" role="img" aria-labelledby="title desc">
+  <title id="title">Week 00 smoke quiz mdq setup diagram</title>
+  <desc id="desc">A simple classroom diagram showing the instructor laptop serving mdq to a student phone and a projector.</desc>
+  <defs>
+    <marker id="flow-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#4f6386" />
+    </marker>
+  </defs>
+  <rect width="720" height="420" fill="#f4efe4" />
+  <rect x="34" y="34" width="652" height="352" rx="28" fill="#fffaf0" stroke="#d3c4a8" stroke-width="4" />
+  <text x="360" y="82" text-anchor="middle" font-family="Verdana, sans-serif" font-size="28" font-weight="700" fill="#4f3f2a">mdq smoke test setup</text>
+  <text x="360" y="112" text-anchor="middle" font-family="Verdana, sans-serif" font-size="15" fill="#6f604a">
+    <tspan x="360" dy="0">The laptop hosts the session, the phone joins it,</tspan>
+    <tspan x="360" dy="20">and the projector mirrors the instructor view.</tspan>
+  </text>
+
+  <rect x="86" y="162" width="210" height="126" rx="16" fill="#24324a" />
+  <rect x="102" y="178" width="178" height="92" rx="10" fill="#dbe7ff" />
+  <rect x="150" y="292" width="82" height="14" rx="7" fill="#3a4c6b" />
+  <text x="191" y="220" text-anchor="middle" font-family="Verdana, sans-serif" font-size="22" font-weight="700" fill="#24324a">mdq</text>
+  <text x="191" y="244" text-anchor="middle" font-family="Verdana, sans-serif" font-size="14" fill="#4f6386">Instructor laptop</text>
+  <text x="191" y="326" text-anchor="middle" font-family="Verdana, sans-serif" font-size="16" font-weight="700" fill="#24324a">
+    <tspan x="191" dy="0">Serving live</tspan>
+    <tspan x="191" dy="18">session</tspan>
+  </text>
+
+  <rect x="484" y="154" width="102" height="180" rx="18" fill="#2f2d39" />
+  <rect x="496" y="172" width="78" height="132" rx="12" fill="#eef5ff" />
+  <circle cx="535" cy="319" r="7" fill="#d8d3de" />
+  <text x="535" y="214" text-anchor="middle" font-family="Verdana, sans-serif" font-size="18" font-weight="700" fill="#23344f">Join</text>
+  <text x="535" y="258" text-anchor="middle" font-family="Verdana, sans-serif" font-size="13" fill="#526887">Student phone</text>
+
+  <rect x="314" y="180" width="114" height="88" rx="14" fill="#f7e1a7" stroke="#c7a552" stroke-width="3" />
+  <rect x="328" y="196" width="86" height="50" rx="8" fill="#fffaf0" />
+  <text x="371" y="227" text-anchor="middle" font-family="Verdana, sans-serif" font-size="15" font-weight="700" fill="#7a5f25">Projector</text>
+  <text x="371" y="291" text-anchor="middle" font-family="Verdana, sans-serif" font-size="15" fill="#6f604a">Instructor mirror</text>
+
+  <line x1="296" y1="224" x2="314" y2="224" fill="none" stroke="#4f6386" stroke-width="6" stroke-linecap="round" marker-end="url(#flow-arrow)" />
+  <line x1="428" y1="224" x2="484" y2="224" fill="none" stroke="#4f6386" stroke-width="6" stroke-linecap="round" marker-end="url(#flow-arrow)" />
+
+  <text x="360" y="364" text-anchor="middle" font-family="Verdana, sans-serif" font-size="14" fill="#6f604a">
+    <tspan x="360" dy="0">Question 3 uses this SVG through the standard</tspan>
+    <tspan x="360" dy="18">markdown image attachment path.</tspan>
+  </text>
+</svg>

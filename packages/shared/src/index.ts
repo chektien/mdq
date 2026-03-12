@@ -82,6 +82,7 @@ export interface QuestionOpenPayload {
   topic: string;
   text: string; // rendered HTML
   options: { label: string; text: string }[];
+  allowsMultiple: boolean;
   timeLimitSec: number;
   startedAt: number; // unix ms
 }
@@ -191,6 +192,7 @@ export interface Question {
   textHtml: string;
   options: QuestionOption[];
   correctOptions: string[];
+  allowsMultiple: boolean;
   explanation: string;
   timeLimitSec: number;
 }
