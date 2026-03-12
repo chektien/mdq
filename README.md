@@ -220,7 +220,7 @@ Student QR behavior:
 ### 4) presentation mode (read-only projector view)
 
 - Open the session-scoped `Presentation view` link from the authenticated instructor screen when you want a second display that mirrors the instructor presentation without controls.
-- The presentation route is intentionally not linked from the public home page. A code-based public entry point would let students discover the live projector feed and watch answer distribution before submitting.
+- The presentation route is intentionally not linked from the public home page. A code-based public entry point would let students discover the live projector feed and monitor the session outside the instructor flow.
 - The presentation screen stays read-only. It never renders instructor action buttons or calls instructor REST actions.
 
 ## Quiz Markdown Format
