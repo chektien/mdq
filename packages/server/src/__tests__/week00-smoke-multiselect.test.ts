@@ -97,7 +97,7 @@ describe("week00 smoke multi-select", () => {
     clearAllSessions();
   });
 
-  it("credits the smoke-test multi-select answer on the leaderboard and distribution", async () => {
+  it("covers the smoke-test multi-select and poll questions without scoring the poll", async () => {
     const createRes = await request(app)
       .post("/api/session")
       .send({ week: "week00", mode: "open" })
@@ -150,9 +150,34 @@ describe("week00 smoke multi-select", () => {
     const reveal = await revealPromise;
     expect(reveal.correctOptions).toEqual(["A", "D"]);
 
+    const q2OpenPromise = waitFor<QuestionOpenPayload>(student, SocketEvents.QUESTION_OPEN);
+    await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+    const q2 = await q2OpenPromise;
+    expect(q2.questionIndex).toBe(2);
+    expect(q2.isPoll).toBe(true);
+    expect(q2.allowsMultiple).toBe(false);
+
+    const pollDistributionPromise = waitFor<ResultsDistributionPayload>(student, SocketEvents.RESULTS_DISTRIBUTION);
+    const pollRevealPromise = waitFor<ResultsRevealPayload>(student, SocketEvents.RESULTS_REVEAL);
+    const pollAcceptedPromise = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
+    student.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 2, selectedOptions: ["C"] });
+    await pollAcceptedPromise;
+
+    await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+    const pollDistribution = await pollDistributionPromise;
+    expect(pollDistribution.questionIndex).toBe(2);
+    expect(pollDistribution.distribution).toEqual({ C: 1 });
+
+    await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+    const pollReveal = await pollRevealPromise;
+    expect(pollReveal.questionIndex).toBe(2);
+    expect(pollReveal.isPoll).toBe(true);
+    expect(pollReveal.correctOptions).toEqual([]);
+
     await request(app).post(`/api/session/${sessionId}/leaderboard-show`).expect(200);
     const leaderboard = await leaderboardPromise;
     const entry = leaderboard.entries.find((item) => item.studentId === "S001");
+    expect(leaderboard.totalQuestions).toBe(3);
     expect(entry?.correctCount).toBe(2);
 
     student.disconnect();

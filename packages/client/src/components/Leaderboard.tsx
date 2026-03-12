@@ -13,6 +13,7 @@ export default function Leaderboard({
   maxRows?: number;
 }) {
   const visible = entries.slice(0, maxRows);
+  const hasScoredQuestions = totalQuestions > 0;
 
   // Medal colors for top 3
   const medalColor = (rank: number) => {
@@ -72,10 +73,10 @@ export default function Leaderboard({
               {/* Score */}
               <div className="text-right shrink-0">
                 <span className="lb-primary text-white font-bold text-lg tabular-nums">
-                  {entry.correctCount}/{totalQuestions}
+                  {hasScoredQuestions ? `${entry.correctCount}/${totalQuestions}` : "Poll only"}
                 </span>
                 <span className="lb-meta text-zinc-500 text-sm block tabular-nums">
-                  {(entry.totalTimeMs / 1000).toFixed(1)}s
+                  {hasScoredQuestions ? `${(entry.totalTimeMs / 1000).toFixed(1)}s` : "No scored questions"}
                 </span>
               </div>
             </div>

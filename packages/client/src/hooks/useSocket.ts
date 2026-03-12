@@ -64,6 +64,7 @@ export interface QuestionState {
   text: string;
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
+  isPoll: boolean;
   timeLimitSec: number;
   startedAt: number;
 }
@@ -73,6 +74,7 @@ export interface RevealState {
   correctOptions: string[];
   explanation: string;
   distribution: Record<string, number>;
+  isPoll: boolean;
 }
 
 export interface UseSocketReturn {
@@ -208,6 +210,7 @@ export function useSocket(
         text: data.text,
         options: data.options,
         allowsMultiple: data.allowsMultiple,
+        isPoll: data.isPoll ?? false,
         timeLimitSec: data.timeLimitSec,
         startedAt: data.startedAt,
       });
@@ -263,6 +266,7 @@ export function useSocket(
         correctOptions: data.correctOptions,
         explanation: data.explanation,
         distribution: data.distribution,
+        isPoll: data.isPoll ?? false,
       });
       setSessionState("REVEAL");
     });

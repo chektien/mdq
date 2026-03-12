@@ -7,6 +7,7 @@ import DistributionChart from "../components/DistributionChart";
 import Leaderboard from "../components/Leaderboard";
 import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
+import { getQuestionModeText } from "../questionMode";
 
 function formatQuizLabel(quizKey: string): string {
   const normalized = quizKey.trim();
@@ -126,7 +127,7 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
           <p className="text-sm uppercase tracking-[0.22em] text-zinc-500">Presentation Mode</p>
           <h1 className="mt-2 text-3xl font-bold text-white">Session Ended</h1>
         </div>
-        <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions || totalQuestions} maxRows={15} />
+        <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions ?? totalQuestions} maxRows={15} />
       </div>
     );
   }
@@ -173,7 +174,7 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
             />
 
             <div className={`selection-mode-chip ${currentQuestion.allowsMultiple ? "selection-mode-chip-multi" : "selection-mode-chip-single"}`}>
-              {currentQuestion.allowsMultiple ? "Students can pick multiple options" : "Students can pick one option"}
+              {getQuestionModeText(currentQuestion.allowsMultiple, currentQuestion.isPoll)}
             </div>
 
             <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
@@ -210,21 +211,45 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
             <div className="w-full max-w-2xl space-y-2">
               {currentQuestion.options.map((option) => {
                 const isCorrect = reveal.correctOptions.includes(option.label);
+                const rowClass = reveal.isPoll
+                  ? "border-zinc-800 bg-zinc-900/60"
+                  : isCorrect
+                    ? "border-emerald-500/60 bg-emerald-600/15"
+                    : "border-zinc-800 bg-zinc-900/60";
+                const markerClass = reveal.isPoll
+                  ? "bg-zinc-700 text-zinc-300"
+                  : isCorrect
+                    ? "bg-emerald-600 text-white"
+                    : "bg-zinc-700 text-zinc-300";
+                const textClass = reveal.isPoll
+                  ? "text-zinc-200"
+                  : isCorrect
+                    ? "text-emerald-100"
+                    : "text-zinc-200";
                 return (
                   <div
                     key={option.label}
-                    className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
-                      isCorrect ? "border-emerald-500/60 bg-emerald-600/15" : "border-zinc-800 bg-zinc-900/60"
-                    }`}
+                    className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${rowClass}`}
                   >
-                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-sm font-bold ${isCorrect ? "bg-emerald-600 text-white" : "bg-zinc-700 text-zinc-300"}`}>
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-sm font-bold ${markerClass}`}>
                       {option.label}
                     </span>
-                    <QuizHtml className={`quiz-html pt-0.5 ${isCorrect ? "text-emerald-100" : "text-zinc-200"}`} html={option.text} as="span" />
+                    <QuizHtml className={`quiz-html pt-0.5 ${textClass}`} html={option.text} as="span" />
                   </div>
                 );
               })}
             </div>
+
+            {reveal.isPoll && (
+              <div className="w-full max-w-2xl">
+                <h3 className="mb-3 text-sm font-medium uppercase tracking-wide text-zinc-400">Poll Results</h3>
+                <DistributionChart
+                  distribution={reveal.distribution}
+                  labels={currentQuestion.options.map((option) => option.label)}
+                  totalResponses={Object.values(reveal.distribution).reduce((sum, count) => sum + count, 0)}
+                />
+              </div>
+            )}
 
             {reveal.explanation && (
               <div className="w-full max-w-2xl rounded-xl border border-emerald-700/50 bg-emerald-900/30 p-6">
@@ -240,7 +265,7 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
             <h2 className="mb-6 text-center text-2xl font-bold text-white">
               {quizLabel ? `Leaderboard for ${quizLabel.toUpperCase()}` : "Leaderboard"}
             </h2>
-            <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions || totalQuestions} maxRows={10} />
+            <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions ?? totalQuestions} maxRows={10} />
           </div>
         )}
       </div>

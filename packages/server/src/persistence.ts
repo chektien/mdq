@@ -10,6 +10,7 @@ import {
   DATA_DIR,
 } from "@mdq/shared";
 import { computeLeaderboard, isExactOptionMatch } from "./session";
+import { buildScoredCorrectAnswersMap, getScoredQuestionCount, isPollQuestion } from "./scoring";
 
 const sessionRevealTimestamps = new Map<string, Map<number, number>>();
 const DEFAULT_DATA_DIR = path.resolve(__dirname, "../../../", DATA_DIR);
@@ -201,8 +202,7 @@ export function saveResultsCsv(session: Session, quiz: Quiz, baseDir?: string): 
   ensureDir(dir);
   const revealTimestamps = getRevealTimestampMap(session.sessionId);
 
-  const correctMap = new Map<number, string[]>();
-  quiz.questions.forEach((q, i) => correctMap.set(i, q.correctOptions));
+  const correctMap = buildScoredCorrectAnswersMap(quiz);
   const leaderboard = computeLeaderboard(session, correctMap);
   const boardMap = new Map(leaderboard.map((entry) => [entry.studentId, entry]));
 
@@ -264,13 +264,14 @@ export function saveResultsCsv(session: Session, quiz: Quiz, baseDir?: string): 
     for (let i = 0; i < quiz.questions.length; i++) {
       const sub = subs.get(i);
       const revealedAtIso = toIso(revealTimestamps.get(i));
+      const isPoll = isPollQuestion(quiz.questions[i]);
       if (!sub) {
         row.push(revealedAtIso, "", "", "", "");
         continue;
       }
       row.push(revealedAtIso);
       row.push(sub.selectedOptions.join("|"));
-      row.push(isSubmissionCorrect(sub, correctMap.get(i) || []) ? 1 : 0);
+      row.push(isPoll ? "" : (isSubmissionCorrect(sub, correctMap.get(i) || []) ? 1 : 0));
       row.push(sub.responseTimeMs);
       row.push(toIso(sub.submittedAt));
     }
@@ -323,8 +324,8 @@ export function saveSessionSummaryMarkdown(
   ensureDir(dir);
 
   const participants = [...session.participants.values()].sort((a, b) => a.studentId.localeCompare(b.studentId));
-  const correctMap = new Map<number, string[]>();
-  quiz.questions.forEach((q, i) => correctMap.set(i, q.correctOptions));
+  const correctMap = buildScoredCorrectAnswersMap(quiz);
+  const scoredQuestionCount = getScoredQuestionCount(quiz);
 
   const submissionsByQuestion = new Map<number, Submission[]>();
   const submissionsByStudent = new Map<string, Submission[]>();
@@ -369,21 +370,24 @@ export function saveSessionSummaryMarkdown(
 
   lines.push(`## Per-Question Stats`);
   lines.push("");
-  lines.push(`| Question | Responses | Response Rate | Correct Rate | Unanswered |`);
-  lines.push(`| --- | ---: | ---: | ---: | ---: |`);
+  lines.push(`| Question | Type | Responses | Response Rate | Correct Rate | Unanswered |`);
+  lines.push(`| --- | --- | ---: | ---: | ---: | ---: |`);
 
   const anomalies: string[] = [];
   for (let i = 0; i < quiz.questions.length; i++) {
+    const question = quiz.questions[i];
     const subs = submissionsByQuestion.get(i) || [];
     const responseRate = participants.length > 0 ? subs.length / participants.length : 0;
     const unanswered = Math.max(0, participants.length - subs.length);
-    const correctCount = subs.filter((sub) => isSubmissionCorrect(sub, correctMap.get(i) || [])).length;
+    const typeLabel = question.isPoll ? (question.allowsMultiple ? "Poll (multi)" : "Poll") : question.allowsMultiple ? "Multi" : "Single";
+    const correctCount = question.isPoll ? 0 : subs.filter((sub) => isSubmissionCorrect(sub, correctMap.get(i) || [])).length;
     const correctRate = subs.length > 0 ? correctCount / subs.length : 0;
-    lines.push(`| Q${i + 1} | ${subs.length}/${participants.length} | ${(responseRate * 100).toFixed(1)}% | ${(correctRate * 100).toFixed(1)}% | ${unanswered} |`);
+    const correctRateLabel = question.isPoll ? "Poll" : `${(correctRate * 100).toFixed(1)}%`;
+    lines.push(`| Q${i + 1} | ${typeLabel} | ${subs.length}/${participants.length} | ${(responseRate * 100).toFixed(1)}% | ${correctRateLabel} | ${unanswered} |`);
     if (responseRate < 0.8) {
       anomalies.push(`Q${i + 1} response rate is ${(responseRate * 100).toFixed(1)}%`);
     }
-    if (subs.length > 0 && correctRate < 0.3) {
+    if (!question.isPoll && subs.length > 0 && correctRate < 0.3) {
       anomalies.push(`Q${i + 1} correct rate is ${(correctRate * 100).toFixed(1)}%`);
     }
   }
@@ -391,16 +395,17 @@ export function saveSessionSummaryMarkdown(
   lines.push("");
   lines.push(`## Score Summary`);
   lines.push("");
-  lines.push(`- Average Score: ${avgScore.toFixed(2)} / ${quiz.questions.length} (${quiz.questions.length > 0 ? ((avgScore / quiz.questions.length) * 100).toFixed(1) : "0.0"}%)`);
-  lines.push(`- Highest Score: ${leaderboard[0]?.correctCount ?? 0} / ${quiz.questions.length}`);
-  lines.push(`- Lowest Score: ${leaderboard[leaderboard.length - 1]?.correctCount ?? 0} / ${quiz.questions.length}`);
+  lines.push(`- Scored Questions: ${scoredQuestionCount}`);
+  lines.push(`- Average Score: ${avgScore.toFixed(2)} / ${scoredQuestionCount} (${scoredQuestionCount > 0 ? ((avgScore / scoredQuestionCount) * 100).toFixed(1) : "n/a"}${scoredQuestionCount > 0 ? "%" : ""})`);
+  lines.push(`- Highest Score: ${leaderboard[0]?.correctCount ?? 0} / ${scoredQuestionCount}`);
+  lines.push(`- Lowest Score: ${leaderboard[leaderboard.length - 1]?.correctCount ?? 0} / ${scoredQuestionCount}`);
   lines.push("");
   lines.push(`### Score Distribution`);
   if (sortedScores.length === 0) {
     lines.push(`- No scores recorded`);
   } else {
     for (const [score, count] of sortedScores) {
-      lines.push(`- ${score}/${quiz.questions.length}: ${count}`);
+      lines.push(`- ${score}/${scoredQuestionCount}: ${count}`);
     }
   }
 
@@ -412,19 +417,19 @@ export function saveSessionSummaryMarkdown(
   } else {
     const winner = leaderboard[0];
     const winnerName = winner.displayName ? ` (${winner.displayName})` : "";
-    lines.push(`- Ranked Participants: ${leaderboard.length}`);
-    lines.push(
-      `- Winner: ${winner.studentId}${winnerName}, score ${winner.correctCount}/${quiz.questions.length}, total time ${formatSecondsFromMs(winner.totalTimeMs)}`,
-    );
-    lines.push("");
-    lines.push("| Rank | Student ID | Name | Correct | Total Time (ms) |");
-    lines.push("| ---: | --- | --- | ---: | ---: |");
-    for (const entry of leaderboard.slice(0, 10)) {
+      lines.push(`- Ranked Participants: ${leaderboard.length}`);
       lines.push(
-        `| ${entry.rank} | ${entry.studentId} | ${entry.displayName || "-"} | ${entry.correctCount}/${quiz.questions.length} | ${entry.totalTimeMs} |`,
+        `- Winner: ${winner.studentId}${winnerName}, score ${winner.correctCount}/${scoredQuestionCount}, total time ${formatSecondsFromMs(winner.totalTimeMs)}`,
       );
+      lines.push("");
+      lines.push("| Rank | Student ID | Name | Correct | Total Time (ms) |");
+      lines.push("| ---: | --- | --- | ---: | ---: |");
+      for (const entry of leaderboard.slice(0, 10)) {
+        lines.push(
+          `| ${entry.rank} | ${entry.studentId} | ${entry.displayName || "-"} | ${entry.correctCount}/${scoredQuestionCount} | ${entry.totalTimeMs} |`,
+        );
+      }
     }
-  }
 
   lines.push("");
   lines.push(`## Anomalies`);
@@ -462,14 +467,13 @@ export function saveWeeklyResult(
   const dir = winnersDir(baseDir);
   ensureDir(dir);
 
-  const correctMap = new Map<number, string[]>();
-  quiz.questions.forEach((q, i) => correctMap.set(i, q.correctOptions));
+  const correctMap = buildScoredCorrectAnswersMap(quiz);
   const entries = computeLeaderboard(session, correctMap);
 
   const result: WeeklyResult = {
     week: session.week,
     sessionId: session.sessionId,
-    totalQuestions: quiz.questions.length,
+    totalQuestions: getScoredQuestionCount(quiz),
     completedAt: Date.now(),
     entries,
   };
