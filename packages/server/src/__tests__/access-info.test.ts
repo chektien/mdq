@@ -7,7 +7,7 @@ import {
   getCachedAccessInfo,
   setCachedAccessInfo,
   ShortUrlProvider,
-  tinyUrlProvider,
+  isgdProvider,
 } from "../access-info";
 
 // We mock child_process.execSync for tailscale tests
@@ -129,7 +129,7 @@ describe("generateShortUrl", () => {
   });
 });
 
-describe("tinyUrlProvider validation", () => {
+describe("isgdProvider validation", () => {
   it("rejects HTML error page responses", async () => {
     // Mock fetch to return HTML instead of a short URL
     const origFetch = global.fetch;
@@ -138,7 +138,7 @@ describe("tinyUrlProvider validation", () => {
       text: async () => "<html><body>Error 500</body></html>",
     });
 
-    const result = await tinyUrlProvider.generate("https://example.com");
+    const result = await isgdProvider.generate("https://example.com");
     expect(result).toBeNull();
 
     global.fetch = origFetch;
@@ -151,7 +151,7 @@ describe("tinyUrlProvider validation", () => {
       text: async () => "https://example.com/" + "x".repeat(300),
     });
 
-    const result = await tinyUrlProvider.generate("https://example.com");
+    const result = await isgdProvider.generate("https://example.com");
     expect(result).toBeNull();
 
     global.fetch = origFetch;
@@ -164,7 +164,7 @@ describe("tinyUrlProvider validation", () => {
       text: async () => "Error: Invalid URL",
     });
 
-    const result = await tinyUrlProvider.generate("https://example.com");
+    const result = await isgdProvider.generate("https://example.com");
     expect(result).toBeNull();
 
     global.fetch = origFetch;
@@ -177,7 +177,7 @@ describe("tinyUrlProvider validation", () => {
       status: 500,
     });
 
-    const result = await tinyUrlProvider.generate("https://example.com");
+    const result = await isgdProvider.generate("https://example.com");
     expect(result).toBeNull();
 
     global.fetch = origFetch;
@@ -187,7 +187,7 @@ describe("tinyUrlProvider validation", () => {
     const origFetch = global.fetch;
     global.fetch = jest.fn().mockRejectedValue(new Error("network error"));
 
-    const result = await tinyUrlProvider.generate("https://example.com");
+    const result = await isgdProvider.generate("https://example.com");
     expect(result).toBeNull();
 
     global.fetch = origFetch;

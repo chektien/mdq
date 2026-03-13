@@ -19,7 +19,6 @@ import {
 } from "../hooks/api";
 import type { AccessInfo, SessionState } from "@mdq/shared";
 import Timer from "../components/Timer";
-import DistributionChart from "../components/DistributionChart";
 import Leaderboard from "../components/Leaderboard";
 import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
@@ -597,34 +596,42 @@ function LiveView({
               {displayQuestionModeText}
             </div>
 
-            {/* Options (display only, no interaction on instructor) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
-              {displayQuestion.options.map((opt) => (
-                <div
-                  key={opt.label}
-                  className="bg-zinc-800 border border-zinc-700 rounded-xl px-5 py-4 flex items-start gap-3"
-                >
-                  <span className={`bg-zinc-700 text-zinc-300 font-mono font-bold w-9 h-9 flex items-center justify-center shrink-0 text-lg ${displayQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
-                    {opt.label}
-                  </span>
-                  <QuizHtml className="quiz-html text-zinc-200 text-lg" html={opt.text} as="span" />
+            {/* Options with inline distribution bars */}
+            {(() => {
+              const dist = state === "QUESTION_CLOSED" && !isReviewing ? sock.distribution?.distribution : null;
+              const totalResponses = sock.answerCount?.submitted ?? 0;
+              const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
+              return (
+                <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}`}>
+                  {displayQuestion.options.map((opt) => {
+                    const count = dist?.[opt.label] ?? 0;
+                    const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                    const pctOfTotal = totalResponses > 0 ? Math.round((count / totalResponses) * 100) : 0;
+                    return (
+                      <div key={opt.label} className="relative rounded-xl border border-zinc-700 bg-zinc-800 overflow-hidden">
+                        {dist && (
+                          <div
+                            className="bar-fill absolute inset-0 bg-indigo-500/30 rounded-xl"
+                            style={{ width: `${Math.max(pct, 2)}%` }}
+                          />
+                        )}
+                        <div className="relative flex items-center gap-3 px-5 py-4">
+                          <span className={`bg-zinc-700 text-zinc-300 font-mono font-bold w-9 h-9 flex items-center justify-center shrink-0 text-lg ${displayQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
+                            {opt.label}
+                          </span>
+                          <QuizHtml className="quiz-html text-zinc-200 text-lg flex-1" html={opt.text} as="span" />
+                          {dist && count > 0 && (
+                            <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
+                              {count} ({pctOfTotal}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-
-            {/* Distribution (visible after close) */}
-            {state === "QUESTION_CLOSED" && !isReviewing && sock.distribution && (
-              <div className="w-full max-w-2xl mt-4">
-                <h3 className="text-zinc-400 text-sm uppercase tracking-wide mb-3 font-medium">
-                  Response Distribution
-                </h3>
-                <DistributionChart
-                  distribution={sock.distribution.distribution}
-                  labels={displayQuestion.options.map((o) => o.label)}
-                  totalResponses={sock.answerCount?.submitted}
-                />
-              </div>
-            )}
+              );
+            })()}
           </>
         )}
 
@@ -636,65 +643,65 @@ function LiveView({
               html={displayQuestion.text}
             />
 
-            {showDetailedRevealChoices && displayReveal.isPoll && (
-              <>
+            {showDetailedRevealChoices && (() => {
+              const dist = displayReveal.distribution;
+              const maxCount = Math.max(1, ...Object.values(dist));
+              const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);
+              return (
                 <div className="w-full max-w-2xl space-y-2">
-                  {displayQuestion.options.map((opt) => (
-                    <div
-                      key={opt.label}
-                      className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 flex items-start gap-3"
-                    >
-                      <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm bg-zinc-700 text-zinc-300">
-                        {opt.label}
-                      </span>
-                      <QuizHtml className="quiz-html pt-0.5 text-zinc-200" html={opt.text} as="span" />
-                    </div>
-                  ))}
-                </div>
+                  {displayQuestion.options.map((opt) => {
+                    const isCorrect = displayReveal.correctOptions.includes(opt.label);
+                    const count = dist[opt.label] ?? 0;
+                    const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                    const pctOfTotal = totalSelections > 0 ? Math.round((count / totalSelections) * 100) : 0;
 
-                <div className="w-full max-w-2xl">
-                  <h3 className="text-zinc-400 text-sm uppercase tracking-wide mb-3 font-medium">
-                    Poll Results
-                  </h3>
-                  <DistributionChart
-                    distribution={displayReveal.distribution}
-                    labels={displayQuestion.options.map((o) => o.label)}
-                    totalResponses={Object.values(displayReveal.distribution).reduce((sum, count) => sum + count, 0)}
-                  />
-                </div>
-              </>
-            )}
+                    const borderClass = displayReveal.isPoll
+                      ? "border-zinc-800"
+                      : isCorrect
+                        ? "border-emerald-500/60"
+                        : "border-zinc-800";
+                    const barColor = displayReveal.isPoll
+                      ? "bg-indigo-500/30"
+                      : isCorrect
+                        ? "bg-emerald-500/25"
+                        : "bg-zinc-600/25";
+                    const markerClass = displayReveal.isPoll
+                      ? "bg-zinc-700 text-zinc-300"
+                      : isCorrect
+                        ? "bg-emerald-600 text-white"
+                        : "bg-zinc-700 text-zinc-300";
+                    const textClass = displayReveal.isPoll
+                      ? "text-zinc-200"
+                      : isCorrect
+                        ? "text-emerald-100"
+                        : "text-zinc-200";
 
-            {showDetailedRevealChoices && !displayReveal.isPoll && (
-              <div className="w-full max-w-2xl space-y-2">
-                {displayQuestion.options.map((opt) => {
-                  const isCorrect = displayReveal.correctOptions.includes(opt.label);
-                  return (
-                    <div
-                      key={opt.label}
-                      className={`rounded-xl border px-4 py-3 flex items-start gap-3 ${
-                        isCorrect
-                          ? "border-emerald-500/60 bg-emerald-600/15"
-                          : "border-zinc-800 bg-zinc-900/60"
-                      }`}
-                    >
-                      <span
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm ${
-                          isCorrect ? "bg-emerald-600 text-white" : "bg-zinc-700 text-zinc-300"
-                        }`}
+                    return (
+                      <div
+                        key={opt.label}
+                        className={`relative rounded-xl border bg-zinc-900/60 overflow-hidden ${borderClass}`}
                       >
-                        {opt.label}
-                      </span>
-                      <QuizHtml
-                        className={`quiz-html pt-0.5 ${isCorrect ? "text-emerald-100" : "text-zinc-200"}`}
-                        html={opt.text}
-                        as="span"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                        <div
+                          className={`bar-fill absolute inset-0 rounded-xl ${barColor}`}
+                          style={{ width: `${Math.max(pct, 2)}%` }}
+                        />
+                        <div className="relative flex items-center gap-3 px-4 py-3">
+                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm ${markerClass}`}>
+                            {opt.label}
+                          </span>
+                          <QuizHtml className={`quiz-html pt-0.5 flex-1 ${textClass}`} html={opt.text} as="span" />
+                          {count > 0 && (
+                            <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !displayReveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
+                              {count} ({pctOfTotal}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {displayReveal.explanation && (
               <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-2xl w-full">
