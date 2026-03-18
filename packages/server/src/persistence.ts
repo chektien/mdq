@@ -10,7 +10,7 @@ import {
   DATA_DIR,
 } from "@mdq/shared";
 import { computeLeaderboard, isExactOptionMatch } from "./session";
-import { buildScoredCorrectAnswersMap, getScoredQuestionCount, isPollQuestion } from "./scoring";
+import { buildScoredCorrectAnswersMap, getQuestionType, getScoredQuestionCount, isScoredQuestion } from "./scoring";
 
 const sessionRevealTimestamps = new Map<string, Map<number, number>>();
 const DEFAULT_DATA_DIR = path.resolve(__dirname, "../../../", DATA_DIR);
@@ -193,6 +193,13 @@ function isSubmissionCorrect(submission: Submission, correctOptions: string[]): 
   return isExactOptionMatch(submission.selectedOptions, correctOptions);
 }
 
+function getSubmissionValue(submission: Submission): string {
+  if (submission.responseText) {
+    return submission.responseText;
+  }
+  return submission.selectedOptions.join("|");
+}
+
 /**
  * Save per-student quiz results as CSV to data/submissions/<sessionId>.csv.
  * Intended for attendance and lightweight spreadsheet workflows.
@@ -264,14 +271,14 @@ export function saveResultsCsv(session: Session, quiz: Quiz, baseDir?: string): 
     for (let i = 0; i < quiz.questions.length; i++) {
       const sub = subs.get(i);
       const revealedAtIso = toIso(revealTimestamps.get(i));
-      const isPoll = isPollQuestion(quiz.questions[i]);
+      const isScored = isScoredQuestion(quiz.questions[i]);
       if (!sub) {
         row.push(revealedAtIso, "", "", "", "");
         continue;
       }
       row.push(revealedAtIso);
-      row.push(sub.selectedOptions.join("|"));
-      row.push(isPoll ? "" : (isSubmissionCorrect(sub, correctMap.get(i) || []) ? 1 : 0));
+      row.push(getSubmissionValue(sub));
+      row.push(isScored ? (isSubmissionCorrect(sub, correctMap.get(i) || []) ? 1 : 0) : "");
       row.push(sub.responseTimeMs);
       row.push(toIso(sub.submittedAt));
     }
@@ -379,15 +386,23 @@ export function saveSessionSummaryMarkdown(
     const subs = submissionsByQuestion.get(i) || [];
     const responseRate = participants.length > 0 ? subs.length / participants.length : 0;
     const unanswered = Math.max(0, participants.length - subs.length);
-    const typeLabel = question.isPoll ? (question.allowsMultiple ? "Poll (multi)" : "Poll") : question.allowsMultiple ? "Multi" : "Single";
-    const correctCount = question.isPoll ? 0 : subs.filter((sub) => isSubmissionCorrect(sub, correctMap.get(i) || [])).length;
+    const questionType = getQuestionType(question);
+    const typeLabel = questionType === "poll"
+      ? (question.allowsMultiple ? "Poll (multi)" : "Poll")
+      : questionType === "open_response"
+        ? "Open Response"
+        : question.allowsMultiple
+          ? "Multi"
+          : "Single";
+    const scoredQuestion = isScoredQuestion(question);
+    const correctCount = scoredQuestion ? subs.filter((sub) => isSubmissionCorrect(sub, correctMap.get(i) || [])).length : 0;
     const correctRate = subs.length > 0 ? correctCount / subs.length : 0;
-    const correctRateLabel = question.isPoll ? "Poll" : `${(correctRate * 100).toFixed(1)}%`;
+    const correctRateLabel = scoredQuestion ? `${(correctRate * 100).toFixed(1)}%` : "Unscored";
     lines.push(`| Q${i + 1} | ${typeLabel} | ${subs.length}/${participants.length} | ${(responseRate * 100).toFixed(1)}% | ${correctRateLabel} | ${unanswered} |`);
     if (responseRate < 0.8) {
       anomalies.push(`Q${i + 1} response rate is ${(responseRate * 100).toFixed(1)}%`);
     }
-    if (!question.isPoll && subs.length > 0 && correctRate < 0.3) {
+    if (scoredQuestion && subs.length > 0 && correctRate < 0.3) {
       anomalies.push(`Q${i + 1} correct rate is ${(correctRate * 100).toFixed(1)}%`);
     }
   }

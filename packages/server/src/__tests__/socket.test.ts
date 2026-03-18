@@ -24,6 +24,7 @@ import {
   LeaderboardUpdatePayload,
 } from "@mdq/shared";
 import { clearInstructorSessionsForTests } from "../instructor-auth";
+import { getScoredQuestionCount } from "../scoring";
 import * as path from "path";
 import { AddressInfo } from "net";
 
@@ -373,6 +374,65 @@ describe("Socket.IO Integration", () => {
       });
       const rejected = await rejectedPromise;
       expect(rejected.reason).toContain("one answer only");
+    });
+
+    it("accepts open response text, rejects blank input, and enforces one submission", async () => {
+      const session = createSession("week-open", "open");
+      const quiz = {
+        week: "week-open",
+        title: "Open Response Quiz",
+        sourceFile: "week-open.md",
+        questions: [{
+          index: 0,
+          topic: "Reflection",
+          textMd: "Share one takeaway.",
+          textHtml: "<p>Share one takeaway.</p>",
+          questionType: "open_response" as const,
+          options: [],
+          correctOptions: [],
+          allowsMultiple: false,
+          explanation: "Thanks for sharing.",
+          timeLimitSec: 30,
+        }],
+      };
+      quizzes.set("week-open", quiz);
+      storeSession(session);
+
+      const openClient = createClient(session.sessionId);
+      openClient.connect();
+      const joinedPromise = waitForEvent<{ sessionToken: string }>(openClient, SocketEvents.STUDENT_JOINED);
+      openClient.emit(SocketEvents.STUDENT_JOIN, { studentId: "S010" });
+      await joinedPromise;
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+
+      const blankRejectedPromise = waitForEvent<{ reason: string }>(openClient, SocketEvents.ANSWER_REJECTED);
+      openClient.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        responseText: "   ",
+      });
+      const blankRejected = await blankRejectedPromise;
+      expect(blankRejected.reason).toContain("cannot be blank");
+
+      const acceptedPromise = waitForEvent<{ questionIndex: number }>(openClient, SocketEvents.ANSWER_ACCEPTED);
+      openClient.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        responseText: "I finally understand the pipeline.",
+      });
+      await acceptedPromise;
+
+      const duplicateRejectedPromise = waitForEvent<{ reason: string }>(openClient, SocketEvents.ANSWER_REJECTED);
+      openClient.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        responseText: "Another answer",
+      });
+      const duplicateRejected = await duplicateRejectedPromise;
+      expect(duplicateRejected.reason).toContain("Already submitted");
+
+      openClient.disconnect();
+      quizzes.delete("week-open");
     });
   });
 
@@ -1009,7 +1069,7 @@ describe("Socket.IO Integration", () => {
         broadcastLeaderboard(ioServer, session, session.sessionId, quiz!);
         const leaderboard = await leaderboardPromise;
 
-        expect(leaderboard.totalQuestions).toBe(quiz!.questions.filter((question) => !question.isPoll).length);
+        expect(leaderboard.totalQuestions).toBe(getScoredQuestionCount(quiz!));
 
         instructor.disconnect();
         student.disconnect();
