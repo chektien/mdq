@@ -223,6 +223,26 @@ function emitJoinStateSnapshot(socket: Socket, session: Session, isReconnect: bo
   }
 }
 
+function broadcastLiveAnswerCount(io: Server, session: Session, sessionId: string): void {
+  if (session.state !== "QUESTION_OPEN" || session.currentQuestionIndex < 0) {
+    return;
+  }
+
+  const quiz = quizStore.get(session.week);
+  const question =
+    quiz && session.currentQuestionIndex >= 0
+      ? quiz.questions[session.currentQuestionIndex]
+      : undefined;
+  const count = getSubmissionCount(session, session.currentQuestionIndex);
+
+  io.to(sessionRoom(sessionId)).emit(SocketEvents.ANSWER_COUNT, {
+    questionIndex: session.currentQuestionIndex,
+    submitted: count.submitted,
+    total: count.total,
+    openResponses: isOpenResponseQuestion(question) ? getOpenResponses(session, session.currentQuestionIndex) : undefined,
+  });
+}
+
 /**
  * Setup Socket.IO on an HTTP server.
  * Handles student:join, answer:submit, reconnection, and timer logic.
@@ -325,6 +345,7 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
 
         // Broadcast updated participant list to instructor
         broadcastParticipants(io, session, sessionId);
+        broadcastLiveAnswerCount(io, session, sessionId);
 
         logActivity(
           `student ${isReconnect ? "rejoined" : "joined"} session=${sessionId} id=${participant.studentId} socket=${socket.id}`,
@@ -409,6 +430,7 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
           p.connected = false;
         }
         broadcastParticipants(io, session, sessionId);
+        broadcastLiveAnswerCount(io, session, sessionId);
         logActivity(`student disconnected session=${sessionId} id=${sid} socket=${socket.id}`);
       }
     });
@@ -513,6 +535,7 @@ export function broadcastQuestionOpen(
     questionIndex: session.currentQuestionIndex,
   });
 
+  broadcastLiveAnswerCount(io, session, sessionId);
   startQuestionTimer(io, session, sessionId, q.timeLimitSec);
 }
 

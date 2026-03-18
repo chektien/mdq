@@ -7,6 +7,7 @@ import {
   setupSocket,
   clearSessionTimers,
   startQuestionTimer,
+  broadcastQuestionOpen,
   broadcastReveal,
   broadcastLeaderboard,
 } from "../socket";
@@ -1020,6 +1021,121 @@ describe("Socket.IO Integration", () => {
       student.disconnect();
       delete process.env.INSTRUCTOR_PASSWORD;
       clearInstructorSessionsForTests();
+    });
+
+    it("late join during open_response QUESTION_OPEN rebroadcasts live answer count before submission", async () => {
+      const quiz = quizzes.get("week01");
+      expect(quiz).toBeDefined();
+      const originalQuestion = {
+        ...quiz!.questions[0],
+        options: [...quiz!.questions[0].options],
+        correctOptions: [...quiz!.questions[0].correctOptions],
+      };
+
+      try {
+        quiz!.questions[0] = {
+          ...quiz!.questions[0],
+          questionType: "open_response",
+          options: [],
+          correctOptions: [],
+          allowsMultiple: false,
+        };
+
+        const session = createSession("week01", "open");
+        storeSession(session);
+        transitionState(session, "QUESTION_OPEN");
+        session.currentQuestionIndex = 0;
+        session.questionStartedAt = Date.now();
+
+        const instructor = createInstructorClient(session.sessionId);
+        instructor.connect();
+
+        const initialCount = await waitForEvent<{ questionIndex: number; submitted: number; total: number }>(
+          instructor,
+          SocketEvents.ANSWER_COUNT,
+        );
+        expect(initialCount.questionIndex).toBe(0);
+        expect(initialCount.submitted).toBe(0);
+        expect(initialCount.total).toBe(0);
+
+        const lateJoinCountPromise = waitForEvent<{ questionIndex: number; submitted: number; total: number }>(
+          instructor,
+          SocketEvents.ANSWER_COUNT,
+        );
+
+        const student = createClient(session.sessionId);
+        student.connect();
+        const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+        student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001", displayName: "Alice" });
+        await joinedPromise;
+
+        const lateJoinCount = await lateJoinCountPromise;
+        expect(lateJoinCount.questionIndex).toBe(0);
+        expect(lateJoinCount.submitted).toBe(0);
+        expect(lateJoinCount.total).toBe(1);
+
+        clearSessionTimers(session.sessionId);
+        instructor.disconnect();
+        student.disconnect();
+      } finally {
+        quiz!.questions[0] = originalQuestion;
+      }
+    });
+
+    it("question open broadcasts initial answer count for already-joined open_response students", async () => {
+      const quiz = quizzes.get("week01");
+      expect(quiz).toBeDefined();
+      const originalQuestion = {
+        ...quiz!.questions[0],
+        options: [...quiz!.questions[0].options],
+        correctOptions: [...quiz!.questions[0].correctOptions],
+      };
+
+      try {
+        quiz!.questions[0] = {
+          ...quiz!.questions[0],
+          questionType: "open_response",
+          options: [],
+          correctOptions: [],
+          allowsMultiple: false,
+        };
+
+        const session = createSession("week01", "open");
+        storeSession(session);
+
+        const student = createClient(session.sessionId);
+        student.connect();
+        const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+        student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001", displayName: "Alice" });
+        await joinedPromise;
+
+        const instructor = createInstructorClient(session.sessionId);
+        instructor.connect();
+        await waitForEvent(instructor, SocketEvents.SESSION_PARTICIPANTS);
+
+        const openPromise = waitForEvent<QuestionOpenPayload>(instructor, SocketEvents.QUESTION_OPEN);
+        const countPromise = waitForEvent<{ questionIndex: number; submitted: number; total: number }>(
+          instructor,
+          SocketEvents.ANSWER_COUNT,
+        );
+
+        transitionState(session, "QUESTION_OPEN");
+        session.currentQuestionIndex = 0;
+        broadcastQuestionOpen(ioServer, session, session.sessionId, quiz!);
+
+        const open = await openPromise;
+        const count = await countPromise;
+        expect(open.questionIndex).toBe(0);
+        expect(count.questionIndex).toBe(0);
+        expect(count.submitted).toBe(0);
+        expect(count.total).toBe(1);
+
+        clearSessionTimers(session.sessionId);
+        instructor.disconnect();
+        student.disconnect();
+      } finally {
+        quiz!.questions[0] = originalQuestion;
+      }
     });
 
     it("marks poll questions in socket payloads and excludes them from leaderboard totals", async () => {
