@@ -253,8 +253,10 @@ export default function StudentView({
 
         <div className="w-full max-w-sm space-y-4">
           <div>
-            <label className="block text-zinc-400 text-xs mb-1 font-medium">Session Code</label>
+            <label htmlFor="join-session-code" className="block text-zinc-400 text-xs mb-1 font-medium">Session Code</label>
             <input
+              id="join-session-code"
+              name="sessionCode"
               type="text"
               value={code}
               onChange={(e) => handleCodeChange(e.target.value)}
@@ -266,10 +268,12 @@ export default function StudentView({
           </div>
 
           <div>
-            <label className="block text-zinc-400 text-xs mb-1 font-medium">
+            <label htmlFor="join-student-id" className="block text-zinc-400 text-xs mb-1 font-medium">
               Student ID <span className="text-red-400">*</span>
             </label>
             <input
+              id="join-student-id"
+              name="studentId"
               type="text"
               value={studentId}
               onChange={(e) => handleStudentIdChange(e.target.value)}
@@ -280,10 +284,12 @@ export default function StudentView({
           </div>
 
           <div>
-            <label className="block text-zinc-400 text-xs mb-1 font-medium">
+            <label htmlFor="join-display-name" className="block text-zinc-400 text-xs mb-1 font-medium">
               Display Name <span className="text-zinc-600">(optional)</span>
             </label>
             <input
+              id="join-display-name"
+              name="displayName"
               type="text"
               value={displayName}
               onChange={(e) => handleDisplayNameChange(e.target.value)}
@@ -473,6 +479,8 @@ function QuestionView({
       {question.questionType === "open_response" ? (
         <div className="flex-1">
           <textarea
+            id={`open-response-${question.questionIndex}`}
+            name={`open-response-${question.questionIndex}`}
             value={submitted ? (submittedResponseText || responseText) : responseText}
             onChange={(e) => setResponseText(e.target.value)}
             disabled={submitted || isClosed}
