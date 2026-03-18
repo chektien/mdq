@@ -12,6 +12,9 @@ import type {
   SessionStatePayload,
   SessionParticipantsPayload,
   LeaderboardEntry,
+  QuestionType,
+  OpenResponseEntry,
+  AnswerSubmitPayload,
 } from "@mdq/shared";
 import { SocketEvents } from "@mdq/shared";
 
@@ -62,6 +65,7 @@ export interface QuestionState {
   questionIndex: number;
   topic: string;
   text: string;
+  questionType: QuestionType;
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
   isPoll: boolean;
@@ -71,10 +75,12 @@ export interface QuestionState {
 
 export interface RevealState {
   questionIndex: number;
+  questionType: QuestionType;
   correctOptions: string[];
   explanation: string;
   distribution: Record<string, number>;
   isPoll: boolean;
+  openResponses: OpenResponseEntry[];
 }
 
 export interface UseSocketReturn {
@@ -94,6 +100,7 @@ export interface UseSocketReturn {
   answerCount: AnswerCountPayload | null;
   submitted: boolean;
   submittedOptions: string[];
+  submittedResponseText: string | null;
 
   // Reveal
   reveal: RevealState | null;
@@ -108,7 +115,7 @@ export interface UseSocketReturn {
 
   // Actions
   joinSession: (studentId: string, displayName?: string) => void;
-  submitAnswer: (questionIndex: number, selectedOptions: string[]) => void;
+  submitAnswer: (payload: AnswerSubmitPayload) => void;
   disconnect: () => void;
 }
 
@@ -131,6 +138,7 @@ export function useSocket(
   const [answerCount, setAnswerCount] = useState<AnswerCountPayload | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submittedOptions, setSubmittedOptions] = useState<string[]>([]);
+  const [submittedResponseText, setSubmittedResponseText] = useState<string | null>(null);
 
   const [reveal, setReveal] = useState<RevealState | null>(null);
   const [distribution, setDistribution] = useState<ResultsDistributionPayload | null>(null);
@@ -208,6 +216,7 @@ export function useSocket(
         questionIndex: data.questionIndex,
         topic: data.topic,
         text: data.text,
+        questionType: data.questionType ?? (data.isPoll ? "poll" : "multiple_choice"),
         options: data.options,
         allowsMultiple: data.allowsMultiple,
         isPoll: data.isPoll ?? false,
@@ -220,9 +229,8 @@ export function useSocket(
       // Preserve submitted=true if this question was already answered (reconnect case)
       const alreadyAnswered = answeredQuestionsRef.current.includes(data.questionIndex);
       setSubmitted(alreadyAnswered);
-      if (!alreadyAnswered) {
-        setSubmittedOptions([]);
-      }
+      setSubmittedOptions([]);
+      setSubmittedResponseText(null);
       setRemainingSec(data.timeLimitSec);
     });
 
@@ -263,10 +271,12 @@ export function useSocket(
     socket.on(SocketEvents.RESULTS_REVEAL, (data: ResultsRevealPayload) => {
       setReveal({
         questionIndex: data.questionIndex,
+        questionType: data.questionType ?? (data.isPoll ? "poll" : "multiple_choice"),
         correctOptions: data.correctOptions,
         explanation: data.explanation,
         distribution: data.distribution,
         isPoll: data.isPoll ?? false,
+        openResponses: data.openResponses ?? [],
       });
       setSessionState("REVEAL");
     });
@@ -311,13 +321,11 @@ export function useSocket(
   );
 
   const submitAnswer = useCallback(
-    (questionIndex: number, selectedOptions: string[]) => {
+    (payload: AnswerSubmitPayload) => {
       if (!socketRef.current) return;
-      socketRef.current.emit(SocketEvents.ANSWER_SUBMIT, {
-        questionIndex,
-        selectedOptions,
-      });
-      setSubmittedOptions(selectedOptions);
+      socketRef.current.emit(SocketEvents.ANSWER_SUBMIT, payload);
+      setSubmittedOptions(payload.selectedOptions ?? []);
+      setSubmittedResponseText(payload.responseText?.trim() || null);
     },
     [],
   );
@@ -343,6 +351,7 @@ export function useSocket(
     answerCount,
     submitted,
     submittedOptions,
+    submittedResponseText,
     reveal,
     distribution,
     leaderboard,

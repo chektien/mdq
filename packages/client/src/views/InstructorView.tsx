@@ -20,6 +20,7 @@ import {
 import type { AccessInfo, SessionState } from "@mdq/shared";
 import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
+import OpenResponseList from "../components/OpenResponseList";
 import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
 import { getQuestionModeText, getRevealActionLabel } from "../questionMode";
@@ -521,9 +522,15 @@ function LiveView({
   const canShowLeaderboard = state === "REVEAL";
   const isFinalQuestion = liveQuestionIndex >= totalQuestionsInQuiz - 1;
   const displayQuestionModeText = displayQuestion
-    ? getQuestionModeText(displayQuestion.allowsMultiple, displayQuestion.isPoll)
+    ? getQuestionModeText(displayQuestion.questionType, displayQuestion.allowsMultiple)
     : "";
-  const liveRevealActionLabel = getRevealActionLabel(q?.isPoll === true);
+  const liveRevealActionLabel = getRevealActionLabel(q?.questionType ?? "multiple_choice");
+  const liveOpenResponses = displayQuestion?.questionType === "open_response"
+    ? sock.answerCount?.openResponses ?? []
+    : [];
+  const revealOpenResponses = displayReveal?.questionType === "open_response"
+    ? displayReveal.openResponses
+    : [];
 
   return (
     <div className={`min-h-dvh flex flex-col p-6 lg:p-10 ${accessInfo && sessionCode ? "lg:pr-56" : ""}`}>
@@ -592,46 +599,52 @@ function LiveView({
               html={displayQuestion.text}
             />
 
-            <div className={`selection-mode-chip ${displayQuestion.allowsMultiple ? "selection-mode-chip-multi" : "selection-mode-chip-single"}`}>
+            <div className={`selection-mode-chip ${displayQuestion.questionType === "open_response" || displayQuestion.allowsMultiple ? "selection-mode-chip-multi" : "selection-mode-chip-single"}`}>
               {displayQuestionModeText}
             </div>
 
-            {/* Options with inline distribution bars */}
-            {(() => {
-              const dist = state === "QUESTION_CLOSED" && !isReviewing ? sock.distribution?.distribution : null;
-              const totalResponses = sock.answerCount?.submitted ?? 0;
-              const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
-              return (
-                <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}`}>
-                  {displayQuestion.options.map((opt) => {
-                    const count = dist?.[opt.label] ?? 0;
-                    const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
-                    const pctOfTotal = totalResponses > 0 ? Math.round((count / totalResponses) * 100) : 0;
-                    return (
-                      <div key={opt.label} className="relative rounded-xl border border-zinc-700 bg-zinc-800 overflow-hidden">
-                        {dist && (
-                          <div
-                            className="bar-fill absolute inset-0 bg-indigo-500/30 rounded-xl"
-                            style={{ width: `${Math.max(pct, 2)}%` }}
-                          />
-                        )}
-                        <div className="relative flex items-center gap-3 px-5 py-4">
-                          <span className={`bg-zinc-700 text-zinc-300 font-mono font-bold w-9 h-9 flex items-center justify-center shrink-0 text-lg ${displayQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
-                            {opt.label}
-                          </span>
-                          <QuizHtml className="quiz-html text-zinc-200 text-lg flex-1" html={opt.text} as="span" />
-                          {dist && count > 0 && (
-                            <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
-                              {count} ({pctOfTotal}%)
-                            </span>
+            {displayQuestion.questionType === "open_response" ? (
+              <OpenResponseList
+                responses={liveOpenResponses}
+                title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
+              />
+            ) : (
+              (() => {
+                const dist = state === "QUESTION_CLOSED" && !isReviewing ? sock.distribution?.distribution : null;
+                const totalResponses = sock.answerCount?.submitted ?? 0;
+                const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
+                return (
+                  <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}`}>
+                    {displayQuestion.options.map((opt) => {
+                      const count = dist?.[opt.label] ?? 0;
+                      const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                      const pctOfTotal = totalResponses > 0 ? Math.round((count / totalResponses) * 100) : 0;
+                      return (
+                        <div key={opt.label} className="relative rounded-xl border border-zinc-700 bg-zinc-800 overflow-hidden">
+                          {dist && (
+                            <div
+                              className="bar-fill absolute inset-0 bg-indigo-500/30 rounded-xl"
+                              style={{ width: `${Math.max(pct, 2)}%` }}
+                            />
                           )}
+                          <div className="relative flex items-center gap-3 px-5 py-4">
+                            <span className={`bg-zinc-700 text-zinc-300 font-mono font-bold w-9 h-9 flex items-center justify-center shrink-0 text-lg ${displayQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
+                              {opt.label}
+                            </span>
+                            <QuizHtml className="quiz-html text-zinc-200 text-lg flex-1" html={opt.text} as="span" />
+                            {dist && count > 0 && (
+                              <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
+                                {count} ({pctOfTotal}%)
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
+                      );
+                    })}
+                  </div>
+                );
+              })()
+            )}
           </>
         )}
 
@@ -643,7 +656,9 @@ function LiveView({
               html={displayQuestion.text}
             />
 
-            {showDetailedRevealChoices && (() => {
+            {displayQuestion.questionType === "open_response" ? (
+              <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." />
+            ) : showDetailedRevealChoices && (() => {
               const dist = displayReveal.distribution;
               const maxCount = Math.max(1, ...Object.values(dist));
               const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);

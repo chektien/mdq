@@ -1,4 +1,4 @@
-import { Quiz, Question, QuestionOption, DEFAULT_TIME_LIMIT_SEC } from "@mdq/shared";
+import { Quiz, Question, QuestionOption, DEFAULT_TIME_LIMIT_SEC, QuestionType } from "@mdq/shared";
 import { marked } from "marked";
 
 const QUIZ_IMAGE_SOURCE_PREFIX = "../images/";
@@ -117,13 +117,18 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
   }
 
   const questionTypeMatch = block.match(/^question_type:\s*([a-z_]+)\s*$/im);
-  const questionType = questionTypeMatch?.[1].trim().toLowerCase();
-  if (questionType && questionType !== "poll") {
+  const questionType = questionTypeMatch?.[1].trim().toLowerCase() as QuestionType | undefined;
+  if (questionType && questionType !== "poll" && questionType !== "open_response") {
     throw new QuizParseError(sourceFile, index, `Unsupported question_type: ${questionType}`);
   }
-  const isPoll = questionType === "poll";
+  const normalizedQuestionType: QuestionType = questionType || "multiple_choice";
+  const isPoll = normalizedQuestionType === "poll";
+  const isOpenResponse = normalizedQuestionType === "open_response";
 
   const multiSelectMatch = block.match(/^multi_select:\s*(true|false|yes|no|1|0)\s*$/im);
+  if (isOpenResponse && multiSelectMatch) {
+    throw new QuizParseError(sourceFile, index, "open_response questions must not use multi_select");
+  }
 
   // 3. Extract answer options (lines starting with A., B., C., etc.)
   const optionLines: { label: string; text: string; lineIndex: number }[] = [];
@@ -135,7 +140,11 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
     }
   }
 
-  if (optionLines.length === 0) {
+  if (isOpenResponse && optionLines.length > 0) {
+    throw new QuizParseError(sourceFile, index, "open_response questions must not define answer options");
+  }
+
+  if (!isOpenResponse && optionLines.length === 0) {
     throw new QuizParseError(sourceFile, index, "No answer options found (expected A., B., C., ...)");
   }
 
@@ -144,7 +153,12 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
   const correctMultiMatch = block.match(/^>\s*Correct\s+Answers:\s*(.+)$/m);
 
   let correctOptions: string[];
-  if (isPoll) {
+  if (isOpenResponse) {
+    if (correctSingleMatch || correctMultiMatch) {
+      throw new QuizParseError(sourceFile, index, "open_response questions must not define correct answers");
+    }
+    correctOptions = [];
+  } else if (isPoll) {
     if (correctSingleMatch || correctMultiMatch) {
       throw new QuizParseError(sourceFile, index, "Poll questions must not define correct answers");
     }
@@ -165,7 +179,9 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
     }
   }
 
-  const allowsMultiple = multiSelectMatch
+  const allowsMultiple = isOpenResponse
+    ? false
+    : multiSelectMatch
     ? parseBooleanField(multiSelectMatch[1])
     : isPoll
       ? false
@@ -185,9 +201,15 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
 
   // 6. Extract question text (between H2/time_limit and first option)
   const h2LineIdx = lines.findIndex((l) => /^##\s+/.test(l));
-  const firstOptionLineIdx = optionLines[0].lineIndex;
+  const firstOptionLineIdx = optionLines[0]?.lineIndex ?? Number.POSITIVE_INFINITY;
+  const firstBlockquoteLineIdx = lines.findIndex((line) => /^>\s*/.test(line.trim()));
+  const contentEndLineIdx = Math.min(
+    firstOptionLineIdx,
+    firstBlockquoteLineIdx >= 0 ? firstBlockquoteLineIdx : Number.POSITIVE_INFINITY,
+    lines.length,
+  );
 
-  let textLines = lines.slice(h2LineIdx + 1, firstOptionLineIdx);
+  let textLines = lines.slice(h2LineIdx + 1, contentEndLineIdx);
   // Remove time_limit line from text
   textLines = textLines.filter((l) => !/^time_limit:\s*\d+/i.test(l.trim()));
   textLines = textLines.filter((l) => !/^question_type:\s*[a-z_]+$/i.test(l.trim()));
@@ -210,6 +232,7 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
     subtopic: subtopic || undefined,
     textMd,
     textHtml,
+    questionType: normalizedQuestionType,
     options,
     correctOptions,
     allowsMultiple,

@@ -4,6 +4,7 @@ import { fetchPresentationSession, type PresentationSessionResponse } from "../h
 import { useSocket, type QuestionState, type RevealState } from "../hooks/useSocket";
 import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
+import OpenResponseList from "../components/OpenResponseList";
 import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
 import { getQuestionModeText } from "../questionMode";
@@ -172,11 +173,16 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
               html={currentQuestion.text}
             />
 
-            <div className={`selection-mode-chip ${currentQuestion.allowsMultiple ? "selection-mode-chip-multi" : "selection-mode-chip-single"}`}>
-              {getQuestionModeText(currentQuestion.allowsMultiple, currentQuestion.isPoll)}
+            <div className={`selection-mode-chip ${currentQuestion.questionType === "open_response" || currentQuestion.allowsMultiple ? "selection-mode-chip-multi" : "selection-mode-chip-single"}`}>
+              {getQuestionModeText(currentQuestion.questionType, currentQuestion.allowsMultiple)}
             </div>
 
-            {(() => {
+            {currentQuestion.questionType === "open_response" ? (
+              <div className="w-full max-w-2xl rounded-2xl border border-sky-500/30 bg-sky-500/10 px-5 py-5 text-center text-zinc-100">
+                <p className="text-lg">Students are submitting written responses.</p>
+                <p className="mt-2 text-sm text-sky-100/80">This question is unscored and will not affect the leaderboard.</p>
+              </div>
+            ) : (() => {
               const dist = state === "QUESTION_CLOSED" ? sock.distribution?.distribution : null;
               const totalResponses = sock.answerCount?.submitted ?? 0;
               const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
@@ -221,7 +227,9 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
               html={currentQuestion.text}
             />
 
-            {(() => {
+            {currentQuestion.questionType === "open_response" ? (
+              <OpenResponseList responses={reveal.openResponses} title="Responses" emptyLabel="No responses were submitted." />
+            ) : (() => {
               const dist = reveal.distribution;
               const maxCount = Math.max(1, ...Object.values(dist));
               const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);

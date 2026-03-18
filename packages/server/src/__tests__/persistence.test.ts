@@ -248,6 +248,67 @@ describe("Persistence", () => {
       expect(result.reason).toContain("question_index_out_of_range");
       expect(fs.existsSync(path.join(tempDir, "submissions"))).toBe(false);
     });
+
+    it("leaves correctness blank for open_response questions and excludes them from scoring", () => {
+      const session = createSession("week-open", "open");
+      const quiz: Quiz = {
+        week: "week-open",
+        title: "Week Open",
+        sourceFile: "week-open.md",
+        questions: [
+          {
+            index: 0,
+            topic: "Reflection",
+            textMd: "Share one takeaway.",
+            textHtml: "<p>Share one takeaway.</p>",
+            questionType: "open_response",
+            options: [],
+            correctOptions: [],
+            allowsMultiple: false,
+            explanation: "Thanks.",
+            timeLimitSec: 20,
+          },
+          {
+            index: 1,
+            topic: "Check",
+            textMd: "Question 2?",
+            textHtml: "<p>Question 2?</p>",
+            options: [
+              { label: "A", textMd: "Option A", textHtml: "Option A" },
+              { label: "B", textMd: "Option B", textHtml: "Option B" },
+            ],
+            correctOptions: ["A"],
+            allowsMultiple: false,
+            explanation: "A",
+            timeLimitSec: 20,
+          },
+        ],
+      };
+
+      addParticipant(session, "s001", "sock1", "Alice");
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() - 1000;
+      recordSubmission(session, "s001", 0, { responseText: "I need more examples." });
+
+      transitionState(session, "QUESTION_CLOSED");
+      transitionState(session, "REVEAL");
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 1;
+      session.questionStartedAt = Date.now() - 1000;
+      recordSubmission(session, "s001", 1, ["A"]);
+
+      saveResultsCsv(session, quiz, tempDir);
+
+      const [headerLine, rowLine] = fs.readFileSync(getSessionResultsCsvPath(session, tempDir), "utf-8").trim().split("\n");
+      const headers = headerLine.split(",");
+      const row = rowLine.split(",");
+
+      expect(row[headers.indexOf("correct_count")]).toBe("1");
+      expect(row[headers.indexOf("q1_selected")]).toBe("I need more examples.");
+      expect(row[headers.indexOf("q1_correct")]).toBe("");
+      expect(row[headers.indexOf("q2_correct")]).toBe("1");
+    });
   });
 
   describe("saveWeeklyResult", () => {
