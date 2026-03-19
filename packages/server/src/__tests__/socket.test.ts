@@ -7,6 +7,7 @@ import {
   setupSocket,
   clearSessionTimers,
   startQuestionTimer,
+  broadcastQuestionOpen,
   broadcastReveal,
   broadcastLeaderboard,
 } from "../socket";
@@ -24,6 +25,7 @@ import {
   LeaderboardUpdatePayload,
 } from "@mdq/shared";
 import { clearInstructorSessionsForTests } from "../instructor-auth";
+import { getScoredQuestionCount } from "../scoring";
 import * as path from "path";
 import { AddressInfo } from "net";
 
@@ -374,6 +376,66 @@ describe("Socket.IO Integration", () => {
       const rejected = await rejectedPromise;
       expect(rejected.reason).toContain("one answer only");
     });
+
+    it("accepts open response text, rejects blank input, and allows resubmission before close", async () => {
+      const session = createSession("week-open", "open");
+      const quiz = {
+        week: "week-open",
+        title: "Open Response Quiz",
+        sourceFile: "week-open.md",
+        questions: [{
+          index: 0,
+          topic: "Reflection",
+          textMd: "Share one takeaway.",
+          textHtml: "<p>Share one takeaway.</p>",
+          questionType: "open_response" as const,
+          options: [],
+          correctOptions: [],
+          allowsMultiple: false,
+          explanation: "Thanks for sharing.",
+          timeLimitSec: 30,
+        }],
+      };
+      quizzes.set("week-open", quiz);
+      storeSession(session);
+
+      const openClient = createClient(session.sessionId);
+      openClient.connect();
+      const joinedPromise = waitForEvent<{ sessionToken: string }>(openClient, SocketEvents.STUDENT_JOINED);
+      openClient.emit(SocketEvents.STUDENT_JOIN, { studentId: "S010" });
+      await joinedPromise;
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now();
+
+      const blankRejectedPromise = waitForEvent<{ reason: string }>(openClient, SocketEvents.ANSWER_REJECTED);
+      openClient.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        responseText: "   ",
+      });
+      const blankRejected = await blankRejectedPromise;
+      expect(blankRejected.reason).toContain("cannot be blank");
+
+      const acceptedPromise = waitForEvent<{ questionIndex: number }>(openClient, SocketEvents.ANSWER_ACCEPTED);
+      openClient.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        responseText: "I finally understand the pipeline.",
+      });
+      await acceptedPromise;
+
+      const resubmittedPromise = waitForEvent<{ questionIndex: number }>(openClient, SocketEvents.ANSWER_ACCEPTED);
+      openClient.emit(SocketEvents.ANSWER_SUBMIT, {
+        questionIndex: 0,
+        responseText: "Another answer",
+      });
+      await resubmittedPromise;
+      expect(session.submissions).toHaveLength(1);
+      expect(session.submissions[0].responseText).toBe("Another answer");
+
+      openClient.disconnect();
+      quizzes.delete("week-open");
+    });
   });
 
   describe("reconnect during open question", () => {
@@ -485,11 +547,8 @@ describe("Socket.IO Integration", () => {
       const joined2 = await joined2Promise;
       expect(joined2.answeredQuestions).toContain(0);
 
-      // Attempting to resubmit should be rejected (server-side guard)
-      const rejectedPromise = waitForEvent<{ reason: string }>(
-        client2,
-        SocketEvents.ANSWER_REJECTED,
-      );
+      // Attempting to resubmit should still be rejected for multiple-choice questions.
+      const rejectedPromise = waitForEvent<{ reason: string }>(client2, SocketEvents.ANSWER_REJECTED);
       client2.emit(SocketEvents.ANSWER_SUBMIT, {
         questionIndex: 0,
         selectedOptions: ["A"],
@@ -962,6 +1021,121 @@ describe("Socket.IO Integration", () => {
       clearInstructorSessionsForTests();
     });
 
+    it("late join during open_response QUESTION_OPEN rebroadcasts live answer count before submission", async () => {
+      const quiz = quizzes.get("week01");
+      expect(quiz).toBeDefined();
+      const originalQuestion = {
+        ...quiz!.questions[0],
+        options: [...quiz!.questions[0].options],
+        correctOptions: [...quiz!.questions[0].correctOptions],
+      };
+
+      try {
+        quiz!.questions[0] = {
+          ...quiz!.questions[0],
+          questionType: "open_response",
+          options: [],
+          correctOptions: [],
+          allowsMultiple: false,
+        };
+
+        const session = createSession("week01", "open");
+        storeSession(session);
+        transitionState(session, "QUESTION_OPEN");
+        session.currentQuestionIndex = 0;
+        session.questionStartedAt = Date.now();
+
+        const instructor = createInstructorClient(session.sessionId);
+        instructor.connect();
+
+        const initialCount = await waitForEvent<{ questionIndex: number; submitted: number; total: number }>(
+          instructor,
+          SocketEvents.ANSWER_COUNT,
+        );
+        expect(initialCount.questionIndex).toBe(0);
+        expect(initialCount.submitted).toBe(0);
+        expect(initialCount.total).toBe(0);
+
+        const lateJoinCountPromise = waitForEvent<{ questionIndex: number; submitted: number; total: number }>(
+          instructor,
+          SocketEvents.ANSWER_COUNT,
+        );
+
+        const student = createClient(session.sessionId);
+        student.connect();
+        const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+        student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001", displayName: "Alice" });
+        await joinedPromise;
+
+        const lateJoinCount = await lateJoinCountPromise;
+        expect(lateJoinCount.questionIndex).toBe(0);
+        expect(lateJoinCount.submitted).toBe(0);
+        expect(lateJoinCount.total).toBe(1);
+
+        clearSessionTimers(session.sessionId);
+        instructor.disconnect();
+        student.disconnect();
+      } finally {
+        quiz!.questions[0] = originalQuestion;
+      }
+    });
+
+    it("question open broadcasts initial answer count for already-joined open_response students", async () => {
+      const quiz = quizzes.get("week01");
+      expect(quiz).toBeDefined();
+      const originalQuestion = {
+        ...quiz!.questions[0],
+        options: [...quiz!.questions[0].options],
+        correctOptions: [...quiz!.questions[0].correctOptions],
+      };
+
+      try {
+        quiz!.questions[0] = {
+          ...quiz!.questions[0],
+          questionType: "open_response",
+          options: [],
+          correctOptions: [],
+          allowsMultiple: false,
+        };
+
+        const session = createSession("week01", "open");
+        storeSession(session);
+
+        const student = createClient(session.sessionId);
+        student.connect();
+        const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+        student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001", displayName: "Alice" });
+        await joinedPromise;
+
+        const instructor = createInstructorClient(session.sessionId);
+        instructor.connect();
+        await waitForEvent(instructor, SocketEvents.SESSION_PARTICIPANTS);
+
+        const openPromise = waitForEvent<QuestionOpenPayload>(instructor, SocketEvents.QUESTION_OPEN);
+        const countPromise = waitForEvent<{ questionIndex: number; submitted: number; total: number }>(
+          instructor,
+          SocketEvents.ANSWER_COUNT,
+        );
+
+        transitionState(session, "QUESTION_OPEN");
+        session.currentQuestionIndex = 0;
+        broadcastQuestionOpen(ioServer, session, session.sessionId, quiz!);
+
+        const open = await openPromise;
+        const count = await countPromise;
+        expect(open.questionIndex).toBe(0);
+        expect(count.questionIndex).toBe(0);
+        expect(count.submitted).toBe(0);
+        expect(count.total).toBe(1);
+
+        clearSessionTimers(session.sessionId);
+        instructor.disconnect();
+        student.disconnect();
+      } finally {
+        quiz!.questions[0] = originalQuestion;
+      }
+    });
+
     it("marks poll questions in socket payloads and excludes them from leaderboard totals", async () => {
       const quiz = quizzes.get("week01");
       expect(quiz).toBeDefined();
@@ -1009,7 +1183,7 @@ describe("Socket.IO Integration", () => {
         broadcastLeaderboard(ioServer, session, session.sessionId, quiz!);
         const leaderboard = await leaderboardPromise;
 
-        expect(leaderboard.totalQuestions).toBe(quiz!.questions.filter((question) => !question.isPoll).length);
+        expect(leaderboard.totalQuestions).toBe(getScoredQuestionCount(quiz!));
 
         instructor.disconnect();
         student.disconnect();

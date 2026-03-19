@@ -28,7 +28,7 @@ function waitFor<T>(socket: ClientSocket, event: string, timeout = 5000): Promis
 }
 
 describe("week00 smoke multi-select", () => {
-  const quizDir = path.resolve(__dirname, "../../../../data/quizzes");
+  const quizDir = path.resolve(__dirname, "../../../../samples/quizzes");
   let httpServer: HttpServer;
   let ioServer: IOServer;
   let app: ReturnType<typeof createApp>;
@@ -174,11 +174,46 @@ describe("week00 smoke multi-select", () => {
     expect(pollReveal.isPoll).toBe(true);
     expect(pollReveal.correctOptions).toEqual([]);
 
+    const q3OpenPromise = waitFor<QuestionOpenPayload>(student, SocketEvents.QUESTION_OPEN);
+    await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+    const q3 = await q3OpenPromise;
+    expect(q3.questionIndex).toBe(3);
+    expect(q3.questionType).toBe("open_response");
+    expect(q3.options).toEqual([]);
+
+    const q3AcceptedPromise = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
+    student.emit(SocketEvents.ANSWER_SUBMIT, {
+      questionIndex: 3,
+      responseText: "They should see that the response was submitted and can still be updated.",
+    });
+    await q3AcceptedPromise;
+
+    const openRevealPromise = waitFor<ResultsRevealPayload>(student, SocketEvents.RESULTS_REVEAL);
+    await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+    await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+    const openReveal = await openRevealPromise;
+    expect(openReveal.questionIndex).toBe(3);
+    expect(openReveal.questionType).toBe("open_response");
+    expect(openReveal.openResponses?.[0]?.responseText).toContain("submitted");
+
+    const q4OpenPromise = waitFor<QuestionOpenPayload>(student, SocketEvents.QUESTION_OPEN);
+    await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+    const q4 = await q4OpenPromise;
+    expect(q4.questionIndex).toBe(4);
+    expect(q4.allowsMultiple).toBe(false);
+
+    const q4AcceptedPromise = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
+    student.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 4, selectedOptions: ["B"] });
+    await q4AcceptedPromise;
+
+    await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+    await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+
     await request(app).post(`/api/session/${sessionId}/leaderboard-show`).expect(200);
     const leaderboard = await leaderboardPromise;
     const entry = leaderboard.entries.find((item) => item.studentId === "S001");
     expect(leaderboard.totalQuestions).toBe(3);
-    expect(entry?.correctCount).toBe(2);
+    expect(entry?.correctCount).toBe(3);
 
     student.disconnect();
   });

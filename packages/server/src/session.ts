@@ -4,6 +4,7 @@ import {
   SessionMode,
   Participant,
   Submission,
+  OpenResponseEntry,
   STATE_TRANSITIONS,
   SESSION_CODE_LENGTH,
 } from "@mdq/shared";
@@ -129,9 +130,11 @@ export function recordSubmission(
   session: Session,
   studentId: string,
   questionIndex: number,
-  selectedOptions: string[],
+  response: { selectedOptions?: string[]; responseText?: string } | string[],
 ): Submission {
-  const normalizedSelectedOptions = normalizeOptionSet(selectedOptions);
+  const normalizedSelectedOptions = normalizeOptionSet(Array.isArray(response) ? response : (response.selectedOptions || []));
+  const normalizedResponseText = normalizeResponseText(Array.isArray(response) ? undefined : response.responseText);
+  const isOpenResponseSubmission = normalizedSelectedOptions.length === 0 && typeof normalizedResponseText === "string";
 
   if (session.state !== "QUESTION_OPEN") {
     throw new Error("Submissions only accepted during QUESTION_OPEN state.");
@@ -141,26 +144,35 @@ export function recordSubmission(
       `Question index mismatch: expected ${session.currentQuestionIndex}, got ${questionIndex}.`,
     );
   }
-  if (!normalizedSelectedOptions || normalizedSelectedOptions.length === 0) {
-    throw new Error("At least one option must be selected.");
+  if (normalizedSelectedOptions.length === 0 && !normalizedResponseText) {
+    throw new Error("A response is required.");
   }
   if (!session.participants.has(studentId)) {
     throw new Error(`Student "${studentId}" is not a participant in this session.`);
   }
 
-  // Check for duplicate submission
-  const alreadySubmitted = session.submissions.some(
+  const now = Date.now();
+  const existingSubmission = session.submissions.find(
     (s) => s.studentId === studentId && s.questionIndex === questionIndex,
   );
-  if (alreadySubmitted) {
-    throw new Error("Already submitted an answer for this question.");
+
+  if (existingSubmission) {
+    if (!isOpenResponseSubmission) {
+      throw new Error("Already submitted an answer for this question.");
+    }
+
+    existingSubmission.selectedOptions = [];
+    existingSubmission.responseText = normalizedResponseText;
+    existingSubmission.submittedAt = now;
+    existingSubmission.responseTimeMs = session.questionStartedAt ? now - session.questionStartedAt : 0;
+    return existingSubmission;
   }
 
-  const now = Date.now();
   const submission: Submission = {
     studentId,
     questionIndex,
     selectedOptions: normalizedSelectedOptions,
+    responseText: normalizedResponseText,
     submittedAt: now,
     responseTimeMs: session.questionStartedAt ? now - session.questionStartedAt : 0,
   };
@@ -184,6 +196,21 @@ export function getDistribution(
     }
   }
   return dist;
+}
+
+export function getOpenResponses(
+  session: Session,
+  questionIndex: number,
+): OpenResponseEntry[] {
+  return session.submissions
+    .filter((sub) => sub.questionIndex === questionIndex && typeof sub.responseText === "string" && sub.responseText.length > 0)
+    .map((sub) => ({
+      studentId: sub.studentId,
+      displayName: session.participants.get(sub.studentId)?.displayName,
+      responseText: sub.responseText!,
+      submittedAt: sub.submittedAt,
+    }))
+    .sort((a, b) => b.submittedAt - a.submittedAt);
 }
 
 /**
@@ -222,6 +249,11 @@ export function getAnsweredQuestions(session: Session, studentId: string): numbe
 
 function normalizeOptionSet(options: string[]): string[] {
   return [...new Set(options)].sort();
+}
+
+function normalizeResponseText(responseText?: string): string | undefined {
+  const trimmed = responseText?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 export function isExactOptionMatch(selectedOptions: string[], correctOptions: string[]): boolean {

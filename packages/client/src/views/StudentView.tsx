@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useSocket } from "../hooks/useSocket";
 import type { QuestionState, RevealState } from "../hooks/useSocket";
 import { API } from "@mdq/shared";
@@ -253,8 +253,10 @@ export default function StudentView({
 
         <div className="w-full max-w-sm space-y-4">
           <div>
-            <label className="block text-zinc-400 text-xs mb-1 font-medium">Session Code</label>
+            <label htmlFor="join-session-code" className="block text-zinc-400 text-xs mb-1 font-medium">Session Code</label>
             <input
+              id="join-session-code"
+              name="sessionCode"
               type="text"
               value={code}
               onChange={(e) => handleCodeChange(e.target.value)}
@@ -266,10 +268,12 @@ export default function StudentView({
           </div>
 
           <div>
-            <label className="block text-zinc-400 text-xs mb-1 font-medium">
+            <label htmlFor="join-student-id" className="block text-zinc-400 text-xs mb-1 font-medium">
               Student ID <span className="text-red-400">*</span>
             </label>
             <input
+              id="join-student-id"
+              name="studentId"
               type="text"
               value={studentId}
               onChange={(e) => handleStudentIdChange(e.target.value)}
@@ -280,10 +284,12 @@ export default function StudentView({
           </div>
 
           <div>
-            <label className="block text-zinc-400 text-xs mb-1 font-medium">
+            <label htmlFor="join-display-name" className="block text-zinc-400 text-xs mb-1 font-medium">
               Display Name <span className="text-zinc-600">(optional)</span>
             </label>
             <input
+              id="join-display-name"
+              name="displayName"
               type="text"
               value={displayName}
               onChange={(e) => handleDisplayNameChange(e.target.value)}
@@ -329,6 +335,7 @@ export default function StudentView({
         remainingSec={sock.remainingSec}
         submitted={sock.submitted}
         submittedOptions={sock.submittedOptions}
+        submittedResponseText={sock.submittedResponseText}
         onSubmit={sock.submitAnswer}
       />
     );
@@ -341,6 +348,7 @@ export default function StudentView({
         question={sock.currentQuestion}
         reveal={sock.reveal}
         submittedOptions={sock.submittedOptions}
+        submittedResponseText={sock.submittedResponseText}
       />
     );
   }
@@ -391,6 +399,7 @@ function QuestionView({
   remainingSec,
   submitted,
   submittedOptions,
+  submittedResponseText,
   onSubmit,
 }: {
   question: QuestionState | null;
@@ -398,9 +407,39 @@ function QuestionView({
   remainingSec: number;
   submitted: boolean;
   submittedOptions: string[];
-  onSubmit: (questionIndex: number, selectedOptions: string[]) => void;
+  submittedResponseText: string | null;
+  onSubmit: (payload: { questionIndex: number; selectedOptions?: string[]; responseText?: string }) => void;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
+  const [responseText, setResponseText] = useState("");
+  const lastSubmittedResponseRef = useRef<string>("");
+  const questionIndex = question?.questionIndex ?? -1;
+  const questionType = question?.questionType;
+
+  useEffect(() => {
+    if (!question) {
+      return;
+    }
+    setSelected([]);
+    const nextResponse = submittedResponseText || "";
+    setResponseText(nextResponse);
+    lastSubmittedResponseRef.current = nextResponse;
+  }, [question, questionIndex]);
+
+  useEffect(() => {
+    if (!question || questionType !== "open_response") {
+      return;
+    }
+
+    const nextResponse = submittedResponseText || "";
+    if (
+      responseText.length === 0
+      || responseText === lastSubmittedResponseRef.current
+    ) {
+      setResponseText(nextResponse);
+    }
+    lastSubmittedResponseRef.current = nextResponse;
+  }, [question, questionType, responseText, submittedResponseText]);
 
   if (!question) {
     return (
@@ -422,16 +461,27 @@ function QuestionView({
   };
 
   const handleSubmit = () => {
-    if (selected.length === 0 || submitted) return;
-    onSubmit(question.questionIndex, selected);
+    if (question.questionType === "open_response") {
+      if (!responseText.trim()) return;
+      onSubmit({ questionIndex: question.questionIndex, responseText });
+      return;
+    }
+    if (submitted) return;
+    if (selected.length === 0) return;
+    onSubmit({ questionIndex: question.questionIndex, selectedOptions: selected });
   };
 
   const isClosed = state === "QUESTION_CLOSED";
-  const selectionModeText = getQuestionModeText(question.allowsMultiple, question.isPoll);
-  const submitLabel = question.isPoll
+  const canEditOpenResponse = question.questionType === "open_response" && !isClosed;
+  const selectionModeText = getQuestionModeText(question.questionType, question.allowsMultiple);
+  const submitLabel = question.questionType === "open_response"
+    ? submittedResponseText ? "Update Response" : "Submit Response"
+    : question.isPoll
     ? question.allowsMultiple ? "Submit Votes" : "Submit Vote"
     : question.allowsMultiple ? "Submit Selections" : "Submit Answer";
-  const submittedLabel = question.isPoll ? "Vote submitted" : "Answer submitted";
+  const submittedLabel = question.questionType === "open_response"
+    ? "Response submitted"
+    : question.isPoll ? "Vote submitted" : "Answer submitted";
 
   return (
     <div className="min-h-dvh flex flex-col p-4 pb-safe">
@@ -451,58 +501,90 @@ function QuestionView({
       {/* Question text */}
       <QuizHtml className="quiz-html text-lg text-white leading-relaxed mb-6" html={question.text} />
 
-      <div className={`selection-mode-card mb-5 rounded-2xl border px-4 py-3 ${question.allowsMultiple ? "selection-mode-card-multi" : "selection-mode-card-single"}`}>
+      <div className={`selection-mode-card mb-5 rounded-2xl border px-4 py-3 ${question.questionType === "open_response" || question.allowsMultiple ? "selection-mode-card-multi" : "selection-mode-card-single"}`}>
         <div className="selection-mode-text">{selectionModeText}</div>
       </div>
 
-      {/* Options */}
-      <div className="space-y-3 flex-1">
-        {question.options.map((opt) => {
-          const isSelected = selected.includes(opt.label);
-          const wasSubmitted = submittedOptions.includes(opt.label);
-          const disabled = submitted || isClosed;
+      {question.questionType === "open_response" ? (
+        <div className="flex-1">
+          <textarea
+            id={`open-response-${question.questionIndex}`}
+            name={`open-response-${question.questionIndex}`}
+            value={responseText}
+            onChange={(e) => setResponseText(e.target.value)}
+            disabled={isClosed}
+            placeholder="Type your response here"
+            rows={8}
+            className="min-h-[220px] w-full resize-y rounded-2xl border border-zinc-700 bg-zinc-800/80 px-4 py-4 text-base leading-relaxed text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-70"
+          />
+          <p className="mt-3 text-sm text-zinc-400">
+            Your response is unscored and won&apos;t affect the leaderboard.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3 flex-1">
+          {question.options.map((opt) => {
+            const isSelected = selected.includes(opt.label);
+            const wasSubmitted = submittedOptions.includes(opt.label);
+            const disabled = submitted || isClosed;
 
-          return (
-            <button
-              key={opt.label}
-              onClick={() => toggleOption(opt.label)}
-              disabled={disabled}
-              className={`
-                option-btn w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border-2 transition-all
-                ${
-                  wasSubmitted
-                    ? "border-indigo-500 bg-indigo-600/20"
-                    : isSelected
-                      ? "border-indigo-500 bg-indigo-600/10"
-                      : "border-zinc-700 bg-zinc-800/80"
-                }
-                ${disabled ? "opacity-70" : "active:scale-[0.97]"}
-              `}
-            >
-              <span
+            return (
+              <button
+                key={opt.label}
+                onClick={() => toggleOption(opt.label)}
+                disabled={disabled}
                 className={`
-                  option-marker w-8 h-8 flex items-center justify-center shrink-0 font-mono font-bold text-sm
-                  ${question.allowsMultiple ? "rounded-lg" : "rounded-full"}
+                  option-btn w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border-2 transition-all
                   ${
-                    wasSubmitted || isSelected
-                      ? "bg-indigo-600 text-white"
-                      : "bg-zinc-700 text-zinc-300"
+                    wasSubmitted
+                      ? "border-indigo-500 bg-indigo-600/20"
+                      : isSelected
+                        ? "border-indigo-500 bg-indigo-600/10"
+                        : "border-zinc-700 bg-zinc-800/80"
                   }
+                  ${disabled ? "opacity-70" : "active:scale-[0.97]"}
                 `}
               >
-                {opt.label}
-              </span>
-              <QuizHtml className="quiz-html text-zinc-200 pt-0.5" html={opt.text} as="span" />
-            </button>
-          );
-        })}
-      </div>
+                <span
+                  className={`
+                    option-marker w-8 h-8 flex items-center justify-center shrink-0 font-mono font-bold text-sm
+                    ${question.allowsMultiple ? "rounded-lg" : "rounded-full"}
+                    ${
+                      wasSubmitted || isSelected
+                        ? "bg-indigo-600 text-white"
+                        : "bg-zinc-700 text-zinc-300"
+                    }
+                  `}
+                >
+                  {opt.label}
+                </span>
+                <QuizHtml className="quiz-html text-zinc-200 pt-0.5" html={opt.text} as="span" />
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Submit button */}
       <div className="mt-4 pt-4 border-t border-zinc-800">
-        {submitted ? (
+        {question.questionType === "open_response" && submittedResponseText && canEditOpenResponse ? (
+          <div className="mb-3 rounded-2xl border border-emerald-500/40 bg-emerald-600/10 px-4 py-3">
+            <span className="text-emerald-400 font-semibold">{submittedLabel}</span>
+            <p className="mt-2 text-sm text-zinc-300 whitespace-pre-wrap">{submittedResponseText}</p>
+          </div>
+        ) : null}
+        {submitted && question.questionType !== "open_response" ? (
           <div className="text-center py-3">
             <span className="text-emerald-400 font-semibold">{submittedLabel}</span>
+          </div>
+        ) : question.questionType === "open_response" && isClosed ? (
+          <div className="text-center py-3">
+            <span className="text-amber-400 font-semibold">
+              {submittedResponseText ? "Response locked" : "Time expired"}
+            </span>
+            {submittedResponseText && (
+              <p className="mt-2 text-sm text-zinc-400 whitespace-pre-wrap">{submittedResponseText}</p>
+            )}
           </div>
         ) : isClosed ? (
           <div className="text-center py-3">
@@ -511,7 +593,7 @@ function QuestionView({
         ) : (
           <button
             onClick={handleSubmit}
-            disabled={selected.length === 0}
+            disabled={question.questionType === "open_response" ? !responseText.trim() : selected.length === 0}
             className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-semibold py-4 rounded-xl transition-colors text-lg"
           >
             {submitLabel}
@@ -528,10 +610,12 @@ function RevealView({
   question,
   reveal,
   submittedOptions,
+  submittedResponseText,
 }: {
   question: QuestionState | null;
   reveal: RevealState | null;
   submittedOptions: string[];
+  submittedResponseText: string | null;
 }) {
   if (!question || !reveal) {
     return (
@@ -547,9 +631,14 @@ function RevealView({
     submittedOptions.every((o) => reveal.correctOptions.includes(o));
 
   const didAnswer = submittedOptions.length > 0;
+  const isOpenResponse = question.questionType === "open_response";
   const isPoll = reveal.isPoll || question.isPoll;
 
-  const bannerClass = isPoll
+  const bannerClass = isOpenResponse
+    ? submittedResponseText
+      ? "bg-sky-600/15 border border-sky-400/40"
+      : "bg-zinc-800 border border-zinc-700"
+    : isPoll
     ? didAnswer
       ? "bg-sky-600/15 border border-sky-400/40"
       : "bg-zinc-800 border border-zinc-700"
@@ -559,7 +648,9 @@ function RevealView({
         ? "bg-red-600/20 border border-red-500/50"
         : "bg-zinc-800 border border-zinc-700";
 
-  const bannerTextClass = isPoll
+  const bannerTextClass = isOpenResponse
+    ? submittedResponseText ? "text-sky-300" : "text-zinc-400"
+    : isPoll
     ? didAnswer ? "text-sky-300" : "text-zinc-400"
     : isCorrect
       ? "text-emerald-400"
@@ -567,7 +658,9 @@ function RevealView({
         ? "text-red-400"
         : "text-zinc-400";
 
-  const bannerText = isPoll
+  const bannerText = isOpenResponse
+    ? submittedResponseText ? "Response received" : "No response submitted"
+    : isPoll
     ? didAnswer ? "Poll results" : "No vote submitted"
     : isCorrect
       ? "Correct!"
@@ -590,53 +683,59 @@ function RevealView({
       {/* Question text */}
       <QuizHtml className="quiz-html text-base text-zinc-300 leading-relaxed mb-4" html={question.text} />
 
-      {/* Options with correct/incorrect marks */}
-      <div className="space-y-2 mb-6">
-        {question.options.map((opt) => {
-          const correct = reveal.correctOptions.includes(opt.label);
-          const chosen = submittedOptions.includes(opt.label);
-          const optionClass = isPoll
-            ? chosen
-              ? "border-sky-500/50 bg-sky-600/10"
-              : "border-zinc-800 bg-zinc-800/50"
-            : correct
-              ? "border-emerald-500/50 bg-emerald-600/10"
-              : chosen
-                ? "border-red-500/50 bg-red-600/10"
-                : "border-zinc-800 bg-zinc-800/50";
-          const markerClass = isPoll
-            ? chosen
-              ? "bg-sky-600 text-white"
-              : "bg-zinc-700 text-zinc-400"
-            : correct
-              ? "bg-emerald-600 text-white"
-              : chosen
-                ? "bg-red-600 text-white"
-                : "bg-zinc-700 text-zinc-400";
+      {isOpenResponse ? (
+        <div className="mb-6 rounded-2xl border border-sky-500/30 bg-sky-500/10 p-5">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-sky-200">Your response</h3>
+          <p className="whitespace-pre-wrap text-zinc-100">{submittedResponseText || "No response submitted."}</p>
+        </div>
+      ) : (
+        <div className="space-y-2 mb-6">
+          {question.options.map((opt) => {
+            const correct = reveal.correctOptions.includes(opt.label);
+            const chosen = submittedOptions.includes(opt.label);
+            const optionClass = isPoll
+              ? chosen
+                ? "border-sky-500/50 bg-sky-600/10"
+                : "border-zinc-800 bg-zinc-800/50"
+              : correct
+                ? "border-emerald-500/50 bg-emerald-600/10"
+                : chosen
+                  ? "border-red-500/50 bg-red-600/10"
+                  : "border-zinc-800 bg-zinc-800/50";
+            const markerClass = isPoll
+              ? chosen
+                ? "bg-sky-600 text-white"
+                : "bg-zinc-700 text-zinc-400"
+              : correct
+                ? "bg-emerald-600 text-white"
+                : chosen
+                  ? "bg-red-600 text-white"
+                  : "bg-zinc-700 text-zinc-400";
 
-          return (
-            <div
-              key={opt.label}
-              className={`
-                flex items-start gap-3 px-4 py-3 rounded-xl border-2
-                ${optionClass}
-              `}
-            >
-              <span
+            return (
+              <div
+                key={opt.label}
                 className={`
-                  w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm
-                  ${markerClass}
+                  flex items-start gap-3 px-4 py-3 rounded-xl border-2
+                  ${optionClass}
                 `}
               >
-                {opt.label}
-              </span>
-              <QuizHtml className="quiz-html text-zinc-200 pt-0.5" html={opt.text} as="span" />
-            </div>
-          );
-        })}
-      </div>
+                <span
+                  className={`
+                    w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm
+                    ${markerClass}
+                  `}
+                >
+                  {opt.label}
+                </span>
+                <QuizHtml className="quiz-html text-zinc-200 pt-0.5" html={opt.text} as="span" />
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-      {isPoll && (
+      {isPoll && !isOpenResponse && (
         <div className="mb-6">
           <h3 className="mb-3 text-zinc-400 text-xs uppercase tracking-wide font-medium">
             Poll distribution
