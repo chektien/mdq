@@ -6,6 +6,7 @@ import {
   AnswerSubmitPayload,
   TICK_INTERVAL_MS,
   Quiz,
+  QuestionType,
 } from "@mdq/shared";
 import {
   getSession,
@@ -14,11 +15,12 @@ import {
   getDistribution,
   getSubmissionCount,
   getAnsweredQuestions,
+  getOpenResponses,
   transitionState,
   computeLeaderboard,
 } from "./session";
 import { Session } from "@mdq/shared";
-import { buildScoredCorrectAnswersMap, getScoredQuestionCount } from "./scoring";
+import { buildScoredCorrectAnswersMap, getQuestionType, getScoredQuestionCount, isOpenResponseQuestion } from "./scoring";
 import {
   isInstructorAuthEnabled,
   getInstructorSessionFromCookie,
@@ -59,6 +61,7 @@ function buildQuestionOpenPayload(session: Session): {
   questionIndex: number;
   topic: string;
   text: string;
+  questionType: QuestionType;
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
   isPoll: boolean;
@@ -79,6 +82,7 @@ function buildQuestionOpenPayload(session: Session): {
     questionIndex: session.currentQuestionIndex,
     topic: question.topic,
     text: question.textHtml,
+    questionType: getQuestionType(question),
     options: question.options.map((o) => ({ label: o.label, text: o.textHtml })),
     allowsMultiple: question.allowsMultiple,
     isPoll: question.isPoll === true,
@@ -95,6 +99,10 @@ function emitInstructorStateSnapshot(socket: Socket, session: Session): void {
 
   const questionOpenPayload = buildQuestionOpenPayload(session);
   const quiz = quizStore.get(session.week);
+  const question =
+    quiz && session.currentQuestionIndex >= 0
+      ? quiz.questions[session.currentQuestionIndex]
+      : undefined;
 
   if (session.state === "QUESTION_OPEN" && questionOpenPayload) {
     socket.emit(SocketEvents.QUESTION_OPEN, questionOpenPayload);
@@ -106,6 +114,7 @@ function emitInstructorStateSnapshot(socket: Socket, session: Session): void {
     socket.emit(SocketEvents.ANSWER_COUNT, {
       questionIndex: session.currentQuestionIndex,
       ...getSubmissionCount(session, session.currentQuestionIndex),
+      openResponses: isOpenResponseQuestion(question) ? getOpenResponses(session, session.currentQuestionIndex) : undefined,
     });
     return;
   }
@@ -122,6 +131,7 @@ function emitInstructorStateSnapshot(socket: Socket, session: Session): void {
     socket.emit(SocketEvents.ANSWER_COUNT, {
       questionIndex: session.currentQuestionIndex,
       ...getSubmissionCount(session, session.currentQuestionIndex),
+      openResponses: isOpenResponseQuestion(question) ? getOpenResponses(session, session.currentQuestionIndex) : undefined,
     });
     return;
   }
@@ -131,14 +141,17 @@ function emitInstructorStateSnapshot(socket: Socket, session: Session): void {
     socket.emit(SocketEvents.QUESTION_OPEN, questionOpenPayload);
     socket.emit(SocketEvents.RESULTS_REVEAL, {
       questionIndex: session.currentQuestionIndex,
+      questionType: getQuestionType(question),
       correctOptions: question.correctOptions,
       explanation: question.explanation,
       distribution: getDistribution(session, session.currentQuestionIndex),
       isPoll: question.isPoll === true,
+      openResponses: isOpenResponseQuestion(question) ? getOpenResponses(session, session.currentQuestionIndex) : undefined,
     });
     socket.emit(SocketEvents.ANSWER_COUNT, {
       questionIndex: session.currentQuestionIndex,
       ...getSubmissionCount(session, session.currentQuestionIndex),
+      openResponses: isOpenResponseQuestion(question) ? getOpenResponses(session, session.currentQuestionIndex) : undefined,
     });
     return;
   }
@@ -190,10 +203,12 @@ function emitJoinStateSnapshot(socket: Socket, session: Session, isReconnect: bo
     socket.emit(SocketEvents.QUESTION_OPEN, questionOpenPayload);
     socket.emit(SocketEvents.RESULTS_REVEAL, {
       questionIndex: session.currentQuestionIndex,
+      questionType: getQuestionType(question),
       correctOptions: question.correctOptions,
       explanation: question.explanation,
       distribution: getDistribution(session, session.currentQuestionIndex),
       isPoll: question.isPoll === true,
+      openResponses: isOpenResponseQuestion(question) ? getOpenResponses(session, session.currentQuestionIndex) : undefined,
     });
     return;
   }
@@ -206,6 +221,26 @@ function emitJoinStateSnapshot(socket: Socket, session: Session, isReconnect: bo
       totalQuestions: getScoredQuestionCount(quiz),
     });
   }
+}
+
+function broadcastLiveAnswerCount(io: Server, session: Session, sessionId: string): void {
+  if (session.state !== "QUESTION_OPEN" || session.currentQuestionIndex < 0) {
+    return;
+  }
+
+  const quiz = quizStore.get(session.week);
+  const question =
+    quiz && session.currentQuestionIndex >= 0
+      ? quiz.questions[session.currentQuestionIndex]
+      : undefined;
+  const count = getSubmissionCount(session, session.currentQuestionIndex);
+
+  io.to(sessionRoom(sessionId)).emit(SocketEvents.ANSWER_COUNT, {
+    questionIndex: session.currentQuestionIndex,
+    submitted: count.submitted,
+    total: count.total,
+    openResponses: isOpenResponseQuestion(question) ? getOpenResponses(session, session.currentQuestionIndex) : undefined,
+  });
 }
 
 /**
@@ -310,6 +345,7 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
 
         // Broadcast updated participant list to instructor
         broadcastParticipants(io, session, sessionId);
+        broadcastLiveAnswerCount(io, session, sessionId);
 
         logActivity(
           `student ${isReconnect ? "rejoined" : "joined"} session=${sessionId} id=${participant.studentId} socket=${socket.id}`,
@@ -344,10 +380,26 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
         if (!question) {
           throw new Error(`Question ${session.currentQuestionIndex + 1} not found.`);
         }
-        if (payload.questionIndex === session.currentQuestionIndex && !question.allowsMultiple && payload.selectedOptions.length > 1) {
-          throw new Error("This question accepts one answer only.");
+        if (isOpenResponseQuestion(question)) {
+          if ((payload.selectedOptions?.length || 0) > 0) {
+            throw new Error("Open response questions accept text responses only.");
+          }
+          if (!payload.responseText || payload.responseText.trim().length === 0) {
+            throw new Error("Response text cannot be blank.");
+          }
+        } else {
+          const selectedOptions = payload.selectedOptions || [];
+          if (!question.allowsMultiple && selectedOptions.length > 1) {
+            throw new Error("This question accepts one answer only.");
+          }
+          if (selectedOptions.length === 0) {
+            throw new Error("At least one option must be selected.");
+          }
         }
-        recordSubmission(session, studentId, payload.questionIndex, payload.selectedOptions);
+        recordSubmission(session, studentId, payload.questionIndex, {
+          selectedOptions: payload.selectedOptions,
+          responseText: payload.responseText,
+        });
         socket.emit(SocketEvents.ANSWER_ACCEPTED, { questionIndex: payload.questionIndex });
 
         // Send updated count to instructor
@@ -356,6 +408,7 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
           questionIndex: payload.questionIndex,
           submitted: count.submitted,
           total: count.total,
+          openResponses: isOpenResponseQuestion(question) ? getOpenResponses(session, payload.questionIndex) : undefined,
         });
       } catch (e) {
         socket.emit(SocketEvents.ANSWER_REJECTED, {
@@ -377,6 +430,7 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
           p.connected = false;
         }
         broadcastParticipants(io, session, sessionId);
+        broadcastLiveAnswerCount(io, session, sessionId);
         logActivity(`student disconnected session=${sessionId} id=${sid} socket=${socket.id}`);
       }
     });
@@ -468,6 +522,7 @@ export function broadcastQuestionOpen(
     questionIndex: session.currentQuestionIndex,
     topic: q.topic,
     text: q.textHtml,
+    questionType: getQuestionType(q),
     options: q.options.map((o) => ({ label: o.label, text: o.textHtml })),
     allowsMultiple: q.allowsMultiple,
     isPoll: q.isPoll === true,
@@ -480,6 +535,7 @@ export function broadcastQuestionOpen(
     questionIndex: session.currentQuestionIndex,
   });
 
+  broadcastLiveAnswerCount(io, session, sessionId);
   startQuestionTimer(io, session, sessionId, q.timeLimitSec);
 }
 
@@ -497,10 +553,12 @@ export function broadcastReveal(
 
   io.to(sessionRoom(sessionId)).emit(SocketEvents.RESULTS_REVEAL, {
     questionIndex: session.currentQuestionIndex,
+    questionType: getQuestionType(q),
     correctOptions: q.correctOptions,
     explanation: q.explanation,
     distribution: dist,
     isPoll: q.isPoll === true,
+    openResponses: isOpenResponseQuestion(q) ? getOpenResponses(session, session.currentQuestionIndex) : undefined,
   });
 
   io.to(sessionRoom(sessionId)).emit(SocketEvents.SESSION_STATE, {

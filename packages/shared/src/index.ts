@@ -77,10 +77,20 @@ export interface StudentRejectedPayload {
   reason: string;
 }
 
+export type QuestionType = "multiple_choice" | "poll" | "open_response";
+
+export interface OpenResponseEntry {
+  studentId: string;
+  displayName?: string;
+  responseText: string;
+  submittedAt: number;
+}
+
 export interface QuestionOpenPayload {
   questionIndex: number;
   topic: string;
   text: string; // rendered HTML
+  questionType?: QuestionType;
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
   isPoll?: boolean;
@@ -94,7 +104,8 @@ export interface QuestionTickPayload {
 
 export interface AnswerSubmitPayload {
   questionIndex: number;
-  selectedOptions: string[];
+  selectedOptions?: string[];
+  responseText?: string;
 }
 
 export interface AnswerAcceptedPayload {
@@ -110,6 +121,7 @@ export interface AnswerCountPayload {
   questionIndex: number;
   submitted: number;
   total: number;
+  openResponses?: OpenResponseEntry[];
 }
 
 export interface QuestionClosePayload {
@@ -123,10 +135,12 @@ export interface ResultsDistributionPayload {
 
 export interface ResultsRevealPayload {
   questionIndex: number;
+  questionType?: QuestionType;
   correctOptions: string[];
   explanation: string;
   distribution: Record<string, number>;
   isPoll?: boolean;
+  openResponses?: OpenResponseEntry[];
 }
 
 export interface LeaderboardEntry {
@@ -193,6 +207,7 @@ export interface Question {
   subtopic?: string;
   textMd: string;
   textHtml: string;
+  questionType?: QuestionType;
   options: QuestionOption[];
   correctOptions: string[];
   allowsMultiple: boolean;
@@ -224,6 +239,7 @@ export interface Submission {
   studentId: string;
   questionIndex: number;
   selectedOptions: string[];
+  responseText?: string;
   submittedAt: number;
   responseTimeMs: number;
 }

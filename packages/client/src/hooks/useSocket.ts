@@ -12,6 +12,9 @@ import type {
   SessionStatePayload,
   SessionParticipantsPayload,
   LeaderboardEntry,
+  QuestionType,
+  OpenResponseEntry,
+  AnswerSubmitPayload,
 } from "@mdq/shared";
 import { SocketEvents } from "@mdq/shared";
 
@@ -23,6 +26,10 @@ interface StoredSession {
   sessionId: string;
   studentId: string;
   sessionToken: string;
+}
+
+function appendAnsweredQuestion(current: number[], questionIndex: number): number[] {
+  return current.includes(questionIndex) ? current : [...current, questionIndex];
 }
 
 function loadStoredSession(): StoredSession | null {
@@ -62,6 +69,7 @@ export interface QuestionState {
   questionIndex: number;
   topic: string;
   text: string;
+  questionType: QuestionType;
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
   isPoll: boolean;
@@ -71,10 +79,12 @@ export interface QuestionState {
 
 export interface RevealState {
   questionIndex: number;
+  questionType: QuestionType;
   correctOptions: string[];
   explanation: string;
   distribution: Record<string, number>;
   isPoll: boolean;
+  openResponses: OpenResponseEntry[];
 }
 
 export interface UseSocketReturn {
@@ -94,6 +104,7 @@ export interface UseSocketReturn {
   answerCount: AnswerCountPayload | null;
   submitted: boolean;
   submittedOptions: string[];
+  submittedResponseText: string | null;
 
   // Reveal
   reveal: RevealState | null;
@@ -108,7 +119,7 @@ export interface UseSocketReturn {
 
   // Actions
   joinSession: (studentId: string, displayName?: string) => void;
-  submitAnswer: (questionIndex: number, selectedOptions: string[]) => void;
+  submitAnswer: (payload: AnswerSubmitPayload) => void;
   disconnect: () => void;
 }
 
@@ -118,6 +129,8 @@ export function useSocket(
 ): UseSocketReturn {
   const socketRef = useRef<Socket | null>(null);
   const answeredQuestionsRef = useRef<number[]>([]);
+  const currentQuestionRef = useRef<QuestionState | null>(null);
+  const studentIdRef = useRef<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,6 +144,7 @@ export function useSocket(
   const [answerCount, setAnswerCount] = useState<AnswerCountPayload | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submittedOptions, setSubmittedOptions] = useState<string[]>([]);
+  const [submittedResponseText, setSubmittedResponseText] = useState<string | null>(null);
 
   const [reveal, setReveal] = useState<RevealState | null>(null);
   const [distribution, setDistribution] = useState<ResultsDistributionPayload | null>(null);
@@ -139,6 +153,14 @@ export function useSocket(
   const [totalQuestions, setTotalQuestions] = useState(0);
 
   const [participants, setParticipants] = useState<SessionParticipantsPayload | null>(null);
+
+  useEffect(() => {
+    currentQuestionRef.current = currentQuestion;
+  }, [currentQuestion]);
+
+  useEffect(() => {
+    studentIdRef.current = studentIdState;
+  }, [studentIdState]);
 
   // Connect socket when sessionId is available
   useEffect(() => {
@@ -204,10 +226,12 @@ export function useSocket(
 
     // ── Question lifecycle ─────────────────
     socket.on(SocketEvents.QUESTION_OPEN, (data: QuestionOpenPayload) => {
+      const questionType = data.questionType ?? (data.isPoll ? "poll" : "multiple_choice");
       setCurrentQuestion({
         questionIndex: data.questionIndex,
         topic: data.topic,
         text: data.text,
+        questionType,
         options: data.options,
         allowsMultiple: data.allowsMultiple,
         isPoll: data.isPoll ?? false,
@@ -219,10 +243,9 @@ export function useSocket(
       setDistribution(null);
       // Preserve submitted=true if this question was already answered (reconnect case)
       const alreadyAnswered = answeredQuestionsRef.current.includes(data.questionIndex);
-      setSubmitted(alreadyAnswered);
-      if (!alreadyAnswered) {
-        setSubmittedOptions([]);
-      }
+      setSubmitted(questionType === "open_response" ? false : alreadyAnswered);
+      setSubmittedOptions([]);
+      setSubmittedResponseText(null);
       setRemainingSec(data.timeLimitSec);
     });
 
@@ -238,7 +261,7 @@ export function useSocket(
     socket.on(SocketEvents.ANSWER_ACCEPTED, (data: { questionIndex: number }) => {
       setSubmitted(true);
       setAnsweredQuestions(prev => {
-        const next = [...prev, data.questionIndex];
+        const next = appendAnsweredQuestion(prev, data.questionIndex);
         answeredQuestionsRef.current = next;
         return next;
       });
@@ -253,6 +276,30 @@ export function useSocket(
     // ── Answer count (instructor) ─────────
     socket.on(SocketEvents.ANSWER_COUNT, (data: AnswerCountPayload) => {
       setAnswerCount(data);
+      setAnsweredQuestions((prev) => {
+        const current = currentQuestionRef.current;
+        const participantId = studentIdRef.current;
+        if (
+          !participantId
+          || !current
+          || current.questionType !== "open_response"
+          || current.questionIndex !== data.questionIndex
+        ) {
+          return prev;
+        }
+
+        const ownResponse = data.openResponses?.find((entry) => entry.studentId === participantId);
+        if (!ownResponse) {
+          return prev;
+        }
+
+        setSubmitted(true);
+        setSubmittedResponseText(ownResponse.responseText);
+
+        const next = appendAnsweredQuestion(prev, data.questionIndex);
+        answeredQuestionsRef.current = next;
+        return next;
+      });
     });
 
     // ── Results ───────────────────────────
@@ -263,10 +310,12 @@ export function useSocket(
     socket.on(SocketEvents.RESULTS_REVEAL, (data: ResultsRevealPayload) => {
       setReveal({
         questionIndex: data.questionIndex,
+        questionType: data.questionType ?? (data.isPoll ? "poll" : "multiple_choice"),
         correctOptions: data.correctOptions,
         explanation: data.explanation,
         distribution: data.distribution,
         isPoll: data.isPoll ?? false,
+        openResponses: data.openResponses ?? [],
       });
       setSessionState("REVEAL");
     });
@@ -311,13 +360,11 @@ export function useSocket(
   );
 
   const submitAnswer = useCallback(
-    (questionIndex: number, selectedOptions: string[]) => {
+    (payload: AnswerSubmitPayload) => {
       if (!socketRef.current) return;
-      socketRef.current.emit(SocketEvents.ANSWER_SUBMIT, {
-        questionIndex,
-        selectedOptions,
-      });
-      setSubmittedOptions(selectedOptions);
+      socketRef.current.emit(SocketEvents.ANSWER_SUBMIT, payload);
+      setSubmittedOptions(payload.selectedOptions ?? []);
+      setSubmittedResponseText(payload.responseText?.trim() || null);
     },
     [],
   );
@@ -343,6 +390,7 @@ export function useSocket(
     answerCount,
     submitted,
     submittedOptions,
+    submittedResponseText,
     reveal,
     distribution,
     leaderboard,

@@ -251,6 +251,25 @@ describe("Session Engine", () => {
     it("rejects submission with empty selectedOptions", () => {
       expect(() => recordSubmission(session, "S001", 0, [])).toThrow();
     });
+
+    it("records a valid open response submission", () => {
+      const sub = recordSubmission(session, "S001", 0, { responseText: "The rendering pipeline." });
+      expect(sub.selectedOptions).toEqual([]);
+      expect(sub.responseText).toBe("The rendering pipeline.");
+    });
+
+    it("updates an existing open response submission", () => {
+      const first = recordSubmission(session, "S001", 0, { responseText: "First response." });
+      const updated = recordSubmission(session, "S001", 0, { responseText: "Updated response." });
+
+      expect(updated).toBe(first);
+      expect(session.submissions).toHaveLength(1);
+      expect(session.submissions[0].responseText).toBe("Updated response.");
+    });
+
+    it("rejects blank open response submissions", () => {
+      expect(() => recordSubmission(session, "S001", 0, { responseText: "   " })).toThrow(/required/i);
+    });
   });
 
   describe("edge cases", () => {

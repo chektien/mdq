@@ -1,4 +1,4 @@
-# Week 00 Quiz: Localhost Smoke Test (4 Questions)
+# Week 00 Quiz: Localhost Smoke Test (5 Questions)
 
 ---
 
@@ -54,6 +54,19 @@ C. Projected presentation view
 D. I am between screens right now
 
 > Overall Feedback: This poll confirms which surface each tester is validating, without changing the score.
+
+---
+
+## System Check: Open Response
+
+time_limit: 25
+question_type: open_response
+
+The instructor wants to confirm that written replies are working before the final smoke-test step.
+
+**In one sentence, describe what a student should see after submitting an open response while the question is still open.**
+
+> Overall Feedback: After submitting, the student should see that the response was accepted, remains unscored, and can still be updated while the question is open.
 
 ---
 

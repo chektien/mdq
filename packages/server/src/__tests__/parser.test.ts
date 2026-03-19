@@ -193,6 +193,33 @@ C. Git
       expect(q.correctOptions).toEqual([]);
     });
 
+    it("parses open_response questions without answer options", () => {
+      const md = `# Quiz
+
+---
+
+## Reflection
+
+question_type: open_response
+time_limit: 50
+
+**What was the hardest concept in today&apos;s lecture?**
+
+> Overall Feedback: Thanks for the feedback.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.questionType).toBe("open_response");
+      expect(q.options).toEqual([]);
+      expect(q.correctOptions).toEqual([]);
+      expect(q.allowsMultiple).toBe(false);
+      expect(q.timeLimitSec).toBe(50);
+      expect(q.explanation).toBe("Thanks for the feedback.");
+    });
+
     it("uses full week key from variant filenames", () => {
       const md = `# Quiz
 
@@ -364,6 +391,46 @@ B. No
   });
 
   describe("validation errors", () => {
+    it("rejects correct answers on open_response questions", () => {
+      const md = `# Quiz
+
+---
+
+## Reflection
+
+question_type: open_response
+
+Share one takeaway.
+
+> Correct Answer: A
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.quiz).toBeNull();
+      expect(result.errors[0]).toBeInstanceOf(QuizParseError);
+      expect(result.errors[0].message).toContain("open_response questions must not define correct answers");
+    });
+
+    it("rejects multi_select on open_response questions", () => {
+      const md = `# Quiz
+
+---
+
+## Reflection
+
+question_type: open_response
+multi_select: true
+
+Share one takeaway.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.quiz).toBeNull();
+      expect(result.errors[0].message).toContain("open_response questions must not use multi_select");
+    });
+
     it("reports missing correct answer", () => {
       const md = `# Quiz
 

@@ -501,7 +501,7 @@ describe("E2E Lifecycle: Full Quiz Session", () => {
     socket.disconnect();
   }, 10000);
 
-  it("rejects duplicate submissions for the same question", async () => {
+  it("rejects duplicate multiple-choice submissions for the same question", async () => {
     const createRes = await request(app)
       .post("/api/session")
       .send({ week: "week01", mode: "open" })
