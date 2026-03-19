@@ -519,6 +519,8 @@ C. Third
       const result = parseQuizMarkdown(md, "test.md");
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].detail).toContain("No answer options");
+      expect(result.errors[0].lineNumber).toBe(6);
+      expect(result.errors[0].message).toContain("test.md:6");
     });
 
     it("reports correct answer referencing non-existent option", () => {
@@ -600,7 +602,7 @@ B. No
       expect(result.quiz).toBeNull();
     });
 
-    it("returns partial results when some questions are valid", () => {
+    it("returns a partial parse result while preserving line-aware errors", () => {
       const md = `# Quiz
 
 ---
@@ -629,6 +631,7 @@ B. No
       const result = parseQuizMarkdown(md, "test.md");
       expect(result.quiz!.questions).toHaveLength(1);
       expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].lineNumber).toBe(18);
     });
   });
 

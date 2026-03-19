@@ -10,8 +10,11 @@ export class QuizParseError extends Error {
     public readonly sourceFile: string,
     public readonly questionIndex: number,
     public readonly detail: string,
+    public readonly lineNumber?: number,
   ) {
-    super(`[${sourceFile}] Question ${questionIndex + 1}: ${detail}`);
+    const location = lineNumber ? `${sourceFile}:${lineNumber}` : sourceFile;
+    const questionLabel = questionIndex >= 0 ? `Question ${questionIndex + 1}` : "Quiz";
+    super(`[${location}] ${questionLabel}: ${detail}`);
     this.name = "QuizParseError";
   }
 }
@@ -20,6 +23,11 @@ export class QuizParseError extends Error {
 export interface ParseResult {
   quiz: Quiz | null;
   errors: QuizParseError[];
+}
+
+interface QuestionBlock {
+  block: string;
+  startLine: number;
 }
 
 /**
@@ -45,23 +53,24 @@ export function parseQuizMarkdown(markdown: string, sourceFile: string): ParseRe
   const questions: Question[] = [];
 
   for (let i = 0; i < sections.length; i++) {
-    const block = sections[i].trim();
+    const { block: rawBlock, startLine } = sections[i];
+    const block = rawBlock.trim();
     if (!block) continue;
 
     try {
-      const question = parseQuestionBlock(block, i, sourceFile);
+      const question = parseQuestionBlock(block, i, sourceFile, startLine);
       questions.push(question);
     } catch (e) {
       if (e instanceof QuizParseError) {
         errors.push(e);
       } else {
-        errors.push(new QuizParseError(sourceFile, i, `Unexpected error: ${e}`));
+        errors.push(new QuizParseError(sourceFile, i, `Unexpected error: ${e}`, startLine));
       }
     }
   }
 
   if (questions.length === 0 && errors.length === 0) {
-    errors.push(new QuizParseError(sourceFile, -1, "No questions found in file"));
+    errors.push(new QuizParseError(sourceFile, -1, "No questions found in file", 1));
   }
 
   const quiz: Quiz = {
@@ -78,30 +87,49 @@ export function parseQuizMarkdown(markdown: string, sourceFile: string): ParseRe
  * Split markdown into question blocks using --- separators.
  * Only blocks that contain an H2 heading are treated as question blocks.
  */
-function splitQuestionBlocks(markdown: string): string[] {
+function splitQuestionBlocks(markdown: string): QuestionBlock[] {
   // Stop parsing at "## Learning Objectives" per PRD rule 10
   const stopIdx = markdown.search(/^##\s+Learning\s+Objectives/mi);
   const content = stopIdx >= 0 ? markdown.substring(0, stopIdx) : markdown;
+  const lines = content.split("\n");
+  const blocks: QuestionBlock[] = [];
+  let currentLines: string[] = [];
+  let currentStartLine = 1;
 
-  // Split on horizontal rules (--- on its own line)
-  const rawBlocks = content.split(/^---+\s*$/m);
+  const pushCurrentBlock = () => {
+    const block = currentLines.join("\n");
+    if (/^##\s+/m.test(block)) {
+      blocks.push({ block, startLine: currentStartLine });
+    }
+  };
 
-  // Filter to blocks containing an H2 heading (question blocks)
-  return rawBlocks.filter((block) => /^##\s+/m.test(block));
+  for (let i = 0; i < lines.length; i++) {
+    if (/^---+\s*$/.test(lines[i].trim())) {
+      pushCurrentBlock();
+      currentLines = [];
+      currentStartLine = i + 2;
+      continue;
+    }
+    currentLines.push(lines[i]);
+  }
+
+  pushCurrentBlock();
+  return blocks;
 }
 
 /**
  * Parse a single question block into a Question object.
  */
-function parseQuestionBlock(block: string, index: number, sourceFile: string): Question {
+function parseQuestionBlock(block: string, index: number, sourceFile: string, blockStartLine: number): Question {
   const lines = block.split("\n");
 
   // 1. Extract topic from H2 heading
   const h2Match = block.match(/^##\s+(.+)$/m);
   if (!h2Match) {
-    throw new QuizParseError(sourceFile, index, "Missing H2 topic heading");
+    throw new QuizParseError(sourceFile, index, "Missing H2 topic heading", blockStartLine);
   }
   const topicRaw = h2Match[1].trim();
+  const h2LineNumber = findLineNumber(lines, blockStartLine, (line) => /^##\s+/.test(line));
   const colonIdx = topicRaw.indexOf(":");
   const topic = colonIdx >= 0 ? topicRaw.substring(0, colonIdx).trim() : topicRaw;
   const subtopic = colonIdx >= 0 ? topicRaw.substring(colonIdx + 1).trim() : undefined;
@@ -112,14 +140,24 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
   if (timeLimitMatch) {
     timeLimitSec = parseInt(timeLimitMatch[1], 10);
     if (timeLimitSec <= 0) {
-      throw new QuizParseError(sourceFile, index, `Invalid time_limit: ${timeLimitMatch[1]} (must be positive)`);
+      throw new QuizParseError(
+        sourceFile,
+        index,
+        `Invalid time_limit: ${timeLimitMatch[1]} (must be positive)`,
+        findLineNumber(lines, blockStartLine, (line) => /^time_limit:\s*/i.test(line)),
+      );
     }
   }
 
   const questionTypeMatch = block.match(/^question_type:\s*([a-z_]+)\s*$/im);
   const questionType = questionTypeMatch?.[1].trim().toLowerCase() as QuestionType | undefined;
   if (questionType && questionType !== "poll" && questionType !== "open_response") {
-    throw new QuizParseError(sourceFile, index, `Unsupported question_type: ${questionType}`);
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      `Unsupported question_type: ${questionType}`,
+      findLineNumber(lines, blockStartLine, (line) => /^question_type:\s*/i.test(line)),
+    );
   }
   const normalizedQuestionType: QuestionType = questionType || "multiple_choice";
   const isPoll = normalizedQuestionType === "poll";
@@ -127,7 +165,12 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
 
   const multiSelectMatch = block.match(/^multi_select:\s*(true|false|yes|no|1|0)\s*$/im);
   if (isOpenResponse && multiSelectMatch) {
-    throw new QuizParseError(sourceFile, index, "open_response questions must not use multi_select");
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      "open_response questions must not use multi_select",
+      findLineNumber(lines, blockStartLine, (line) => /^multi_select:\s*/i.test(line)),
+    );
   }
 
   // 3. Extract answer options (lines starting with A., B., C., etc.)
@@ -141,11 +184,21 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
   }
 
   if (isOpenResponse && optionLines.length > 0) {
-    throw new QuizParseError(sourceFile, index, "open_response questions must not define answer options");
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      "open_response questions must not define answer options",
+      blockStartLine + optionLines[0].lineIndex,
+    );
   }
 
   if (!isOpenResponse && optionLines.length === 0) {
-    throw new QuizParseError(sourceFile, index, "No answer options found (expected A., B., C., ...)");
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      "No answer options found (expected A., B., C., ...)",
+      findQuestionPromptLineNumber(lines, blockStartLine, h2LineNumber),
+    );
   }
 
   // 4. Extract correct answer(s) from blockquote
@@ -155,12 +208,22 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
   let correctOptions: string[];
   if (isOpenResponse) {
     if (correctSingleMatch || correctMultiMatch) {
-      throw new QuizParseError(sourceFile, index, "open_response questions must not define correct answers");
+      throw new QuizParseError(
+        sourceFile,
+        index,
+        "open_response questions must not define correct answers",
+        findLineNumber(lines, blockStartLine, (line) => /^>\s*Correct\s+Answer/i.test(line)),
+      );
     }
     correctOptions = [];
   } else if (isPoll) {
     if (correctSingleMatch || correctMultiMatch) {
-      throw new QuizParseError(sourceFile, index, "Poll questions must not define correct answers");
+      throw new QuizParseError(
+        sourceFile,
+        index,
+        "Poll questions must not define correct answers",
+        findLineNumber(lines, blockStartLine, (line) => /^>\s*Correct\s+Answer/i.test(line)),
+      );
     }
     correctOptions = [];
   } else if (correctMultiMatch) {
@@ -168,14 +231,24 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
   } else if (correctSingleMatch) {
     correctOptions = [correctSingleMatch[1]];
   } else {
-    throw new QuizParseError(sourceFile, index, "Missing correct answer line (expected '> Correct Answer: X' or '> Correct Answers: X, Y')");
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      "Missing correct answer line (expected '> Correct Answer: X' or '> Correct Answers: X, Y')",
+      optionLines[0] ? blockStartLine + optionLines[0].lineIndex : h2LineNumber,
+    );
   }
 
   // Validate correct options reference existing labels
   const validLabels = new Set(optionLines.map((o) => o.label));
   for (const opt of correctOptions) {
     if (!validLabels.has(opt)) {
-      throw new QuizParseError(sourceFile, index, `Correct answer "${opt}" does not match any option label (${[...validLabels].join(", ")})`);
+      throw new QuizParseError(
+        sourceFile,
+        index,
+        `Correct answer "${opt}" does not match any option label (${[...validLabels].join(", ")})`,
+        findLineNumber(lines, blockStartLine, (line) => /^>\s*Correct\s+Answer/i.test(line)),
+      );
     }
   }
 
@@ -192,6 +265,7 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
       sourceFile,
       index,
       "multi_select: false cannot be used with multiple correct answers",
+      findLineNumber(lines, blockStartLine, (line) => /^multi_select:\s*/i.test(line)),
     );
   }
 
@@ -240,6 +314,24 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string): Q
     explanation,
     timeLimitSec,
   };
+}
+
+function findLineNumber(lines: string[], blockStartLine: number, predicate: (line: string) => boolean): number {
+  const index = lines.findIndex((line) => predicate(line.trim()));
+  return index >= 0 ? blockStartLine + index : blockStartLine;
+}
+
+function findQuestionPromptLineNumber(lines: string[], blockStartLine: number, fallbackLineNumber: number): number {
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed) continue;
+    if (/^##\s+/.test(trimmed)) continue;
+    if (/^(time_limit|question_type|multi_select):/i.test(trimmed)) continue;
+    if (/^>/.test(trimmed)) continue;
+    return blockStartLine + i;
+  }
+
+  return fallbackLineNumber;
 }
 
 function escapeHtml(value: string): string {
