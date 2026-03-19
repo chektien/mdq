@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useSocket } from "../hooks/useSocket";
 import type { QuestionState, RevealState } from "../hooks/useSocket";
 import { API } from "@mdq/shared";
@@ -412,6 +412,34 @@ function QuestionView({
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [responseText, setResponseText] = useState("");
+  const lastSubmittedResponseRef = useRef<string>("");
+  const questionIndex = question?.questionIndex ?? -1;
+  const questionType = question?.questionType;
+
+  useEffect(() => {
+    if (!question) {
+      return;
+    }
+    setSelected([]);
+    const nextResponse = submittedResponseText || "";
+    setResponseText(nextResponse);
+    lastSubmittedResponseRef.current = nextResponse;
+  }, [question, questionIndex]);
+
+  useEffect(() => {
+    if (!question || questionType !== "open_response") {
+      return;
+    }
+
+    const nextResponse = submittedResponseText || "";
+    if (
+      responseText.length === 0
+      || responseText === lastSubmittedResponseRef.current
+    ) {
+      setResponseText(nextResponse);
+    }
+    lastSubmittedResponseRef.current = nextResponse;
+  }, [question, questionType, responseText, submittedResponseText]);
 
   if (!question) {
     return (
@@ -433,20 +461,21 @@ function QuestionView({
   };
 
   const handleSubmit = () => {
-    if (submitted) return;
     if (question.questionType === "open_response") {
       if (!responseText.trim()) return;
       onSubmit({ questionIndex: question.questionIndex, responseText });
       return;
     }
+    if (submitted) return;
     if (selected.length === 0) return;
     onSubmit({ questionIndex: question.questionIndex, selectedOptions: selected });
   };
 
   const isClosed = state === "QUESTION_CLOSED";
+  const canEditOpenResponse = question.questionType === "open_response" && !isClosed;
   const selectionModeText = getQuestionModeText(question.questionType, question.allowsMultiple);
   const submitLabel = question.questionType === "open_response"
-    ? "Submit Response"
+    ? submittedResponseText ? "Update Response" : "Submit Response"
     : question.isPoll
     ? question.allowsMultiple ? "Submit Votes" : "Submit Vote"
     : question.allowsMultiple ? "Submit Selections" : "Submit Answer";
@@ -481,9 +510,9 @@ function QuestionView({
           <textarea
             id={`open-response-${question.questionIndex}`}
             name={`open-response-${question.questionIndex}`}
-            value={submitted ? (submittedResponseText || responseText) : responseText}
+            value={responseText}
             onChange={(e) => setResponseText(e.target.value)}
-            disabled={submitted || isClosed}
+            disabled={isClosed}
             placeholder="Type your response here"
             rows={8}
             className="min-h-[220px] w-full resize-y rounded-2xl border border-zinc-700 bg-zinc-800/80 px-4 py-4 text-base leading-relaxed text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-70"
@@ -538,10 +567,22 @@ function QuestionView({
 
       {/* Submit button */}
       <div className="mt-4 pt-4 border-t border-zinc-800">
-        {submitted ? (
+        {question.questionType === "open_response" && submittedResponseText && canEditOpenResponse ? (
+          <div className="mb-3 rounded-2xl border border-emerald-500/40 bg-emerald-600/10 px-4 py-3">
+            <span className="text-emerald-400 font-semibold">{submittedLabel}</span>
+            <p className="mt-2 text-sm text-zinc-300 whitespace-pre-wrap">{submittedResponseText}</p>
+          </div>
+        ) : null}
+        {submitted && question.questionType !== "open_response" ? (
           <div className="text-center py-3">
             <span className="text-emerald-400 font-semibold">{submittedLabel}</span>
-            {question.questionType === "open_response" && submittedResponseText && (
+          </div>
+        ) : question.questionType === "open_response" && isClosed ? (
+          <div className="text-center py-3">
+            <span className="text-amber-400 font-semibold">
+              {submittedResponseText ? "Response locked" : "Time expired"}
+            </span>
+            {submittedResponseText && (
               <p className="mt-2 text-sm text-zinc-400 whitespace-pre-wrap">{submittedResponseText}</p>
             )}
           </div>

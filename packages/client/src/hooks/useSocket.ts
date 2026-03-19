@@ -28,6 +28,10 @@ interface StoredSession {
   sessionToken: string;
 }
 
+function appendAnsweredQuestion(current: number[], questionIndex: number): number[] {
+  return current.includes(questionIndex) ? current : [...current, questionIndex];
+}
+
 function loadStoredSession(): StoredSession | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -125,6 +129,8 @@ export function useSocket(
 ): UseSocketReturn {
   const socketRef = useRef<Socket | null>(null);
   const answeredQuestionsRef = useRef<number[]>([]);
+  const currentQuestionRef = useRef<QuestionState | null>(null);
+  const studentIdRef = useRef<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -147,6 +153,14 @@ export function useSocket(
   const [totalQuestions, setTotalQuestions] = useState(0);
 
   const [participants, setParticipants] = useState<SessionParticipantsPayload | null>(null);
+
+  useEffect(() => {
+    currentQuestionRef.current = currentQuestion;
+  }, [currentQuestion]);
+
+  useEffect(() => {
+    studentIdRef.current = studentIdState;
+  }, [studentIdState]);
 
   // Connect socket when sessionId is available
   useEffect(() => {
@@ -212,11 +226,12 @@ export function useSocket(
 
     // ── Question lifecycle ─────────────────
     socket.on(SocketEvents.QUESTION_OPEN, (data: QuestionOpenPayload) => {
+      const questionType = data.questionType ?? (data.isPoll ? "poll" : "multiple_choice");
       setCurrentQuestion({
         questionIndex: data.questionIndex,
         topic: data.topic,
         text: data.text,
-        questionType: data.questionType ?? (data.isPoll ? "poll" : "multiple_choice"),
+        questionType,
         options: data.options,
         allowsMultiple: data.allowsMultiple,
         isPoll: data.isPoll ?? false,
@@ -228,7 +243,7 @@ export function useSocket(
       setDistribution(null);
       // Preserve submitted=true if this question was already answered (reconnect case)
       const alreadyAnswered = answeredQuestionsRef.current.includes(data.questionIndex);
-      setSubmitted(alreadyAnswered);
+      setSubmitted(questionType === "open_response" ? false : alreadyAnswered);
       setSubmittedOptions([]);
       setSubmittedResponseText(null);
       setRemainingSec(data.timeLimitSec);
@@ -246,7 +261,7 @@ export function useSocket(
     socket.on(SocketEvents.ANSWER_ACCEPTED, (data: { questionIndex: number }) => {
       setSubmitted(true);
       setAnsweredQuestions(prev => {
-        const next = [...prev, data.questionIndex];
+        const next = appendAnsweredQuestion(prev, data.questionIndex);
         answeredQuestionsRef.current = next;
         return next;
       });
@@ -261,6 +276,30 @@ export function useSocket(
     // ── Answer count (instructor) ─────────
     socket.on(SocketEvents.ANSWER_COUNT, (data: AnswerCountPayload) => {
       setAnswerCount(data);
+      setAnsweredQuestions((prev) => {
+        const current = currentQuestionRef.current;
+        const participantId = studentIdRef.current;
+        if (
+          !participantId
+          || !current
+          || current.questionType !== "open_response"
+          || current.questionIndex !== data.questionIndex
+        ) {
+          return prev;
+        }
+
+        const ownResponse = data.openResponses?.find((entry) => entry.studentId === participantId);
+        if (!ownResponse) {
+          return prev;
+        }
+
+        setSubmitted(true);
+        setSubmittedResponseText(ownResponse.responseText);
+
+        const next = appendAnsweredQuestion(prev, data.questionIndex);
+        answeredQuestionsRef.current = next;
+        return next;
+      });
     });
 
     // ── Results ───────────────────────────
