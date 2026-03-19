@@ -93,11 +93,56 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
 
   // ── Quiz store ──────────────────────────────
   const quizzes = new Map<string, Quiz>();
+  let quizValidationErrors: ReturnType<typeof parseQuizMarkdown>["errors"] = [];
 
   function getQuestionHeadings(quiz: Quiz): string[] {
     return quiz.questions.map((question) => (
       question.subtopic ? `${question.topic}: ${question.subtopic}` : question.topic
     ));
+  }
+
+  function describeQuizValidationDetail(detail: string): string {
+    if (detail.startsWith("No answer options found")) {
+      return "This question has no answer choices, so MDQ cannot run it safely as a quiz question.";
+    }
+    if (detail.startsWith("Missing correct answer line")) {
+      return "This question does not say which answer is correct.";
+    }
+    if (detail.includes("must not define correct answers")) {
+      return "This open-ended or poll question still has a marked correct answer.";
+    }
+    if (detail.includes("must not define answer options")) {
+      return "This open-ended question still has multiple-choice answer options.";
+    }
+    if (detail.includes("must not use multi_select")) {
+      return "This open-ended question is using a multiple-choice setting that does not apply here.";
+    }
+    if (detail.startsWith("Unsupported question_type")) {
+      return "This question uses a question type that MDQ does not support.";
+    }
+    if (detail.startsWith("Correct answer")) {
+      return "This question points to an answer choice that does not exist.";
+    }
+    return "This quiz question has a formatting problem that needs to be fixed before class.";
+  }
+
+  function buildQuizValidationMessage(errors: ReturnType<typeof parseQuizMarkdown>["errors"]): string {
+    const [firstError, ...rest] = errors;
+    if (!firstError) {
+      return "We couldn't load the quiz because a quiz file needs fixing.";
+    }
+
+    const location = `${firstError.sourceFile}:${firstError.lineNumber ?? 1}`;
+    const extraCount = rest.length;
+    const extraSuffix = extraCount > 0
+      ? ` There ${extraCount === 1 ? "is 1 more issue" : `are ${extraCount} more issues`} after that.`
+      : "";
+
+    return `We couldn't load the quiz because ${location} needs attention. ${describeQuizValidationDetail(firstError.detail)} Fix the markdown file and reload quizzes before starting a session.${extraSuffix}`;
+  }
+
+  function getQuizValidationMessage(): string | null {
+    return quizValidationErrors.length > 0 ? buildQuizValidationMessage(quizValidationErrors) : null;
   }
 
   function loadQuizzesFromDir(dirPath: string): number {
@@ -107,17 +152,20 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     }
     const files = fs.readdirSync(dirPath).filter((f) => f.match(/^week\d+(?:-[a-z0-9]+)*\.md$/i));
     const next = new Map<string, Quiz>();
+    const nextValidationErrors: ReturnType<typeof parseQuizMarkdown>["errors"] = [];
 
     for (const file of files) {
       const filePath = path.join(dirPath, file);
       try {
         const md = fs.readFileSync(filePath, "utf-8");
         const result = parseQuizMarkdown(md, file);
+        if (result.errors.length > 0) {
+          nextValidationErrors.push(...result.errors);
+          console.warn(`Parse errors for ${file}:`, result.errors.map((e) => e.message));
+          continue;
+        }
         if (result.quiz) {
           next.set(result.quiz.week, result.quiz);
-        }
-        if (result.errors.length > 0) {
-          console.warn(`Parse warnings for ${file}:`, result.errors.map((e) => e.message));
         }
       } catch (error) {
         const code =
@@ -136,6 +184,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     for (const [week, quiz] of next.entries()) {
       quizzes.set(week, quiz);
     }
+    quizValidationErrors = nextValidationErrors;
     return quizzes.size;
   }
 
@@ -279,6 +328,10 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
 
   // ── Quiz endpoints ────────────────────────
   app.get(API.QUIZZES, (_req, res) => {
+    const validationMessage = getQuizValidationMessage();
+    if (validationMessage) {
+      return res.status(409).json({ error: validationMessage });
+    }
     const list = [...quizzes.values()].map((q) => ({
       week: q.week,
       title: q.title,
@@ -293,6 +346,10 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     }
     try {
       const loaded = loadQuizzesFromDir(quizDir);
+      const validationMessage = getQuizValidationMessage();
+      if (validationMessage) {
+        return res.status(409).json({ error: validationMessage });
+      }
       const list = [...quizzes.values()].map((q) => ({
         week: q.week,
         title: q.title,
@@ -319,6 +376,10 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
 
   // ── Session lifecycle ─────────────────────
   app.post(API.SESSION_CREATE, requireInstructorAuth, (req, res) => {
+    const validationMessage = getQuizValidationMessage();
+    if (validationMessage) {
+      return res.status(409).json({ error: validationMessage });
+    }
     const { week, mode = "open" } = req.body;
     if (!week) {
       return res.status(400).json({ error: "Missing required field: week" });

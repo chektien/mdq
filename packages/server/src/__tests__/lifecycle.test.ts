@@ -137,6 +137,39 @@ describe("REST API", () => {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
       }
     });
+
+    it("blocks instructor setup when any quiz file has format errors", async () => {
+      const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-invalid-quiz-list-"));
+      const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
+      const invalidQuiz = `# Broken Quiz
+
+---
+
+## Q4
+
+**Short Answer Question:**
+
+Name the file to edit.
+
+> Correct Answer: package.json
+> Overall Feedback: package.json.
+
+---
+`;
+      fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week11-lab.md"), invalidQuiz, "utf-8");
+
+      const invalidApp = createApp(tempQuizDir);
+
+      try {
+        const res = await request(invalidApp).get("/api/quizzes");
+        expect(res.status).toBe(409);
+        expect(res.body.error).toContain("week11-lab.md:6");
+        expect(res.body.error).toContain("no answer choices");
+      } finally {
+        fs.rmSync(tempQuizDir, { recursive: true, force: true });
+      }
+    });
   });
 
   describe("POST /api/quizzes/reload", () => {
@@ -168,6 +201,39 @@ describe("REST API", () => {
         expect(Array.isArray(res.body.quizzes)).toBe(true);
         expect(res.body.quizzes).toHaveLength(1);
         expect(res.body.quizzes[0].week).toBe("week01");
+      } finally {
+        fs.rmSync(tempQuizDir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns a lecturer-friendly validation error when reload finds a broken quiz", async () => {
+      const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-invalid-quiz-reload-"));
+      const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
+      const invalidQuiz = `# Broken Quiz
+
+---
+
+## Q4
+
+**Short Answer Question:**
+
+Name the file to edit.
+
+> Correct Answer: package.json
+> Overall Feedback: package.json.
+
+---
+`;
+      fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week11-lab.md"), invalidQuiz, "utf-8");
+
+      const invalidApp = createApp(tempQuizDir);
+
+      try {
+        const res = await request(invalidApp).post("/api/quizzes/reload");
+        expect(res.status).toBe(409);
+        expect(res.body.error).toContain("week11-lab.md:6");
+        expect(res.body.error).toContain("Fix the markdown file and reload quizzes");
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
       }
@@ -250,6 +316,41 @@ describe("REST API", () => {
         .post("/api/session")
         .send({ week: "week99" });
       expect(res.status).toBe(404);
+    });
+
+    it("blocks session creation when quiz validation errors exist", async () => {
+      const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-invalid-quiz-session-"));
+      const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
+      const invalidQuiz = `# Broken Quiz
+
+---
+
+## Q4
+
+**Short Answer Question:**
+
+Name the file to edit.
+
+> Correct Answer: package.json
+> Overall Feedback: package.json.
+
+---
+`;
+      fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week11-lab.md"), invalidQuiz, "utf-8");
+
+      const invalidApp = createApp(tempQuizDir);
+
+      try {
+        const res = await request(invalidApp)
+          .post("/api/session")
+          .send({ week: "week01" });
+        expect(res.status).toBe(409);
+        expect(res.body.error).toContain("week11-lab.md:6");
+        expect(res.body.error).toContain("cannot run it safely");
+      } finally {
+        fs.rmSync(tempQuizDir, { recursive: true, force: true });
+      }
     });
 
     it("starts session (LOBBY -> QUESTION_OPEN)", async () => {

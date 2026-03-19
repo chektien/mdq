@@ -80,7 +80,10 @@ export async function loginInstructor(password: string): Promise<void> {
 
 export async function fetchQuizzes(): Promise<QuizSummary[]> {
   const res = await fetch(apiPath(API.QUIZZES));
-  if (!res.ok) throw new Error("Failed to fetch quizzes");
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to fetch quizzes");
+  }
   return res.json();
 }
 
