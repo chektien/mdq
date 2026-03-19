@@ -51,6 +51,9 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
   const totalQuestions = meta?.questionCount || 0;
   const currentQuestion = sock.currentQuestion as QuestionState | null;
   const reveal = sock.reveal as RevealState | null;
+  const liveOpenResponses = currentQuestion?.questionType === "open_response"
+    ? sock.answerCount?.openResponses ?? []
+    : [];
 
   const currentHeading = useMemo(() => {
     if (!currentQuestion) return null;
@@ -178,10 +181,10 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
             </div>
 
             {currentQuestion.questionType === "open_response" ? (
-              <div className="w-full max-w-2xl rounded-2xl border border-sky-500/30 bg-sky-500/10 px-5 py-5 text-center text-zinc-100">
-                <p className="text-lg">Students are submitting written responses.</p>
-                <p className="mt-2 text-sm text-sky-100/80">This question is unscored and will not affect the leaderboard.</p>
-              </div>
+              <OpenResponseList
+                responses={liveOpenResponses}
+                title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
+              />
             ) : (() => {
               const dist = state === "QUESTION_CLOSED" ? sock.distribution?.distribution : null;
               const totalResponses = sock.answerCount?.submitted ?? 0;
