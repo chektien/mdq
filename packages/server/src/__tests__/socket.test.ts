@@ -377,7 +377,7 @@ describe("Socket.IO Integration", () => {
       expect(rejected.reason).toContain("one answer only");
     });
 
-    it("accepts open response text, rejects blank input, and enforces one submission", async () => {
+    it("accepts open response text, rejects blank input, and allows resubmission before close", async () => {
       const session = createSession("week-open", "open");
       const quiz = {
         week: "week-open",
@@ -424,13 +424,14 @@ describe("Socket.IO Integration", () => {
       });
       await acceptedPromise;
 
-      const duplicateRejectedPromise = waitForEvent<{ reason: string }>(openClient, SocketEvents.ANSWER_REJECTED);
+      const resubmittedPromise = waitForEvent<{ questionIndex: number }>(openClient, SocketEvents.ANSWER_ACCEPTED);
       openClient.emit(SocketEvents.ANSWER_SUBMIT, {
         questionIndex: 0,
         responseText: "Another answer",
       });
-      const duplicateRejected = await duplicateRejectedPromise;
-      expect(duplicateRejected.reason).toContain("Already submitted");
+      await resubmittedPromise;
+      expect(session.submissions).toHaveLength(1);
+      expect(session.submissions[0].responseText).toBe("Another answer");
 
       openClient.disconnect();
       quizzes.delete("week-open");
@@ -546,11 +547,8 @@ describe("Socket.IO Integration", () => {
       const joined2 = await joined2Promise;
       expect(joined2.answeredQuestions).toContain(0);
 
-      // Attempting to resubmit should be rejected (server-side guard)
-      const rejectedPromise = waitForEvent<{ reason: string }>(
-        client2,
-        SocketEvents.ANSWER_REJECTED,
-      );
+      // Attempting to resubmit should still be rejected for multiple-choice questions.
+      const rejectedPromise = waitForEvent<{ reason: string }>(client2, SocketEvents.ANSWER_REJECTED);
       client2.emit(SocketEvents.ANSWER_SUBMIT, {
         questionIndex: 0,
         selectedOptions: ["A"],

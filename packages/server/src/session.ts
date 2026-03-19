@@ -134,6 +134,7 @@ export function recordSubmission(
 ): Submission {
   const normalizedSelectedOptions = normalizeOptionSet(Array.isArray(response) ? response : (response.selectedOptions || []));
   const normalizedResponseText = normalizeResponseText(Array.isArray(response) ? undefined : response.responseText);
+  const isOpenResponseSubmission = normalizedSelectedOptions.length === 0 && typeof normalizedResponseText === "string";
 
   if (session.state !== "QUESTION_OPEN") {
     throw new Error("Submissions only accepted during QUESTION_OPEN state.");
@@ -150,15 +151,23 @@ export function recordSubmission(
     throw new Error(`Student "${studentId}" is not a participant in this session.`);
   }
 
-  // Check for duplicate submission
-  const alreadySubmitted = session.submissions.some(
+  const now = Date.now();
+  const existingSubmission = session.submissions.find(
     (s) => s.studentId === studentId && s.questionIndex === questionIndex,
   );
-  if (alreadySubmitted) {
-    throw new Error("Already submitted an answer for this question.");
+
+  if (existingSubmission) {
+    if (!isOpenResponseSubmission) {
+      throw new Error("Already submitted an answer for this question.");
+    }
+
+    existingSubmission.selectedOptions = [];
+    existingSubmission.responseText = normalizedResponseText;
+    existingSubmission.submittedAt = now;
+    existingSubmission.responseTimeMs = session.questionStartedAt ? now - session.questionStartedAt : 0;
+    return existingSubmission;
   }
 
-  const now = Date.now();
   const submission: Submission = {
     studentId,
     questionIndex,
