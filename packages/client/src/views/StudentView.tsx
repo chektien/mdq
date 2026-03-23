@@ -432,10 +432,7 @@ function QuestionView({
     }
 
     const nextResponse = submittedResponseText || "";
-    if (
-      responseText.length === 0
-      || responseText === lastSubmittedResponseRef.current
-    ) {
+    if (responseText === lastSubmittedResponseRef.current) {
       setResponseText(nextResponse);
     }
     lastSubmittedResponseRef.current = nextResponse;
