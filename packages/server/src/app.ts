@@ -690,7 +690,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     return res.json(await buildSessionAccessInfo(fallbackBase, session.sessionId, session.sessionCode));
   });
 
-  app.get(API.SESSION_PRESENTATION, async (req, res) => {
+  app.get(API.SESSION_PRESENTATION, requireInstructorAuth, async (req, res) => {
     const session = getSession(req.params.id);
     if (!session) {
       return res.status(404).json({ error: "Session not found" });

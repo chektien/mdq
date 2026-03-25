@@ -289,9 +289,9 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
       const isInstructor = role === "instructor";
       if (isInstructorAuthEnabled()) {
         const sessionToken = getInstructorSessionFromCookie(socket.handshake.headers.cookie);
-        if (isInstructor && (!sessionToken || !hasValidInstructorSession(sessionToken))) {
+        if (!sessionToken || !hasValidInstructorSession(sessionToken)) {
           socket.emit(SocketEvents.STUDENT_REJECTED, { reason: "Instructor login required" });
-          logActivity(`reject instructor socket=${socket.id} session=${sessionId} reason=unauthenticated`);
+          logActivity(`reject ${isInstructor ? "instructor" : "presentation"} socket=${socket.id} session=${sessionId} reason=unauthenticated`);
           socket.disconnect();
           return;
         }

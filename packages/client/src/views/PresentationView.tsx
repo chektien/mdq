@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SessionState } from "@mdq/shared";
+import InstructorLoginPrompt from "../components/InstructorLoginPrompt";
 import { fetchPresentationSession, type PresentationSessionResponse } from "../hooks/api";
 import { useSocket, type QuestionState, type RevealState } from "../hooks/useSocket";
 import Timer from "../components/Timer";
@@ -9,6 +10,8 @@ import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
 import { getQuestionModeText } from "../questionMode";
 
+const EMPTY_QUESTION_HEADINGS: string[] = [];
+
 function formatQuizLabel(quizKey: string): string {
   const normalized = quizKey.trim();
   if (!normalized) return "MDQ";
@@ -16,11 +19,15 @@ function formatQuizLabel(quizKey: string): string {
   return `${normalized} MDQ`;
 }
 
-export default function PresentationView({ sessionId }: { sessionId: string }) {
+function isInstructorLoginRequired(message: string | null): boolean {
+  return (message || "").toLowerCase().includes("login required");
+}
+
+export default function PresentationView({ sessionId, loginHref }: { sessionId: string; loginHref: string }) {
   const [meta, setMeta] = useState<PresentationSessionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const sock = useSocket(sessionId, "presentation");
+  const sock = useSocket(meta ? sessionId : null, "presentation");
 
   useEffect(() => {
     let cancelled = false;
@@ -40,14 +47,29 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
 
     return () => {
       cancelled = true;
-      sock.disconnect();
     };
   }, [sessionId]);
+
+  async function retryPresentationFetch() {
+    setLoading(true);
+    setErrorMsg(null);
+
+    try {
+      const data = await fetchPresentationSession(sessionId);
+      setMeta(data);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Unable to load presentation session.");
+      setMeta(null);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const state = (sock.sessionState || meta?.state || null) as SessionState | null;
   const quizLabel = formatQuizLabel(meta?.week || "");
   const accessInfo = meta?.accessInfo || null;
-  const questionHeadings = meta?.questionHeadings || [];
+  const questionHeadings = meta?.questionHeadings || EMPTY_QUESTION_HEADINGS;
   const totalQuestions = meta?.questionCount || 0;
   const currentQuestion = sock.currentQuestion as QuestionState | null;
   const reveal = sock.reveal as RevealState | null;
@@ -74,6 +96,30 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
   }
 
   if (errorMsg || !meta || !state) {
+    if (isInstructorLoginRequired(errorMsg)) {
+      return (
+        <div className="min-h-dvh flex flex-col items-center justify-center gap-8 p-6">
+          <div className="text-center space-y-3">
+            <p className="text-sm uppercase tracking-[0.22em] text-zinc-500">Presentation Mode</p>
+            <p className="max-w-xl text-zinc-400">
+              This presenter view is protected when instructor auth is enabled. Sign in here and presentation mode will continue automatically.
+            </p>
+          </div>
+
+          <InstructorLoginPrompt
+            title="Instructor login required"
+            description="Enter the instructor password to continue into presenter mode."
+            submitLabel="Sign In to Open Presentation"
+            onSuccess={retryPresentationFetch}
+            backHref="#/"
+            backLabel="Back home"
+            secondaryHref={loginHref}
+            secondaryLabel="Open full sign-in page"
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-6 text-center">
         <h1 className="text-3xl font-bold text-white">Presentation unavailable</h1>

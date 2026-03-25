@@ -975,50 +975,64 @@ describe("Socket.IO Integration", () => {
       student.disconnect();
     });
 
-    it("presentation view connects without instructor auth and receives live snapshot", async () => {
-      process.env.INSTRUCTOR_PASSWORD = "presentation-test-secret";
-      clearInstructorSessionsForTests();
-
-      const session = createSession("week01", "open");
-      storeSession(session);
-
-      const student = createClient(session.sessionId);
-      student.connect();
-      const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
-      student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
-      await joinedPromise;
-
-      transitionState(session, "QUESTION_OPEN");
-      session.currentQuestionIndex = 0;
-      session.questionStartedAt = Date.now() - 1000;
-
-      const presentation = createPresentationClient(session.sessionId);
-      const participantsPromise = waitForEvent<{ count: number }>(presentation, SocketEvents.SESSION_PARTICIPANTS);
-      const statePromise = waitForEvent<{ state: string; questionIndex?: number }>(presentation, SocketEvents.SESSION_STATE);
-      const openPromise = waitForEvent<{ questionIndex: number }>(presentation, SocketEvents.QUESTION_OPEN);
-      const countPromise = waitForEvent<{ questionIndex: number; submitted: number; total: number }>(presentation, SocketEvents.ANSWER_COUNT);
-
-      presentation.connect();
-
-      const [participants, state, open, count] = await Promise.all([
-        participantsPromise,
-        statePromise,
-        openPromise,
-        countPromise,
-      ]);
-
-      expect(participants.count).toBe(1);
-      expect(state.state).toBe("QUESTION_OPEN");
-      expect(state.questionIndex).toBe(0);
-      expect(open.questionIndex).toBe(0);
-      expect(count.submitted).toBe(0);
-      expect(count.total).toBe(1);
-
-      clearSessionTimers(session.sessionId);
-      presentation.disconnect();
-      student.disconnect();
+    it("presentation view connects without instructor auth when no password is configured", async () => {
+      const originalInstructorPassword = process.env.INSTRUCTOR_PASSWORD;
       delete process.env.INSTRUCTOR_PASSWORD;
       clearInstructorSessionsForTests();
+
+      try {
+        const session = createSession("week01", "open");
+        storeSession(session);
+
+        const student = createClient(session.sessionId);
+        student.connect();
+        const joinedPromise = waitForEvent(student, SocketEvents.STUDENT_JOINED);
+        student.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+        await joinedPromise;
+
+        transitionState(session, "QUESTION_OPEN");
+        session.currentQuestionIndex = 0;
+        session.questionStartedAt = Date.now() - 1000;
+
+        const presentation = createPresentationClient(session.sessionId);
+        const participantsPromise = waitForEvent<{ count: number }>(presentation, SocketEvents.SESSION_PARTICIPANTS);
+        const statePromise = waitForEvent<{ state: string; questionIndex?: number }>(
+          presentation,
+          SocketEvents.SESSION_STATE,
+        );
+        const openPromise = waitForEvent<{ questionIndex: number }>(presentation, SocketEvents.QUESTION_OPEN);
+        const countPromise = waitForEvent<{ questionIndex: number; submitted: number; total: number }>(
+          presentation,
+          SocketEvents.ANSWER_COUNT,
+        );
+
+        presentation.connect();
+
+        const [participants, state, open, count] = await Promise.all([
+          participantsPromise,
+          statePromise,
+          openPromise,
+          countPromise,
+        ]);
+
+        expect(participants.count).toBe(1);
+        expect(state.state).toBe("QUESTION_OPEN");
+        expect(state.questionIndex).toBe(0);
+        expect(open.questionIndex).toBe(0);
+        expect(count.submitted).toBe(0);
+        expect(count.total).toBe(1);
+
+        clearSessionTimers(session.sessionId);
+        presentation.disconnect();
+        student.disconnect();
+      } finally {
+        if (typeof originalInstructorPassword === "string") {
+          process.env.INSTRUCTOR_PASSWORD = originalInstructorPassword;
+        } else {
+          delete process.env.INSTRUCTOR_PASSWORD;
+        }
+        clearInstructorSessionsForTests();
+      }
     });
 
     it("late join during open_response QUESTION_OPEN rebroadcasts live answer count before submission", async () => {
@@ -1435,6 +1449,66 @@ describe("Socket.IO Integration", () => {
         });
 
         authInstructor.disconnect();
+      } finally {
+        authIo.close();
+        await new Promise<void>((resolve) => authServer.close(() => resolve()));
+      }
+    });
+
+    it("rejects unauthenticated presentation socket when password is configured", async () => {
+      process.env.INSTRUCTOR_PASSWORD = "presentation-test-secret";
+
+      const authApp = createApp(quizDir);
+      const authServer = createServer(authApp);
+      const authQuizzes = (authApp as unknown as { _quizzes: Map<string, Quiz> })._quizzes;
+      const authIo = setupSocket(authServer, authQuizzes);
+
+      await new Promise<void>((resolve) => authServer.listen(0, resolve));
+      try {
+        const authPort = (authServer.address() as AddressInfo).port;
+        const authBaseUrl = `http://localhost:${authPort}`;
+
+        const createRes = await request(authApp)
+          .post("/api/instructor/login")
+          .send({ password: "presentation-test-secret" })
+          .expect(204);
+        const cookieHeader = createRes.headers["set-cookie"][0].split(";")[0];
+
+        const sessionRes = await request(authApp)
+          .post("/api/session")
+          .set("Cookie", cookieHeader)
+          .send({ week: "week01" })
+          .expect(201);
+
+        const unauthPresentation = ioClient(authBaseUrl, {
+          autoConnect: false,
+          auth: { sessionId: sessionRes.body.sessionId, role: "presentation" },
+          transports: ["websocket"],
+        });
+
+        const rejectedPromise = waitForEvent<{ reason: string }>(
+          unauthPresentation,
+          SocketEvents.STUDENT_REJECTED,
+        );
+
+        unauthPresentation.connect();
+        const rejected = await rejectedPromise;
+        expect(rejected.reason).toContain("login required");
+        unauthPresentation.disconnect();
+
+        const authPresentation = ioClient(authBaseUrl, {
+          autoConnect: false,
+          auth: { sessionId: sessionRes.body.sessionId, role: "presentation" },
+          transports: ["websocket"],
+          extraHeaders: { Cookie: cookieHeader },
+        });
+
+        await new Promise<void>((resolve) => {
+          authPresentation.once("connect", () => resolve());
+          authPresentation.connect();
+        });
+
+        authPresentation.disconnect();
       } finally {
         authIo.close();
         await new Promise<void>((resolve) => authServer.close(() => resolve()));
