@@ -1,8 +1,9 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect } from "react";
 import InstructorView from "./views/InstructorView";
 import PresentationView from "./views/PresentationView";
 import StudentView from "./views/StudentView";
-import { fetchInstructorSessionStatus, loginInstructor } from "./hooks/api";
+import InstructorLoginPrompt from "./components/InstructorLoginPrompt";
+import { fetchInstructorSessionStatus } from "./hooks/api";
 
 const DEFAULT_INSTRUCTOR_ROUTE_SEGMENT = "instructor";
 
@@ -148,9 +149,7 @@ export default function App() {
 function InstructorGate({ returnTo, authContext }: { returnTo?: string; authContext?: AuthContext }) {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchInstructorSessionStatus()
@@ -194,73 +193,26 @@ function InstructorGate({ returnTo, authContext }: { returnTo?: string; authCont
   const description = isPresentationLogin
     ? "Presentation mode is protected when the instructor password is enabled. Sign in and you will return to the presenter view."
     : "Enter the instructor password to access session controls.";
-  const submitLabel = submitting
-    ? "Signing in..."
-    : isPresentationLogin
-      ? "Sign In to Open Presentation"
-      : "Sign In";
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await loginInstructor(password);
-      setPassword("");
-      if (returnTo) {
-        navigateToHashPath(returnTo);
-        return;
-      }
-      setAuthenticated(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Login failed");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center gap-8 p-6">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-white">{title}</h1>
-          <p className="text-zinc-400">{description}</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <label htmlFor="instructor-password" className="block text-sm font-medium text-zinc-300">
-            Password
-          </label>
-          <input
-            id="instructor-password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            autoComplete="current-password"
-            required
-          />
-
-          {error && <p className="text-sm text-red-300">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={submitting || !password}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-semibold py-3 rounded-xl transition-colors"
-          >
-            {submitLabel}
-          </button>
-        </form>
-
-        <div className="flex items-center justify-between text-sm">
-          <a href="#/" className="text-zinc-400 hover:text-zinc-200">
-            Back home
-          </a>
-          <a href={`#${INSTRUCTOR_HASH_ROUTE}`} className="text-zinc-400 hover:text-zinc-200">
-            Instructor controls
-          </a>
-        </div>
-      </div>
+      <InstructorLoginPrompt
+        title={title}
+        description={description}
+        submitLabel={isPresentationLogin ? "Sign In to Open Presentation" : "Sign In"}
+        onSuccess={() => {
+          if (returnTo) {
+            navigateToHashPath(returnTo);
+            return;
+          }
+          setAuthenticated(true);
+        }}
+        backHref="#/"
+        backLabel="Back home"
+        secondaryHref={`#${INSTRUCTOR_HASH_ROUTE}`}
+        secondaryLabel="Instructor controls"
+      />
+      {error && <p className="text-sm text-red-300">{error}</p>}
     </div>
   );
 }

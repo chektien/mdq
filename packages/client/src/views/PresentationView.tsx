@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SessionState } from "@mdq/shared";
+import InstructorLoginPrompt from "../components/InstructorLoginPrompt";
 import { fetchPresentationSession, type PresentationSessionResponse } from "../hooks/api";
 import { useSocket, type QuestionState, type RevealState } from "../hooks/useSocket";
 import Timer from "../components/Timer";
@@ -49,6 +50,22 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
     };
   }, [sessionId]);
 
+  async function retryPresentationFetch() {
+    setLoading(true);
+    setErrorMsg(null);
+
+    try {
+      const data = await fetchPresentationSession(sessionId);
+      setMeta(data);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Unable to load presentation session.");
+      setMeta(null);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const state = (sock.sessionState || meta?.state || null) as SessionState | null;
   const quizLabel = formatQuizLabel(meta?.week || "");
   const accessInfo = meta?.accessInfo || null;
@@ -81,20 +98,24 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
   if (errorMsg || !meta || !state) {
     if (isInstructorLoginRequired(errorMsg)) {
       return (
-        <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-6 text-center">
-          <h1 className="text-3xl font-bold text-white">Instructor login required</h1>
-          <p className="max-w-lg text-zinc-400">
-            This presenter view is protected when instructor auth is enabled. Sign in and you will return straight to presentation mode.
-          </p>
-          <a
-            href={loginHref}
-            className="rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-indigo-500"
-          >
-            Sign in to open presentation
-          </a>
-          <a href="#/" className="text-sm text-zinc-400 hover:text-zinc-200">
-            Back home
-          </a>
+        <div className="min-h-dvh flex flex-col items-center justify-center gap-8 p-6">
+          <div className="text-center space-y-3">
+            <p className="text-sm uppercase tracking-[0.22em] text-zinc-500">Presentation Mode</p>
+            <p className="max-w-xl text-zinc-400">
+              This presenter view is protected when instructor auth is enabled. Sign in here and presentation mode will continue automatically.
+            </p>
+          </div>
+
+          <InstructorLoginPrompt
+            title="Instructor login required"
+            description="Enter the instructor password to continue into presenter mode."
+            submitLabel="Sign In to Open Presentation"
+            onSuccess={retryPresentationFetch}
+            backHref="#/"
+            backLabel="Back home"
+            secondaryHref={loginHref}
+            secondaryLabel="Open full sign-in page"
+          />
         </div>
       );
     }
