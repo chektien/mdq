@@ -9,6 +9,8 @@ import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
 import { getQuestionModeText } from "../questionMode";
 
+const EMPTY_QUESTION_HEADINGS: string[] = [];
+
 function formatQuizLabel(quizKey: string): string {
   const normalized = quizKey.trim();
   if (!normalized) return "MDQ";
@@ -16,11 +18,15 @@ function formatQuizLabel(quizKey: string): string {
   return `${normalized} MDQ`;
 }
 
-export default function PresentationView({ sessionId }: { sessionId: string }) {
+function isInstructorLoginRequired(message: string | null): boolean {
+  return (message || "").toLowerCase().includes("login required");
+}
+
+export default function PresentationView({ sessionId, loginHref }: { sessionId: string; loginHref: string }) {
   const [meta, setMeta] = useState<PresentationSessionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const sock = useSocket(sessionId, "presentation");
+  const sock = useSocket(meta ? sessionId : null, "presentation");
 
   useEffect(() => {
     let cancelled = false;
@@ -40,14 +46,13 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
 
     return () => {
       cancelled = true;
-      sock.disconnect();
     };
   }, [sessionId]);
 
   const state = (sock.sessionState || meta?.state || null) as SessionState | null;
   const quizLabel = formatQuizLabel(meta?.week || "");
   const accessInfo = meta?.accessInfo || null;
-  const questionHeadings = meta?.questionHeadings || [];
+  const questionHeadings = meta?.questionHeadings || EMPTY_QUESTION_HEADINGS;
   const totalQuestions = meta?.questionCount || 0;
   const currentQuestion = sock.currentQuestion as QuestionState | null;
   const reveal = sock.reveal as RevealState | null;
@@ -74,6 +79,26 @@ export default function PresentationView({ sessionId }: { sessionId: string }) {
   }
 
   if (errorMsg || !meta || !state) {
+    if (isInstructorLoginRequired(errorMsg)) {
+      return (
+        <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-6 text-center">
+          <h1 className="text-3xl font-bold text-white">Instructor login required</h1>
+          <p className="max-w-lg text-zinc-400">
+            This presenter view is protected when instructor auth is enabled. Sign in and you will return straight to presentation mode.
+          </p>
+          <a
+            href={loginHref}
+            className="rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-indigo-500"
+          >
+            Sign in to open presentation
+          </a>
+          <a href="#/" className="text-sm text-zinc-400 hover:text-zinc-200">
+            Back home
+          </a>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-6 text-center">
         <h1 className="text-3xl font-bold text-white">Presentation unavailable</h1>

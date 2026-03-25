@@ -208,7 +208,9 @@ export async function fetchSessionStateForRestore(sessionId: string): Promise<Se
 }
 
 export async function fetchPresentationSession(sessionId: string): Promise<PresentationSessionResponse> {
-  const res = await fetch(apiPath(API.SESSION_PRESENTATION, { id: sessionId }));
+  const res = await fetch(apiPath(API.SESSION_PRESENTATION, { id: sessionId }), {
+    credentials: "same-origin",
+  });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || "Failed to load presentation session");
