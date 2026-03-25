@@ -1,8 +1,9 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect } from "react";
 import InstructorView from "./views/InstructorView";
 import PresentationView from "./views/PresentationView";
 import StudentView from "./views/StudentView";
-import { fetchInstructorSessionStatus, loginInstructor } from "./hooks/api";
+import InstructorLoginPrompt from "./components/InstructorLoginPrompt";
+import { fetchInstructorSessionStatus } from "./hooks/api";
 
 const DEFAULT_INSTRUCTOR_ROUTE_SEGMENT = "instructor";
 
@@ -16,6 +17,42 @@ const INSTRUCTOR_ROUTE_SEGMENT = normalizeRouteSegment(
 );
 const INSTRUCTOR_HASH_ROUTE = `/${INSTRUCTOR_ROUTE_SEGMENT}`;
 
+type AppPage = "home" | "instructor" | "join" | "student" | "presentation";
+type AuthContext = "presentation";
+
+interface AppRoute {
+  page: AppPage;
+  param?: string;
+  next?: string;
+  authContext?: AuthContext;
+}
+
+function sanitizeHashPath(value?: string | null): string | undefined {
+  const trimmed = (value || "").trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return undefined;
+  return trimmed;
+}
+
+function navigateToHashPath(path: string): void {
+  window.location.hash = path;
+}
+
+function buildInstructorLoginHash(options: { next?: string; authContext?: AuthContext } = {}): string {
+  const params = new URLSearchParams();
+  const next = sanitizeHashPath(options.next);
+
+  if (next) {
+    params.set("next", next);
+  }
+
+  if (options.authContext) {
+    params.set("context", options.authContext);
+  }
+
+  const query = params.toString();
+  return `#${INSTRUCTOR_HASH_ROUTE}${query ? `?${query}` : ""}`;
+}
+
 /**
  * Simple hash-based routing:
  *   /             -> role picker (instructor or student)
@@ -24,12 +61,21 @@ const INSTRUCTOR_HASH_ROUTE = `/${INSTRUCTOR_ROUTE_SEGMENT}`;
  *   /s/:sessionId -> student in-session (after join)
  *   /present/:id  -> read-only projector view for an active session
  */
-function getRoute(): { page: string; param?: string } {
+function getRoute(): AppRoute {
   const hash = window.location.hash.replace(/^#/, "");
-  if (hash === INSTRUCTOR_HASH_ROUTE || hash === `${INSTRUCTOR_HASH_ROUTE}/`) return { page: "instructor" };
-  if (hash.startsWith("/join/")) return { page: "join", param: hash.split("/")[2] };
-  if (hash.startsWith("/s/")) return { page: "student", param: hash.split("/")[2] };
-  if (hash.startsWith("/present/")) return { page: "presentation", param: hash.split("/")[2] };
+  const [path, queryString = ""] = hash.split("?");
+  const params = new URLSearchParams(queryString);
+
+  if (path === INSTRUCTOR_HASH_ROUTE || path === `${INSTRUCTOR_HASH_ROUTE}/`) {
+    return {
+      page: "instructor",
+      next: sanitizeHashPath(params.get("next")),
+      authContext: params.get("context") === "presentation" ? "presentation" : undefined,
+    };
+  }
+  if (path.startsWith("/join/")) return { page: "join", param: path.split("/")[2] };
+  if (path.startsWith("/s/")) return { page: "student", param: path.split("/")[2] };
+  if (path.startsWith("/present/")) return { page: "presentation", param: path.split("/")[2] };
   return { page: "home" };
 }
 
@@ -43,7 +89,7 @@ export default function App() {
   }, []);
 
   if (route.page === "instructor") {
-    return <InstructorGate />;
+    return <InstructorGate returnTo={route.next} authContext={route.authContext} />;
   }
 
   if (route.page === "join") {
@@ -55,7 +101,15 @@ export default function App() {
   }
 
   if (route.page === "presentation" && route.param) {
-    return <PresentationView sessionId={route.param} />;
+    return (
+      <PresentationView
+        sessionId={route.param}
+        loginHref={buildInstructorLoginHash({
+          next: `/present/${route.param}`,
+          authContext: "presentation",
+        })}
+      />
+    );
   }
 
   // Home: role picker
@@ -92,12 +146,10 @@ export default function App() {
   );
 }
 
-function InstructorGate() {
+function InstructorGate({ returnTo, authContext }: { returnTo?: string; authContext?: AuthContext }) {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchInstructorSessionStatus()
@@ -110,6 +162,12 @@ function InstructorGate() {
       .finally(() => setChecking(false));
   }, []);
 
+  useEffect(() => {
+    if (!checking && authenticated && returnTo) {
+      navigateToHashPath(returnTo);
+    }
+  }, [authenticated, checking, returnTo]);
+
   if (checking) {
     return (
       <div className="min-h-dvh flex items-center justify-center p-6 text-zinc-300">
@@ -118,67 +176,43 @@ function InstructorGate() {
     );
   }
 
+  if (authenticated && returnTo) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center p-6 text-zinc-300">
+        Opening presentation view...
+      </div>
+    );
+  }
+
   if (authenticated) {
     return <InstructorView />;
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await loginInstructor(password);
-      setAuthenticated(true);
-      setPassword("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Login failed");
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  const isPresentationLogin = authContext === "presentation";
+  const title = isPresentationLogin ? "Instructor Login Required" : "Instructor Login";
+  const description = isPresentationLogin
+    ? "Presentation mode is protected when the instructor password is enabled. Sign in and you will return to the presenter view."
+    : "Enter the instructor password to access session controls.";
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center gap-8 p-6">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-white">Instructor Login</h1>
-          <p className="text-zinc-400">Enter the instructor password to access session controls.</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <label htmlFor="instructor-password" className="block text-sm font-medium text-zinc-300">
-            Password
-          </label>
-          <input
-            id="instructor-password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            autoComplete="current-password"
-            required
-          />
-
-          {error && <p className="text-sm text-red-300">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={submitting || !password}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-semibold py-3 rounded-xl transition-colors"
-          >
-            {submitting ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
-
-        <div className="flex items-center justify-between text-sm">
-          <a href="#/" className="text-zinc-400 hover:text-zinc-200">
-            Back home
-          </a>
-          <a href="#/join/" className="text-zinc-400 hover:text-zinc-200">
-            Go to quiz join
-          </a>
-        </div>
-      </div>
+      <InstructorLoginPrompt
+        title={title}
+        description={description}
+        submitLabel={isPresentationLogin ? "Sign In to Open Presentation" : "Sign In"}
+        onSuccess={() => {
+          if (returnTo) {
+            navigateToHashPath(returnTo);
+            return;
+          }
+          setAuthenticated(true);
+        }}
+        backHref="#/"
+        backLabel="Back home"
+        secondaryHref={`#${INSTRUCTOR_HASH_ROUTE}`}
+        secondaryLabel="Instructor controls"
+      />
+      {error && <p className="text-sm text-red-300">{error}</p>}
     </div>
   );
 }

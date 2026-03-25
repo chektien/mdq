@@ -81,6 +81,36 @@ describe("REST API", () => {
       expect(status.body.authenticated).toBe(true);
       expect(status.body.configured).toBe(false);
     });
+
+    it("requires instructor auth for presentation metadata when password is configured", async () => {
+      process.env.INSTRUCTOR_PASSWORD = "presentation-secret";
+      const protectedApp = createApp(quizDir);
+
+      const agent = request.agent(protectedApp);
+      await agent
+        .post("/api/instructor/login")
+        .send({ password: "presentation-secret" })
+        .expect(204);
+
+      const createRes = await agent
+        .post("/api/session")
+        .send({ week: "week01" })
+        .expect(201);
+
+      await request(protectedApp)
+        .get(`/api/session/${createRes.body.sessionId}/presentation`)
+        .expect(401);
+
+      const res = await agent
+        .get(`/api/session/${createRes.body.sessionId}/presentation`)
+        .set("Host", "quiz-host.local:3001")
+        .expect(200);
+
+      expect(res.body.sessionId).toBe(createRes.body.sessionId);
+      expect(res.body.accessInfo.presentationUrl).toBe(
+        `http://quiz-host.local:3001/#/present/${createRes.body.sessionId}`,
+      );
+    });
   });
 
   describe("GET /api/health", () => {
@@ -539,7 +569,7 @@ Name the file to edit.
       expect(res.body.qrTargetUrl).toContain(`/join/${createRes.body.sessionCode}`);
     });
 
-    it("returns public presentation metadata for an active session", async () => {
+    it("returns presentation metadata for an active session when instructor auth is disabled", async () => {
       const createRes = await request(app)
         .post("/api/session")
         .send({ week: "week01" })
