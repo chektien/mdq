@@ -17,6 +17,7 @@ import type { AddressInfo } from "net";
 import { randomUUID } from "crypto";
 import { execSync } from "child_process";
 import { loadRuntimeConfig } from "./config";
+import { isInstructorAuthEnabled } from "./instructor-auth";
 
 const runtimeConfig = loadRuntimeConfig();
 const requestedPort = runtimeConfig.port || DEFAULT_PORT;
@@ -193,6 +194,7 @@ async function onListening(): Promise<void> {
     console.log(`Requested port ${requestedPort} unavailable, using fallback port ${boundPort}`);
   }
   console.log(`Port fallback retry limit: ${maxPortFallbacks}`);
+  console.log(`Instructor password: ${isInstructorAuthEnabled() ? "configured" : "not configured"}`);
   console.log(`Data directory: ${dataDir}`);
   console.log(`Quiz directory: ${quizDir}`);
 
