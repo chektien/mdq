@@ -17,7 +17,7 @@ import {
   computeCumulativeLeaderboard,
   persistSessionProgressOnReveal,
 } from "./persistence";
-import { buildScoredCorrectAnswersMap, getScoredQuestionCount } from "./scoring";
+import { buildScoredCorrectAnswersMap, getQuestionType, getScoredQuestionCount } from "./scoring";
 import { getCachedAccessInfo, generateQrDataUrl, generateShortUrl } from "./access-info";
 import {
   INSTRUCTOR_SESSION_COOKIE,
@@ -498,8 +498,12 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   app.post(API.SESSION_CLOSE, requireInstructorAuth, (req, res) => {
     withSession(req, res, (session) => {
       try {
-        transitionState(session, "QUESTION_CLOSED");
         const quiz = getQuizForSession(session.week);
+        const currentQuestion = quiz?.questions[session.currentQuestionIndex];
+        if (getQuestionType(currentQuestion) === "slide") {
+          return res.status(400).json({ error: "Slides do not close; advance to the next item." });
+        }
+        transitionState(session, "QUESTION_CLOSED");
         notifyStateChange(session, req.params.id, quiz);
         logActivity(`instructor close session=${req.params.id} q=${session.currentQuestionIndex} state=${session.state}`);
         res.json({ state: session.state, questionIndex: session.currentQuestionIndex });
@@ -515,8 +519,12 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   app.post(API.SESSION_REVEAL, requireInstructorAuth, (req, res) => {
     withSession(req, res, (session) => {
       try {
-        transitionState(session, "REVEAL");
         const quiz = getQuizForSession(session.week);
+        const currentQuestion = quiz?.questions[session.currentQuestionIndex];
+        if (getQuestionType(currentQuestion) === "slide") {
+          return res.status(400).json({ error: "Slides do not reveal answers; advance to the next item." });
+        }
+        transitionState(session, "REVEAL");
 
         if (quiz) {
           try {

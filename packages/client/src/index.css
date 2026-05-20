@@ -15,6 +15,152 @@ body {
   min-height: 100dvh;
 }
 
+:root {
+  --mdq-slide-bg: #fdfdfb;
+  --mdq-slide-frame: rgba(15, 23, 42, 0.12);
+  --mdq-slide-elevation: 0 6px 24px rgba(15, 23, 42, 0.28);
+  --mdq-slide-heading: #15171c;
+  --mdq-slide-ink: #232730;
+  --mdq-slide-ink-soft: #5b6270;
+  --mdq-slide-eyebrow: #8a92a3;
+  --mdq-slide-accent: #2563eb;
+  --mdq-note-attendee: #2563eb;
+  --mdq-note-attendee-tint: rgba(37, 99, 235, 0.07);
+  --mdq-note-presenter: #b45309;
+  --mdq-note-presenter-tint: rgba(180, 83, 9, 0.08);
+}
+
+/* ── Slide canvas and fold-out notes ───────── */
+.slide-surface {
+  container-type: inline-size;
+  width: min(100%, 68rem);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--mdq-slide-frame);
+  border-radius: 6px;
+  background: var(--mdq-slide-bg);
+  color: var(--mdq-slide-ink);
+  box-shadow: var(--mdq-slide-elevation);
+}
+
+.slide-surface-student {
+  width: min(100%, 44rem);
+}
+
+.slide-safe {
+  position: relative;
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 3.4cqi;
+  padding: 7cqi 6.5cqi;
+}
+
+.slide-eyebrow {
+  margin: 0 0 1.2cqi;
+  color: var(--mdq-slide-eyebrow);
+  font-size: clamp(0.72rem, 1.15cqi, 0.95rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.slide-title {
+  margin: 0;
+  max-width: 18ch;
+  color: var(--mdq-slide-heading);
+  font-size: clamp(2rem, 4.6cqi, 4.9rem);
+  font-weight: 750;
+  line-height: 0.98;
+}
+
+.slide-body {
+  max-width: 52ch;
+  color: var(--mdq-slide-ink);
+  font-size: clamp(1.08rem, 2.05cqi, 2.1rem);
+  line-height: 1.28;
+}
+
+.slide-body p {
+  margin: 0 0 1.5cqi;
+}
+
+.slide-body ul,
+.slide-body ol {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.slide-body li {
+  position: relative;
+  margin: 0 0 1.8cqi;
+  padding-left: 2.1cqi;
+}
+
+.slide-body li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 999px;
+  background: var(--mdq-slide-accent);
+}
+
+.slide-notes {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: auto;
+  max-width: 48rem;
+}
+
+.foldout-note {
+  border-left: 3px solid var(--mdq-note-attendee);
+  background: var(--mdq-note-attendee-tint);
+  color: var(--mdq-slide-ink);
+  padding: 0.75rem 0.9rem;
+}
+
+.foldout-note-presenter {
+  border-left-color: var(--mdq-note-presenter);
+  background: var(--mdq-note-presenter-tint);
+}
+
+.foldout-note summary {
+  cursor: pointer;
+  color: var(--mdq-note-attendee);
+  font-weight: 700;
+}
+
+.foldout-note-presenter summary {
+  color: var(--mdq-note-presenter);
+}
+
+.foldout-note-body {
+  margin-top: 0.65rem;
+  color: var(--mdq-slide-ink-soft);
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.slide-counter {
+  position: absolute;
+  right: 3cqi;
+  bottom: 2.4cqi;
+  margin: 0;
+  color: var(--mdq-slide-eyebrow);
+  font-size: clamp(0.68rem, 1cqi, 0.85rem);
+}
+
+@media (max-width: 760px) {
+  .slide-surface {
+    aspect-ratio: auto;
+    min-height: 70dvh;
+  }
+}
+
 /* ── Bar chart animation ─────────────────── */
 .bar-fill { transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
 

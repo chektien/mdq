@@ -23,6 +23,7 @@ import Leaderboard from "../components/Leaderboard";
 import OpenResponseList from "../components/OpenResponseList";
 import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
+import SlideContent from "../components/SlideContent";
 import { getQuestionModeText, getRevealActionLabel } from "../questionMode";
 
 type InstructorPhase = "setup" | "lobby" | "live" | "ended";
@@ -513,14 +514,16 @@ function LiveView({
     : getQuestionHeading(liveQuestionIndex >= 0 ? liveQuestionIndex + 1 : 0);
 
   // Determine which controls to show
-  const canClose = state === "QUESTION_OPEN";
-  const canReveal = state === "QUESTION_CLOSED";
+  const liveIsSlide = q?.questionType === "slide";
+  const canClose = state === "QUESTION_OPEN" && !liveIsSlide;
+  const canReveal = state === "QUESTION_CLOSED" && !liveIsSlide;
   const canNext =
-    state === "REVEAL" &&
+    (state === "REVEAL" || (state === "QUESTION_OPEN" && liveIsSlide)) &&
     q &&
     q.questionIndex < totalQuestionsInQuiz - 1;
-  const canShowLeaderboard = state === "REVEAL";
+  const canShowLeaderboard = state === "REVEAL" && !liveIsSlide;
   const isFinalQuestion = liveQuestionIndex >= totalQuestionsInQuiz - 1;
+  const canEndFromSlide = state === "QUESTION_OPEN" && liveIsSlide && isFinalQuestion;
   const displayQuestionModeText = displayQuestion
     ? getQuestionModeText(displayQuestion.questionType, displayQuestion.allowsMultiple)
     : "";
@@ -578,6 +581,15 @@ function LiveView({
         {/* Question display (for QUESTION_OPEN, QUESTION_CLOSED) */}
         {displayQuestion && (((state === "QUESTION_OPEN" || state === "QUESTION_CLOSED") && !isReviewing) || (isReviewing && !displayReveal)) && (
           <>
+            {displayQuestion.questionType === "slide" ? (
+              <SlideContent
+                title={displayHeading || displayQuestion.topic}
+                html={displayQuestion.text}
+                attendeeNotes={displayQuestion.attendeeNotes}
+                positionLabel={`Slide ${displayQuestion.questionIndex + 1} / ${totalQuestionsInQuiz}`}
+              />
+            ) : (
+              <>
             {/* Timer */}
             {state === "QUESTION_OPEN" && !isReviewing && (
               <Timer
@@ -644,6 +656,8 @@ function LiveView({
                   </div>
                 );
               })()
+            )}
+              </>
             )}
           </>
         )}
@@ -822,7 +836,7 @@ function LiveView({
               disabled={loading}
               className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
             >
-              Next Question
+              {liveIsSlide ? "Next Item" : "Next Question"}
             </button>
           )}
           {!isReviewing && canShowLeaderboard && (
@@ -850,6 +864,15 @@ function LiveView({
             </button>
           )}
           {!isReviewing && state === "LEADERBOARD" && (
+            <button
+              onClick={() => onAction(() => endSession(sessionId), "end")}
+              disabled={loading}
+              className="bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
+            >
+              End Session
+            </button>
+          )}
+          {!isReviewing && canEndFromSlide && (
             <button
               onClick={() => onAction(() => endSession(sessionId), "end")}
               disabled={loading}

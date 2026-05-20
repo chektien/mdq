@@ -7,6 +7,7 @@ import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
 import DistributionChart from "../components/DistributionChart";
 import QuizHtml from "../components/QuizHtml";
+import SlideContent from "../components/SlideContent";
 import { getQuestionModeText } from "../questionMode";
 
 function formatQuizLabel(quizKey: string): string {
@@ -479,6 +480,21 @@ function QuestionView({
   const submittedLabel = question.questionType === "open_response"
     ? "Response submitted"
     : question.isPoll ? "Vote submitted" : "Answer submitted";
+
+  if (question.questionType === "slide") {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-4">
+        <SlideContent
+          title={question.topic}
+          html={question.text}
+          attendeeNotes={question.attendeeNotes}
+          positionLabel={`Slide ${question.questionIndex + 1}`}
+          mode="student"
+        />
+        <p className="text-sm text-zinc-400">The instructor will advance shortly.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-dvh flex flex-col p-4 pb-safe">
