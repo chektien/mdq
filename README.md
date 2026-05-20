@@ -4,6 +4,18 @@ MCQs are passe. Enter MDQs. Human- and agent-friendly Markdown Quizzes.
 No clunky interfaces. No database. No proprietary nonsense.
 Just your own machine and a public secure tunnel (like Tailscale).
 
+## Philosophy
+
+MDQ is markdown quizzes first. Slides can support the flow, but the core
+offering is still a presentation learning activity where interactive quizzes
+drive attention, pacing, discussion, feedback, and review.
+
+The target author is someone who likes markdown as their working surface:
+write the teaching material in plain text, keep it versionable and
+agent-editable, then run it live without exporting through a heavyweight slide
+tool. Slide-style content should stay sparse and supportive, while quiz moments
+remain the center of the session.
+
 ## Disclaimer
 
 MDQ is provided as-is, and you use it at your own risk.
@@ -36,6 +48,8 @@ The `data/` folder is intentionally ignored so local state and access info do no
 ## Why This Works
 
 MDQ is optimized for a narrow classroom usage scenario:
+- markdown-first teaching material that can mix short explanation slides with live quiz prompts
+- quiz-centered presentation sessions where interaction is the main pedagogical event
 - This project is intentionally built with tight operational integration around Tailscale (secure tunnel/Funnel) and is.gd (short links in instructor flow).
 - The core MDQ logic does not depend on those specific vendors, so you can adapt the same flow to other tunnel providers and URL shorteners if your environment prefers different services.
 - short, synchronous quiz sessions
@@ -236,7 +250,7 @@ Requires `socket.io-client` to be resolvable — run `npm install -D socket.io-c
 
 ## Quiz Markdown Format
 
-Each question supports the existing `time_limit:` metadata plus optional `multi_select:` and `question_type:` flags. Question stems and option text can also include standard markdown images.
+Each interactive question supports the existing `time_limit:` metadata plus optional `multi_select:` and `type:` flags. `question_type:` remains accepted as a backward-compatible alias. Question stems, slide bodies, and option text can also include standard markdown images.
 
 ```markdown
 ---
@@ -260,10 +274,32 @@ Rules:
 
 - Omit `multi_select:` for backward compatibility. mdq will still treat `> Correct Answers: ...` as multi-select and `> Correct Answer: ...` as single-select.
 - Use `multi_select: true` when you want students to be allowed to pick more than one option for that question.
-- Use `question_type: poll` when you want a non-scored poll question. Poll questions must not include `> Correct Answer:` or `> Correct Answers:` lines.
+- Use `type: poll` when you want a non-scored poll question. Poll questions must not include `> Correct Answer:` or `> Correct Answers:` lines.
 - Poll questions still respect `multi_select:`. Omit it for a single-choice poll, or set `multi_select: true` for a multi-select poll.
+- Use `type: open_response` for a written, non-scored response prompt.
+- Use `type: slide` for non-interactive slide content. Slides have no timer, answer choices, correct answers, submissions, or leaderboard weight.
 - Do not combine `multi_select: false` with multiple correct answers.
 - The instructor `Next up` preview uses the existing `## ...` question heading, including both sides of `Topic: Subtopic` when present.
+
+Slide example:
+
+```markdown
+---
+
+## Retrieval Practice
+
+type: slide
+
+- Start with a low-stakes recall prompt.
+  > Attendee Note: Retrieval before explanation is the key idea.
+  > Presenter Note: Ask students to answer silently first.
+
+- Reveal the common misconception after discussion.
+
+> Attendee Note: This slide sets up the live quiz that follows.
+```
+
+Fold-out notes are written as `> Attendee Note:` or `> Presenter Note:` blockquotes. Attendee notes can appear in student and review-facing surfaces; presenter notes stay on authenticated instructor surfaces.
 
 Poll example:
 

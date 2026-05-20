@@ -1,4 +1,4 @@
-import { Quiz, Question, QuestionOption, DEFAULT_TIME_LIMIT_SEC, QuestionType } from "@mdq/shared";
+import { Quiz, Question, QuestionOption, DEFAULT_TIME_LIMIT_SEC, QuestionType, FoldoutNote } from "@mdq/shared";
 import { marked } from "marked";
 
 const QUIZ_IMAGE_SOURCE_PREFIX = "../images/";
@@ -149,26 +149,36 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     }
   }
 
-  const questionTypeMatch = block.match(/^question_type:\s*([a-z_]+)\s*$/im);
+  const questionTypeMatch = block.match(/^(?:type|question_type):\s*([a-z_]+)\s*$/im);
   const questionType = questionTypeMatch?.[1].trim().toLowerCase() as QuestionType | undefined;
-  if (questionType && questionType !== "poll" && questionType !== "open_response") {
+  if (questionType && questionType !== "poll" && questionType !== "open_response" && questionType !== "slide") {
     throw new QuizParseError(
       sourceFile,
       index,
-      `Unsupported question_type: ${questionType}`,
-      findLineNumber(lines, blockStartLine, (line) => /^question_type:\s*/i.test(line)),
+      `Unsupported type: ${questionType}`,
+      findLineNumber(lines, blockStartLine, (line) => /^(?:type|question_type):\s*/i.test(line)),
     );
   }
   const normalizedQuestionType: QuestionType = questionType || "multiple_choice";
   const isPoll = normalizedQuestionType === "poll";
   const isOpenResponse = normalizedQuestionType === "open_response";
+  const isSlide = normalizedQuestionType === "slide";
 
-  const multiSelectMatch = block.match(/^multi_select:\s*(true|false|yes|no|1|0)\s*$/im);
-  if (isOpenResponse && multiSelectMatch) {
+  if (isSlide && timeLimitMatch) {
     throw new QuizParseError(
       sourceFile,
       index,
-      "open_response questions must not use multi_select",
+      "slide items must not use time_limit",
+      findLineNumber(lines, blockStartLine, (line) => /^time_limit:\s*/i.test(line)),
+    );
+  }
+
+  const multiSelectMatch = block.match(/^multi_select:\s*(true|false|yes|no|1|0)\s*$/im);
+  if ((isOpenResponse || isSlide) && multiSelectMatch) {
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      isSlide ? "slide items must not use multi_select" : "open_response questions must not use multi_select",
       findLineNumber(lines, blockStartLine, (line) => /^multi_select:\s*/i.test(line)),
     );
   }
@@ -183,16 +193,16 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     }
   }
 
-  if (isOpenResponse && optionLines.length > 0) {
+  if ((isOpenResponse || isSlide) && optionLines.length > 0) {
     throw new QuizParseError(
       sourceFile,
       index,
-      "open_response questions must not define answer options",
+      isSlide ? "slide items must not define answer options" : "open_response questions must not define answer options",
       blockStartLine + optionLines[0].lineIndex,
     );
   }
 
-  if (!isOpenResponse && optionLines.length === 0) {
+  if (!isOpenResponse && !isSlide && optionLines.length === 0) {
     throw new QuizParseError(
       sourceFile,
       index,
@@ -206,7 +216,17 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
   const correctMultiMatch = block.match(/^>\s*Correct\s+Answers:\s*(.+)$/m);
 
   let correctOptions: string[];
-  if (isOpenResponse) {
+  if (isSlide) {
+    if (correctSingleMatch || correctMultiMatch) {
+      throw new QuizParseError(
+        sourceFile,
+        index,
+        "slide items must not define correct answers",
+        findLineNumber(lines, blockStartLine, (line) => /^>\s*Correct\s+Answer/i.test(line)),
+      );
+    }
+    correctOptions = [];
+  } else if (isOpenResponse) {
     if (correctSingleMatch || correctMultiMatch) {
       throw new QuizParseError(
         sourceFile,
@@ -252,7 +272,7 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     }
   }
 
-  const allowsMultiple = isOpenResponse
+  const allowsMultiple = isOpenResponse || isSlide
     ? false
     : multiSelectMatch
     ? parseBooleanField(multiSelectMatch[1])
@@ -277,17 +297,21 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
   const h2LineIdx = lines.findIndex((l) => /^##\s+/.test(l));
   const firstOptionLineIdx = optionLines[0]?.lineIndex ?? Number.POSITIVE_INFINITY;
   const firstBlockquoteLineIdx = lines.findIndex((line) => /^>\s*/.test(line.trim()));
-  const contentEndLineIdx = Math.min(
-    firstOptionLineIdx,
-    firstBlockquoteLineIdx >= 0 ? firstBlockquoteLineIdx : Number.POSITIVE_INFINITY,
-    lines.length,
-  );
+  const contentEndLineIdx = isSlide
+    ? lines.length
+    : Math.min(
+      firstOptionLineIdx,
+      firstBlockquoteLineIdx >= 0 ? firstBlockquoteLineIdx : Number.POSITIVE_INFINITY,
+      lines.length,
+    );
 
   let textLines = lines.slice(h2LineIdx + 1, contentEndLineIdx);
   // Remove time_limit line from text
   textLines = textLines.filter((l) => !/^time_limit:\s*\d+/i.test(l.trim()));
-  textLines = textLines.filter((l) => !/^question_type:\s*[a-z_]+$/i.test(l.trim()));
+  textLines = textLines.filter((l) => !/^(?:type|question_type):\s*[a-z_]+$/i.test(l.trim()));
   textLines = textLines.filter((l) => !/^multi_select:\s*(true|false|yes|no|1|0)$/i.test(l.trim()));
+  const noteExtraction = extractFoldoutNotes(textLines);
+  textLines = noteExtraction.contentLines;
   const textMd = textLines.join("\n").trim();
 
   // 7. Render markdown to HTML
@@ -307,12 +331,14 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     textMd,
     textHtml,
     questionType: normalizedQuestionType,
+    attendeeNotes: noteExtraction.notes.filter((note) => note.audience === "attendee"),
+    presenterNotes: noteExtraction.notes.filter((note) => note.audience === "presenter"),
     options,
     correctOptions,
     allowsMultiple,
     isPoll,
     explanation,
-    timeLimitSec,
+    timeLimitSec: isSlide ? 0 : timeLimitSec,
   };
 }
 
@@ -326,7 +352,7 @@ function findQuestionPromptLineNumber(lines: string[], blockStartLine: number, f
     const trimmed = lines[i].trim();
     if (!trimmed) continue;
     if (/^##\s+/.test(trimmed)) continue;
-    if (/^(time_limit|question_type|multi_select):/i.test(trimmed)) continue;
+    if (/^(time_limit|type|question_type|multi_select):/i.test(trimmed)) continue;
     if (/^>/.test(trimmed)) continue;
     return blockStartLine + i;
   }
@@ -355,6 +381,61 @@ function resolveMarkdownImageHref(href: string): string {
   }
 
   return `${QUIZ_IMAGE_PUBLIC_PREFIX}${segments.join("/")}`;
+}
+
+function extractFoldoutNotes(lines: string[]): { contentLines: string[]; notes: FoldoutNote[] } {
+  const contentLines: string[] = [];
+  const notes: FoldoutNote[] = [];
+  let currentNote: {
+    audience: FoldoutNote["audience"];
+    scope: FoldoutNote["scope"];
+    title?: string;
+    bodyLines: string[];
+  } | null = null;
+  let lastContentLine = "";
+
+  const flushNote = () => {
+    if (!currentNote) return;
+    const bodyMd = currentNote.bodyLines.join("\n").trim();
+    if (bodyMd) {
+      notes.push({
+        id: `note-${notes.length + 1}`,
+        audience: currentNote.audience,
+        scope: currentNote.scope,
+        title: currentNote.title,
+        bodyMd,
+        bodyHtml: renderMarkdown(bodyMd),
+      });
+    }
+    currentNote = null;
+  };
+
+  for (const line of lines) {
+    const noteStart = line.match(/^\s*>\s*(Presenter|Attendee)\s+Note:\s*(.*)$/i);
+    const noteContinuation = line.match(/^\s*>\s?(.*)$/);
+    if (noteStart) {
+      flushNote();
+      currentNote = {
+        audience: noteStart[1].toLowerCase() === "presenter" ? "presenter" : "attendee",
+        scope: /^\s*[-*+]\s+/.test(lastContentLine) ? "bullet" : "section",
+        bodyLines: [noteStart[2] || ""],
+      };
+      continue;
+    }
+    if (currentNote && noteContinuation) {
+      currentNote.bodyLines.push(noteContinuation[1] || "");
+      continue;
+    }
+
+    flushNote();
+    contentLines.push(line);
+    if (line.trim()) {
+      lastContentLine = line;
+    }
+  }
+
+  flushNote();
+  return { contentLines, notes };
 }
 
 function parseBooleanField(value: string): boolean {

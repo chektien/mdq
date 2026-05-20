@@ -8,6 +8,7 @@ import Leaderboard from "../components/Leaderboard";
 import OpenResponseList from "../components/OpenResponseList";
 import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
+import SlideContent from "../components/SlideContent";
 import { getQuestionModeText } from "../questionMode";
 
 const EMPTY_QUESTION_HEADINGS: string[] = [];
@@ -193,7 +194,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
           {currentHeading && <span className="text-sm text-zinc-600">{currentHeading}</span>}
         </div>
         <div className="flex items-center gap-4">
-          {sock.answerCount && (state === "QUESTION_OPEN" || state === "QUESTION_CLOSED") && (
+          {sock.answerCount && currentQuestion?.questionType !== "slide" && (state === "QUESTION_OPEN" || state === "QUESTION_CLOSED") && (
             <span className="font-mono tabular-nums text-zinc-400">
               {sock.answerCount.submitted}/{sock.answerCount.total} answered
             </span>
@@ -212,6 +213,15 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
 
         {currentQuestion && (state === "QUESTION_OPEN" || state === "QUESTION_CLOSED") && (
           <>
+            {currentQuestion.questionType === "slide" ? (
+              <SlideContent
+                title={currentHeading || currentQuestion.topic}
+                html={currentQuestion.text}
+                attendeeNotes={currentQuestion.attendeeNotes}
+                positionLabel={`Slide ${currentQuestion.questionIndex + 1} / ${totalQuestions}`}
+              />
+            ) : (
+              <>
             {state === "QUESTION_OPEN" && (
               <Timer remainingSec={sock.remainingSec} totalSec={currentQuestion.timeLimitSec} size={140} />
             )}
@@ -266,6 +276,8 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                 </div>
               );
             })()}
+              </>
+            )}
           </>
         )}
 
