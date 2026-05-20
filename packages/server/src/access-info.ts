@@ -17,6 +17,11 @@ interface TailscaleStatus {
  * Returns the DNS name (e.g., "my-laptop.tailnet.ts.net") or null if unavailable.
  */
 export function detectTailscaleUrl(): string | null {
+  const configuredUrl = (process.env.MDQ_PUBLIC_URL || process.env.PUBLIC_URL || "").trim();
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
   try {
     const output = execSync("tailscale status --json", {
       timeout: 5000,
