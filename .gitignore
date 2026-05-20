@@ -24,6 +24,16 @@ packages/server/data/
 # Local development docs (do not publish)
 docs/DEV-*.md
 
+# Local agent scratch/planning notes (do not publish)
+docs/AGENT-*.md
+docs/agent-*.md
+docs/*-agent-notes.md
+agent-notes*.md
+agentic-*.md
+.agent/
+.codex/
+.openclaw/
+
 # Local logs
 *.log
 
