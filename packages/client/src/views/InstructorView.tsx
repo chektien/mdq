@@ -570,7 +570,7 @@ function LiveView({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-8 max-w-4xl mx-auto w-full">
+      <div className={`flex-1 flex flex-col items-center justify-center gap-8 mx-auto w-full ${displayQuestion?.questionType === "slide" ? "max-w-none" : "max-w-4xl"}`}>
         {nextQuestionHeading && (
           <div className="w-full max-w-3xl rounded-2xl border border-sky-500/30 bg-sky-500/10 px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">Next up</p>

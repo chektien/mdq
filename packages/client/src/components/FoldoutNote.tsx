@@ -6,6 +6,7 @@ export default function FoldoutNote({ note }: { note: FoldoutNoteModel }) {
   return (
     <details className={`foldout-note foldout-note-${note.audience}`}>
       <summary>
+        <span className="foldout-note-kicker">{label}</span>
         <span>{note.title || label}</span>
       </summary>
       <QuizHtml className="quiz-html foldout-note-body" html={note.bodyHtml} />

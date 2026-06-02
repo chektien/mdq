@@ -203,7 +203,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
         </div>
       </div>
 
-      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center gap-8">
+      <div className={`mx-auto flex w-full flex-1 flex-col items-center justify-center gap-8 ${currentQuestion?.questionType === "slide" ? "max-w-none" : "max-w-4xl"}`}>
         {nextHeading && state !== "LEADERBOARD" && (
           <div className="w-full max-w-3xl rounded-2xl border border-sky-500/30 bg-sky-500/10 px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">Next up</p>
