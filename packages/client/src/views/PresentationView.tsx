@@ -87,6 +87,8 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
     if (!currentQuestion) return questionHeadings[0] || null;
     return questionHeadings[currentQuestion.questionIndex + 1] || null;
   }, [currentQuestion, questionHeadings]);
+  const isSlideDisplay = currentQuestion?.questionType === "slide" && !reveal && (state === "QUESTION_OPEN" || state === "QUESTION_CLOSED");
+  const participantCount = sock.participants?.count ?? 0;
 
   if (loading) {
     return (
@@ -183,7 +185,8 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
   }
 
   return (
-    <div className={`min-h-dvh flex flex-col p-6 lg:p-10 ${accessInfo && meta.sessionCode ? "lg:pr-56" : ""}`}>
+    <div className={isSlideDisplay ? "slide-live-shell" : `min-h-dvh flex flex-col p-6 lg:p-10 ${accessInfo && meta.sessionCode ? "lg:pr-56" : ""}`}>
+      {!isSlideDisplay && (
       <div className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           {currentQuestion && (
@@ -202,9 +205,10 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
           <span className="tabular-nums text-zinc-500">{sock.participants?.count ?? 0} online</span>
         </div>
       </div>
+      )}
 
-      <div className={`mx-auto flex w-full flex-1 flex-col items-center justify-center gap-8 ${currentQuestion?.questionType === "slide" ? "max-w-none" : "max-w-4xl"}`}>
-        {nextHeading && state !== "LEADERBOARD" && (
+      <div className={isSlideDisplay ? "slide-live-main" : "mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center gap-8"}>
+        {nextHeading && state !== "LEADERBOARD" && !isSlideDisplay && (
           <div className="w-full max-w-3xl rounded-2xl border border-sky-500/30 bg-sky-500/10 px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">Next up</p>
             <p className="mt-2 text-lg text-sky-50">{nextHeading}</p>
@@ -219,6 +223,10 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                 html={currentQuestion.text}
                 attendeeNotes={currentQuestion.attendeeNotes}
                 positionLabel={`Slide ${currentQuestion.questionIndex + 1} / ${totalQuestions}`}
+                nextLabel={nextHeading}
+                qrDataUrl={accessInfo?.qrCodeDataUrl}
+                sessionCode={meta.sessionCode}
+                participantCount={participantCount}
               />
             ) : (
               <>
@@ -375,7 +383,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
         </div>
       )}
 
-      {accessInfo && meta.sessionCode && (
+      {accessInfo && meta.sessionCode && !isSlideDisplay && (
         <div className="fixed right-4 top-4 z-20 w-40 rounded-xl border border-zinc-200 bg-white p-3 text-zinc-900 shadow-xl">
           {accessInfo.qrCodeDataUrl && <img src={accessInfo.qrCodeDataUrl} alt="Join QR" className="h-auto w-full rounded-lg" />}
           <p className="mt-2 text-[11px] uppercase tracking-wide text-zinc-500">Session Code</p>

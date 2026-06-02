@@ -489,11 +489,14 @@ function LiveView({
 
   const isReviewing = reviewQuestionIndex !== null;
   const liveQuestionIndex = q?.questionIndex ?? rev?.questionIndex ?? -1;
-  const availableRevealIndices = Object.keys(revealCache)
+  const availableQuestionIndices = Object.keys(questionCache)
     .map((idx) => parseInt(idx, 10))
     .filter((idx) => !Number.isNaN(idx))
     .sort((a, b) => a - b);
-  const latestPriorReveal = availableRevealIndices.filter((idx) => idx < liveQuestionIndex).pop();
+  const availableReviewIndices = availableQuestionIndices.filter((idx) => (
+    liveQuestionIndex >= 0 ? idx <= liveQuestionIndex : true
+  ));
+  const latestPriorReview = availableReviewIndices.filter((idx) => idx < liveQuestionIndex).pop();
 
   const displayQuestion = isReviewing && reviewQuestionIndex !== null
     ? questionCache[reviewQuestionIndex] ?? null
@@ -501,7 +504,7 @@ function LiveView({
   const displayReveal = isReviewing && reviewQuestionIndex !== null
     ? revealCache[reviewQuestionIndex] ?? null
     : rev;
-  const showDetailedRevealChoices = state === "REVEAL" && !!displayReveal && !!displayQuestion;
+  const showDetailedRevealChoices = !!displayReveal && !!displayQuestion;
   const getQuestionHeading = useCallback((questionIndex: number | null | undefined): string | null => {
     if (questionIndex === null || questionIndex === undefined || questionIndex < 0) {
       return null;
@@ -534,10 +537,16 @@ function LiveView({
   const revealOpenResponses = displayReveal?.questionType === "open_response"
     ? displayReveal.openResponses
     : [];
+  const isSlideDisplay = displayQuestion?.questionType === "slide" && !displayReveal;
+  const participantCount = sock.participants?.count ?? 0;
+  const slideStatusLabel = isReviewing && reviewQuestionIndex !== null
+    ? `Reviewing slide ${reviewQuestionIndex + 1}; students stay live`
+    : null;
 
   return (
-    <div className={`min-h-dvh flex flex-col p-6 lg:p-10 ${accessInfo && sessionCode ? "lg:pr-56" : ""}`}>
+    <div className={isSlideDisplay ? "slide-live-shell slide-live-shell-controls" : `min-h-dvh flex flex-col p-6 lg:p-10 ${accessInfo && sessionCode ? "lg:pr-56" : ""}`}>
       {/* Top bar: question progress + timer + participant count */}
+      {!isSlideDisplay && (
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           {displayQuestion && (
@@ -568,10 +577,11 @@ function LiveView({
           )}
         </div>
       </div>
+      )}
 
       {/* Main content */}
-      <div className={`flex-1 flex flex-col items-center justify-center gap-8 mx-auto w-full ${displayQuestion?.questionType === "slide" ? "max-w-none" : "max-w-4xl"}`}>
-        {nextQuestionHeading && (
+      <div className={isSlideDisplay ? "slide-live-main" : "flex-1 flex flex-col items-center justify-center gap-8 mx-auto w-full max-w-4xl"}>
+        {nextQuestionHeading && !isSlideDisplay && (
           <div className="w-full max-w-3xl rounded-2xl border border-sky-500/30 bg-sky-500/10 px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">Next up</p>
             <p className="mt-2 text-lg text-sky-50">{nextQuestionHeading}</p>
@@ -587,6 +597,14 @@ function LiveView({
                 html={displayQuestion.text}
                 attendeeNotes={displayQuestion.attendeeNotes}
                 positionLabel={`Slide ${displayQuestion.questionIndex + 1} / ${totalQuestionsInQuiz}`}
+                nextLabel={isReviewing ? null : nextQuestionHeading}
+                qrDataUrl={accessInfo?.qrCodeDataUrl}
+                sessionCode={sessionCode}
+                participantCount={participantCount}
+                presentationUrl={accessInfo?.presentationUrl}
+                statusLabel={slideStatusLabel}
+                chromeLabel={isReviewing ? "Review Slide" : "Slide"}
+                onNext={!isReviewing && canNext ? () => onAction(() => nextQuestion(sessionId), "next") : undefined}
               />
             ) : (
               <>
@@ -758,23 +776,23 @@ function LiveView({
 
       {/* Error */}
       {errorMsg && (
-        <div className="bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-xl text-center mt-4">
+        <div className={`${isSlideDisplay ? "slide-page-error" : "mt-4"} bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-xl text-center`}>
           {errorMsg}
         </div>
       )}
 
       {restoreNotice && (
-        <div className="bg-emerald-900/40 border border-emerald-700 text-emerald-100 px-4 py-3 rounded-xl text-center mt-4 text-sm">
+        <div className={`${isSlideDisplay ? "slide-page-notice" : "mt-4"} bg-emerald-900/40 border border-emerald-700 text-emerald-100 px-4 py-3 rounded-xl text-center text-sm`}>
           {restoreNotice}
         </div>
       )}
 
       {/* Control bar (sticky bottom) */}
-      <div className="sticky bottom-0 bg-[#0f1117]/90 backdrop-blur-sm border-t border-zinc-800 py-4 -mx-6 px-6 lg:-mx-10 lg:px-10 mt-8">
+      <div className={isSlideDisplay ? "slide-control-bar-floating" : "sticky bottom-0 bg-[#0f1117]/90 backdrop-blur-sm border-t border-zinc-800 py-4 -mx-6 px-6 lg:-mx-10 lg:px-10 mt-8"}>
         <div className="flex items-center justify-center gap-4 flex-wrap">
-          {!isReviewing && latestPriorReveal !== undefined && (
+          {!isReviewing && latestPriorReview !== undefined && (
             <button
-              onClick={() => setReviewQuestionIndex(latestPriorReveal)}
+              onClick={() => setReviewQuestionIndex(latestPriorReview)}
               className="bg-zinc-700 hover:bg-zinc-600 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
             >
               Review Previous
@@ -783,10 +801,10 @@ function LiveView({
           {isReviewing && reviewQuestionIndex !== null && (
             <button
               onClick={() => {
-                const idx = availableRevealIndices.findIndex((v) => v === reviewQuestionIndex);
-                if (idx > 0) setReviewQuestionIndex(availableRevealIndices[idx - 1]);
+                const idx = availableReviewIndices.findIndex((v) => v === reviewQuestionIndex);
+                if (idx > 0) setReviewQuestionIndex(availableReviewIndices[idx - 1]);
               }}
-              disabled={availableRevealIndices.findIndex((v) => v === reviewQuestionIndex) <= 0}
+              disabled={availableReviewIndices.findIndex((v) => v === reviewQuestionIndex) <= 0}
               className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
             >
               Prev Review
@@ -795,10 +813,10 @@ function LiveView({
           {isReviewing && reviewQuestionIndex !== null && (
             <button
               onClick={() => {
-                const idx = availableRevealIndices.findIndex((v) => v === reviewQuestionIndex);
-                if (idx >= 0 && idx < availableRevealIndices.length - 1) setReviewQuestionIndex(availableRevealIndices[idx + 1]);
+                const idx = availableReviewIndices.findIndex((v) => v === reviewQuestionIndex);
+                if (idx >= 0 && idx < availableReviewIndices.length - 1) setReviewQuestionIndex(availableReviewIndices[idx + 1]);
               }}
-              disabled={availableRevealIndices.findIndex((v) => v === reviewQuestionIndex) >= availableRevealIndices.length - 1}
+              disabled={availableReviewIndices.findIndex((v) => v === reviewQuestionIndex) >= availableReviewIndices.length - 1}
               className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
             >
               Next Review
@@ -884,7 +902,7 @@ function LiveView({
         </div>
       </div>
 
-      {accessInfo && sessionCode && (
+      {accessInfo && sessionCode && !isSlideDisplay && (
         <div className="fixed top-4 right-4 z-20 bg-white text-zinc-900 rounded-xl shadow-xl border border-zinc-200 p-3 w-40">
           {accessInfo.qrCodeDataUrl && (
             <img

@@ -480,7 +480,17 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         return res.status(400).json({ error: "No more questions" });
       }
       try {
-        transitionState(session, "QUESTION_OPEN");
+        const currentQuestion = quiz.questions[session.currentQuestionIndex];
+        if (session.state === "LOBBY") {
+          return res.status(400).json({ error: "Start the session before advancing." });
+        }
+        if (session.state === "QUESTION_OPEN") {
+          if (getQuestionType(currentQuestion) !== "slide") {
+            return res.status(400).json({ error: "Close and reveal the current question before advancing." });
+          }
+        } else {
+          transitionState(session, "QUESTION_OPEN");
+        }
         session.currentQuestionIndex = nextIndex;
         session.questionStartedAt = Date.now();
         notifyStateChange(session, req.params.id, quiz);

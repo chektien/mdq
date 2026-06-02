@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FoldoutNote as FoldoutNoteModel } from "@mdq/shared";
 import FoldoutNote from "./FoldoutNote";
 import QuizHtml from "./QuizHtml";
@@ -16,6 +16,9 @@ export default function SlideContent({
   participantCount,
   presentationUrl,
   showFullscreenButton = true,
+  statusLabel,
+  chromeLabel = "Slide",
+  onNext,
 }: {
   title: string;
   html: string;
@@ -29,13 +32,32 @@ export default function SlideContent({
   participantCount?: number;
   presentationUrl?: string;
   showFullscreenButton?: boolean;
+  statusLabel?: string | null;
+  chromeLabel?: string;
+  onNext?: () => void;
 }) {
   const surfaceRef = useRef<HTMLElement | null>(null);
+  const [fullscreenSupported, setFullscreenSupported] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const hasAttendeeNotes = attendeeNotes.length > 0;
   const hasPresenterNotes = presenterNotes.length > 0;
   const hasJoinInfo = qrDataUrl || sessionCode || participantCount !== undefined || presentationUrl;
+  const isNextActionable = !!nextLabel && !!onNext;
 
-  const requestFullscreen = async () => {
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    setFullscreenSupported(document.fullscreenEnabled);
+    const syncFullscreenState = () => {
+      setIsFullscreen(document.fullscreenElement === surfaceRef.current);
+    };
+
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreenState);
+  }, []);
+
+  const requestFullscreen = useCallback(async () => {
     const target = surfaceRef.current;
     if (!target || !document.fullscreenEnabled) return;
     try {
@@ -47,27 +69,46 @@ export default function SlideContent({
     } catch {
       // Fullscreen can be denied by the browser; leave the slide usable.
     }
-  };
+  }, []);
 
   return (
     <section ref={surfaceRef} className={`slide-surface slide-surface-${mode}`}>
       <div className="slide-safe">
         <div className="slide-toolbar">
-          {nextLabel && (
-            <div className="slide-next-up">
-              <span>Next up</span>
-              <strong>{nextLabel}</strong>
-            </div>
-          )}
-          {showFullscreenButton && document.fullscreenEnabled && (
-            <button type="button" className="slide-fullscreen-button" onClick={requestFullscreen}>
-              Full screen
+          <div className="slide-toolbar-stack">
+            {statusLabel && <span className="slide-status-pill">{statusLabel}</span>}
+            {nextLabel && (isNextActionable ? (
+              <button
+                type="button"
+                className="slide-next-up slide-next-up-action"
+                onClick={onNext}
+                aria-label={`Advance to ${nextLabel}`}
+              >
+                <span>Next up</span>
+                <strong>{nextLabel}</strong>
+                <small>Advance</small>
+              </button>
+            ) : (
+              <div className="slide-next-up">
+                <span>Next up</span>
+                <strong>{nextLabel}</strong>
+              </div>
+            ))}
+          </div>
+          {showFullscreenButton && fullscreenSupported && (
+            <button
+              type="button"
+              className="slide-fullscreen-button"
+              onClick={requestFullscreen}
+              aria-label={isFullscreen ? "Exit full screen slide" : "Open slide full screen"}
+            >
+              {isFullscreen ? "Exit full screen" : "Full screen"}
             </button>
           )}
         </div>
 
         <header className="slide-header">
-          <p className="slide-eyebrow">Slide</p>
+          <p className="slide-eyebrow">{chromeLabel}</p>
           <h1 className="slide-title">{title}</h1>
         </header>
 

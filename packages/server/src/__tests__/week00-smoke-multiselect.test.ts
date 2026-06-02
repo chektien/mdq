@@ -119,92 +119,100 @@ describe("week00 smoke multi-select", () => {
     await request(app).post(`/api/session/${sessionId}/start`).expect(200);
     const q0 = await q0OpenPromise;
     expect(q0.questionIndex).toBe(0);
-    expect(q0.allowsMultiple).toBe(false);
-
-    const q0Accepted = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
-    student.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 0, selectedOptions: ["B"] });
-    await q0Accepted;
-    await request(app).post(`/api/session/${sessionId}/close`).expect(200);
-    await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+    expect(q0.questionType).toBe("slide");
+    expect(q0.options).toEqual([]);
+    expect(q0.attendeeNotes?.[0]?.bodyHtml).toContain("public smoke-test example");
 
     const q1OpenPromise = waitFor<QuestionOpenPayload>(student, SocketEvents.QUESTION_OPEN);
     await request(app).post(`/api/session/${sessionId}/next`).expect(200);
     const q1 = await q1OpenPromise;
     expect(q1.questionIndex).toBe(1);
-    expect(q1.allowsMultiple).toBe(true);
+    expect(q1.allowsMultiple).toBe(false);
+
+    const q1Accepted = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
+    student.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 1, selectedOptions: ["B"] });
+    await q1Accepted;
+    await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+    await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+
+    const q2OpenPromise = waitFor<QuestionOpenPayload>(student, SocketEvents.QUESTION_OPEN);
+    await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+    const q2 = await q2OpenPromise;
+    expect(q2.questionIndex).toBe(2);
+    expect(q2.allowsMultiple).toBe(true);
 
     const distributionPromise = waitFor<ResultsDistributionPayload>(student, SocketEvents.RESULTS_DISTRIBUTION);
     const revealPromise = waitFor<ResultsRevealPayload>(student, SocketEvents.RESULTS_REVEAL);
     const leaderboardPromise = waitFor<LeaderboardUpdatePayload>(student, SocketEvents.LEADERBOARD_UPDATE);
 
     const acceptedPromise = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
-    student.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 1, selectedOptions: ["D", "A", "D"] });
+    student.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 2, selectedOptions: ["D", "A", "D"] });
     await acceptedPromise;
 
     await request(app).post(`/api/session/${sessionId}/close`).expect(200);
     const distribution = await distributionPromise;
-    expect(distribution.questionIndex).toBe(1);
+    expect(distribution.questionIndex).toBe(2);
     expect(distribution.distribution).toEqual({ A: 1, D: 1 });
 
     await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
     const reveal = await revealPromise;
     expect(reveal.correctOptions).toEqual(["A", "D"]);
 
-    const q2OpenPromise = waitFor<QuestionOpenPayload>(student, SocketEvents.QUESTION_OPEN);
-    await request(app).post(`/api/session/${sessionId}/next`).expect(200);
-    const q2 = await q2OpenPromise;
-    expect(q2.questionIndex).toBe(2);
-    expect(q2.isPoll).toBe(true);
-    expect(q2.allowsMultiple).toBe(false);
-
-    const pollDistributionPromise = waitFor<ResultsDistributionPayload>(student, SocketEvents.RESULTS_DISTRIBUTION);
-    const pollRevealPromise = waitFor<ResultsRevealPayload>(student, SocketEvents.RESULTS_REVEAL);
-    const pollAcceptedPromise = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
-    student.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 2, selectedOptions: ["C"] });
-    await pollAcceptedPromise;
-
-    await request(app).post(`/api/session/${sessionId}/close`).expect(200);
-    const pollDistribution = await pollDistributionPromise;
-    expect(pollDistribution.questionIndex).toBe(2);
-    expect(pollDistribution.distribution).toEqual({ C: 1 });
-
-    await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
-    const pollReveal = await pollRevealPromise;
-    expect(pollReveal.questionIndex).toBe(2);
-    expect(pollReveal.isPoll).toBe(true);
-    expect(pollReveal.correctOptions).toEqual([]);
-
     const q3OpenPromise = waitFor<QuestionOpenPayload>(student, SocketEvents.QUESTION_OPEN);
     await request(app).post(`/api/session/${sessionId}/next`).expect(200);
     const q3 = await q3OpenPromise;
     expect(q3.questionIndex).toBe(3);
-    expect(q3.questionType).toBe("open_response");
-    expect(q3.options).toEqual([]);
+    expect(q3.isPoll).toBe(true);
+    expect(q3.allowsMultiple).toBe(false);
 
-    const q3AcceptedPromise = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
-    student.emit(SocketEvents.ANSWER_SUBMIT, {
-      questionIndex: 3,
-      responseText: "They should see that the response was submitted and can still be updated.",
-    });
-    await q3AcceptedPromise;
+    const pollDistributionPromise = waitFor<ResultsDistributionPayload>(student, SocketEvents.RESULTS_DISTRIBUTION);
+    const pollRevealPromise = waitFor<ResultsRevealPayload>(student, SocketEvents.RESULTS_REVEAL);
+    const pollAcceptedPromise = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
+    student.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 3, selectedOptions: ["C"] });
+    await pollAcceptedPromise;
 
-    const openRevealPromise = waitFor<ResultsRevealPayload>(student, SocketEvents.RESULTS_REVEAL);
     await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+    const pollDistribution = await pollDistributionPromise;
+    expect(pollDistribution.questionIndex).toBe(3);
+    expect(pollDistribution.distribution).toEqual({ C: 1 });
+
     await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
-    const openReveal = await openRevealPromise;
-    expect(openReveal.questionIndex).toBe(3);
-    expect(openReveal.questionType).toBe("open_response");
-    expect(openReveal.openResponses?.[0]?.responseText).toContain("submitted");
+    const pollReveal = await pollRevealPromise;
+    expect(pollReveal.questionIndex).toBe(3);
+    expect(pollReveal.isPoll).toBe(true);
+    expect(pollReveal.correctOptions).toEqual([]);
 
     const q4OpenPromise = waitFor<QuestionOpenPayload>(student, SocketEvents.QUESTION_OPEN);
     await request(app).post(`/api/session/${sessionId}/next`).expect(200);
     const q4 = await q4OpenPromise;
     expect(q4.questionIndex).toBe(4);
-    expect(q4.allowsMultiple).toBe(false);
+    expect(q4.questionType).toBe("open_response");
+    expect(q4.options).toEqual([]);
 
     const q4AcceptedPromise = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
-    student.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 4, selectedOptions: ["B"] });
+    student.emit(SocketEvents.ANSWER_SUBMIT, {
+      questionIndex: 4,
+      responseText: "They should see that the response was submitted and can still be updated.",
+    });
     await q4AcceptedPromise;
+
+    const openRevealPromise = waitFor<ResultsRevealPayload>(student, SocketEvents.RESULTS_REVEAL);
+    await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+    await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+    const openReveal = await openRevealPromise;
+    expect(openReveal.questionIndex).toBe(4);
+    expect(openReveal.questionType).toBe("open_response");
+    expect(openReveal.openResponses?.[0]?.responseText).toContain("submitted");
+
+    const q5OpenPromise = waitFor<QuestionOpenPayload>(student, SocketEvents.QUESTION_OPEN);
+    await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+    const q5 = await q5OpenPromise;
+    expect(q5.questionIndex).toBe(5);
+    expect(q5.allowsMultiple).toBe(false);
+
+    const q5AcceptedPromise = waitFor(student, SocketEvents.ANSWER_ACCEPTED);
+    student.emit(SocketEvents.ANSWER_SUBMIT, { questionIndex: 5, selectedOptions: ["B"] });
+    await q5AcceptedPromise;
 
     await request(app).post(`/api/session/${sessionId}/close`).expect(200);
     await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);

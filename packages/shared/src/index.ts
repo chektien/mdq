@@ -23,7 +23,7 @@ export type SessionState = (typeof SESSION_STATES)[number];
  */
 export const STATE_TRANSITIONS: Record<SessionState, readonly SessionState[]> = {
   LOBBY: ["QUESTION_OPEN"],
-  QUESTION_OPEN: ["QUESTION_CLOSED", "QUESTION_OPEN", "ENDED"],
+  QUESTION_OPEN: ["QUESTION_CLOSED", "ENDED"],
   QUESTION_CLOSED: ["REVEAL"],
   REVEAL: ["QUESTION_OPEN", "LEADERBOARD"],
   LEADERBOARD: ["REVEAL", "ENDED"],

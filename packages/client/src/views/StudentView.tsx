@@ -483,15 +483,17 @@ function QuestionView({
 
   if (question.questionType === "slide") {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-4">
+      <div className="slide-live-shell">
+        <div className="slide-live-main">
         <SlideContent
           title={question.topic}
           html={question.text}
           attendeeNotes={question.attendeeNotes}
           positionLabel={`Slide ${question.questionIndex + 1}`}
           mode="student"
+          statusLabel="The instructor will advance shortly"
         />
-        <p className="text-sm text-zinc-400">The instructor will advance shortly.</p>
+        </div>
       </div>
     );
   }
