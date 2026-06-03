@@ -7,6 +7,7 @@ import {
   TICK_INTERVAL_MS,
   Quiz,
   QuestionType,
+  FoldoutNote,
 } from "@mdq/shared";
 import {
   getSession,
@@ -57,11 +58,18 @@ function sessionRoom(sessionId: string): string {
   return `session:${sessionId}`;
 }
 
+function buildPublicNotes(question: Quiz["questions"][number]): FoldoutNote[] | undefined {
+  return question.attendeeNotes && question.attendeeNotes.length > 0
+    ? question.attendeeNotes
+    : undefined;
+}
+
 function buildQuestionOpenPayload(session: Session): {
   questionIndex: number;
   topic: string;
   text: string;
   questionType: QuestionType;
+  attendeeNotes?: FoldoutNote[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
   isPoll: boolean;
@@ -83,6 +91,7 @@ function buildQuestionOpenPayload(session: Session): {
     topic: question.topic,
     text: question.textHtml,
     questionType: getQuestionType(question),
+    attendeeNotes: buildPublicNotes(question),
     options: question.options.map((o) => ({ label: o.label, text: o.textHtml })),
     allowsMultiple: question.allowsMultiple,
     isPoll: question.isPoll === true,
@@ -523,6 +532,7 @@ export function broadcastQuestionOpen(
     topic: q.topic,
     text: q.textHtml,
     questionType: getQuestionType(q),
+    attendeeNotes: buildPublicNotes(q),
     options: q.options.map((o) => ({ label: o.label, text: o.textHtml })),
     allowsMultiple: q.allowsMultiple,
     isPoll: q.isPoll === true,
@@ -535,8 +545,10 @@ export function broadcastQuestionOpen(
     questionIndex: session.currentQuestionIndex,
   });
 
-  broadcastLiveAnswerCount(io, session, sessionId);
-  startQuestionTimer(io, session, sessionId, q.timeLimitSec);
+  if (getQuestionType(q) !== "slide") {
+    broadcastLiveAnswerCount(io, session, sessionId);
+    startQuestionTimer(io, session, sessionId, q.timeLimitSec);
+  }
 }
 
 /**

@@ -23,7 +23,7 @@ export type SessionState = (typeof SESSION_STATES)[number];
  */
 export const STATE_TRANSITIONS: Record<SessionState, readonly SessionState[]> = {
   LOBBY: ["QUESTION_OPEN"],
-  QUESTION_OPEN: ["QUESTION_CLOSED"],
+  QUESTION_OPEN: ["QUESTION_CLOSED", "ENDED"],
   QUESTION_CLOSED: ["REVEAL"],
   REVEAL: ["QUESTION_OPEN", "LEADERBOARD"],
   LEADERBOARD: ["REVEAL", "ENDED"],
@@ -77,7 +77,16 @@ export interface StudentRejectedPayload {
   reason: string;
 }
 
-export type QuestionType = "multiple_choice" | "poll" | "open_response";
+export type QuestionType = "multiple_choice" | "poll" | "open_response" | "slide";
+
+export interface FoldoutNote {
+  id: string;
+  scope: "section" | "bullet";
+  audience: "presenter" | "attendee";
+  title?: string;
+  bodyMd: string;
+  bodyHtml: string;
+}
 
 export interface OpenResponseEntry {
   studentId: string;
@@ -91,6 +100,7 @@ export interface QuestionOpenPayload {
   topic: string;
   text: string; // rendered HTML
   questionType?: QuestionType;
+  attendeeNotes?: FoldoutNote[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
   isPoll?: boolean;
@@ -208,6 +218,8 @@ export interface Question {
   textMd: string;
   textHtml: string;
   questionType?: QuestionType;
+  attendeeNotes?: FoldoutNote[];
+  presenterNotes?: FoldoutNote[];
   options: QuestionOption[];
   correctOptions: string[];
   allowsMultiple: boolean;

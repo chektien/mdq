@@ -11,6 +11,10 @@ export function getQuestionModeText(questionType: QuestionType, allowsMultiple: 
     return "Open response. Submit one written reply. This does not affect your score.";
   }
 
+  if (questionType === "slide") {
+    return "Slide. No student response is needed.";
+  }
+
   return allowsMultiple
     ? "You can select multiple answers"
     : "Select only one answer";
@@ -22,6 +26,9 @@ export function getRevealActionLabel(questionType: QuestionType): string {
   }
   if (questionType === "open_response") {
     return "Reveal Responses";
+  }
+  if (questionType === "slide") {
+    return "Continue";
   }
   return "Reveal Answer";
 }

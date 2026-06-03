@@ -14,6 +14,7 @@ import type {
   LeaderboardEntry,
   QuestionType,
   OpenResponseEntry,
+  FoldoutNote,
   AnswerSubmitPayload,
 } from "@mdq/shared";
 import { SocketEvents } from "@mdq/shared";
@@ -70,6 +71,7 @@ export interface QuestionState {
   topic: string;
   text: string;
   questionType: QuestionType;
+  attendeeNotes?: FoldoutNote[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
   isPoll: boolean;
@@ -232,6 +234,7 @@ export function useSocket(
         topic: data.topic,
         text: data.text,
         questionType,
+        attendeeNotes: data.attendeeNotes,
         options: data.options,
         allowsMultiple: data.allowsMultiple,
         isPoll: data.isPoll ?? false,

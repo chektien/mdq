@@ -1,4 +1,16 @@
-# Week 00 Quiz: Localhost Smoke Test (5 Questions)
+# Week 00 Quiz: Localhost Smoke Test (5 Questions + 1 Slide)
+
+---
+
+## Smoke Test Overview
+
+type: slide
+
+- Confirm that the instructor, student, and projector surfaces are connected.
+  > Attendee Note: This slide is a public smoke-test example for fold-out notes.
+  > Presenter Note: Keep this slide brief, then advance into the first live question.
+
+- Use the quiz questions to verify answer submission, polling, open responses, and images.
 
 ---
 

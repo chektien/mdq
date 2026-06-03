@@ -220,6 +220,38 @@ time_limit: 50
       expect(q.explanation).toBe("Thanks for the feedback.");
     });
 
+    it("parses slide items with attendee and presenter foldout notes", () => {
+      const md = `# Quiz
+
+---
+
+## Retrieval Practice
+
+type: slide
+
+- Start with a low-stakes recall prompt.
+  > Presenter Note: Ask students to answer silently first.
+  > Keep the pause short.
+  > Attendee Note: Retrieval before explanation is the key idea.
+
+> Attendee Note: This section sets up the quiz that follows.
+
+---`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.questionType).toBe("slide");
+      expect(q.options).toEqual([]);
+      expect(q.correctOptions).toEqual([]);
+      expect(q.allowsMultiple).toBe(false);
+      expect(q.timeLimitSec).toBe(0);
+      expect(q.textMd).toContain("Start with a low-stakes recall prompt.");
+      expect(q.textMd).not.toContain("Presenter Note");
+      expect(q.attendeeNotes).toHaveLength(2);
+      expect(q.presenterNotes).toHaveLength(1);
+      expect(q.presenterNotes?.[0].bodyMd).toContain("Keep the pause short.");
+    });
+
     it("uses full week key from variant filenames", () => {
       const md = `# Quiz
 
@@ -429,6 +461,25 @@ Share one takeaway.
       const result = parseQuizMarkdown(md, "week01.md");
       expect(result.quiz).toBeNull();
       expect(result.errors[0].message).toContain("open_response questions must not use multi_select");
+    });
+
+    it("rejects answer options on slide items", () => {
+      const md = `# Quiz
+
+---
+
+## Invalid Slide
+
+type: slide
+
+Slide text.
+
+A. This should not be here
+
+---`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.quiz).toBeNull();
+      expect(result.errors[0].message).toContain("slide items must not define answer options");
     });
 
     it("reports missing correct answer", () => {
