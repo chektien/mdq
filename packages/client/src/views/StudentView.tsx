@@ -489,7 +489,7 @@ function QuestionView({
           title={question.topic}
           html={question.text}
           attendeeNotes={question.attendeeNotes}
-          positionLabel={`Slide ${question.questionIndex + 1}`}
+          positionLabel={`${question.questionIndex + 1}`}
           mode="student"
           statusLabel="The instructor will advance shortly"
         />

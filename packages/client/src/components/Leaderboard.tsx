@@ -15,15 +15,7 @@ export default function Leaderboard({
   const visible = entries.slice(0, maxRows);
   const hasScoredQuestions = totalQuestions > 0;
 
-  // Medal colors for top 3
-  const medalColor = (rank: number) => {
-    if (rank === 1) return "text-amber-400";
-    if (rank === 2) return "text-zinc-300";
-    if (rank === 3) return "text-amber-600";
-    return "text-zinc-500";
-  };
-
-  const medalIcon = (rank: number) => {
+  const rankLabel = (rank: number) => {
     if (rank === 1) return "1st";
     if (rank === 2) return "2nd";
     if (rank === 3) return "3rd";
@@ -31,60 +23,57 @@ export default function Leaderboard({
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <div className="space-y-2">
-        {visible.map((entry, i) => {
-          const isHighlighted = entry.studentId === highlightStudentId;
-          const medalTone = entry.rank === 1
-            ? "rank-first"
-            : entry.rank === 2
-              ? "rank-second"
-              : entry.rank === 3
-                ? "rank-third"
-                : "rank-standard";
-          return (
-            <div
-              key={entry.studentId}
-              className={`
-                lb-row flex items-center gap-4 px-5 py-3 rounded-xl
-                ${isHighlighted ? "lb-row-highlight" : ""}
-                ${isHighlighted ? "bg-indigo-600/30 border border-indigo-500/50" : "bg-zinc-800/80 border border-zinc-200"}
-                ${i < 3 ? "border border-zinc-700/50" : ""}
-              `}
-              style={{ animationDelay: `${i * 60}ms` }}
-            >
-              {/* Rank */}
-              <span
-                className={`lb-rank w-12 text-center font-bold text-lg shrink-0 ${medalTone} ${medalColor(entry.rank)}`}
+    <div className="leaderboard-board">
+      {visible.length > 0 ? (
+        <ol className="leaderboard-list" aria-label="Leaderboard rankings">
+          {visible.map((entry, i) => {
+            const isHighlighted = entry.studentId === highlightStudentId;
+            const medalTone = entry.rank === 1
+              ? "rank-first"
+              : entry.rank === 2
+                ? "rank-second"
+                : entry.rank === 3
+                  ? "rank-third"
+                  : "rank-standard";
+            return (
+              <li
+                key={entry.studentId}
+                className={`leaderboard-row ${medalTone} ${isHighlighted ? "leaderboard-row-highlight" : ""}`}
+                style={{ animationDelay: `${i * 60}ms` }}
               >
-                {medalIcon(entry.rank)}
-              </span>
+                <span
+                  className="leaderboard-rank"
+                  aria-label={`Rank ${entry.rank}`}
+                >
+                  {rankLabel(entry.rank)}
+                </span>
 
-              {/* Name */}
-              <div className="flex-1 min-w-0">
-                <span className="lb-primary text-white font-medium truncate block">
-                  {entry.displayName || entry.studentId}
-                </span>
-                {entry.displayName && (
-                  <span className="lb-meta text-zinc-500 text-sm">{entry.studentId}</span>
-                )}
-              </div>
+                <div className="leaderboard-person">
+                  <span className="leaderboard-name">
+                    {entry.displayName || entry.studentId}
+                  </span>
+                  {entry.displayName && (
+                    <span className="leaderboard-id">{entry.studentId}</span>
+                  )}
+                </div>
 
-              {/* Score */}
-              <div className="text-right shrink-0">
-                <span className="lb-primary text-white font-bold text-lg tabular-nums">
-                  {hasScoredQuestions ? `${entry.correctCount}/${totalQuestions}` : "Poll only"}
-                </span>
-                <span className="lb-meta text-zinc-500 text-sm block tabular-nums">
-                  {hasScoredQuestions ? `${(entry.totalTimeMs / 1000).toFixed(1)}s` : "No scored questions"}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                <div className="leaderboard-score">
+                  <span>
+                    {hasScoredQuestions ? `${entry.correctCount}/${totalQuestions}` : "Poll only"}
+                  </span>
+                  <small>
+                    {hasScoredQuestions ? `${(entry.totalTimeMs / 1000).toFixed(1)}s` : "No scored questions"}
+                  </small>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="leaderboard-empty">No ranked participants yet.</p>
+      )}
       {entries.length > maxRows && (
-        <p className="text-center text-zinc-500 mt-4 text-sm">
+        <p className="leaderboard-overflow">
           +{entries.length - maxRows} more participants
         </p>
       )}

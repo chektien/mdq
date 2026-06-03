@@ -263,42 +263,47 @@ html[data-theme="light"] .selection-mode-chip-multi {
   background: var(--mdq-secondary-soft);
 }
 
-html[data-theme="light"] .lb-row {
+html[data-theme="light"] .leaderboard-row {
   box-shadow: 0 14px 28px rgba(79, 57, 34, 0.08);
 }
 
-html[data-theme="light"] .lb-row-highlight {
+html[data-theme="light"] .leaderboard-row-highlight {
   background: linear-gradient(135deg, rgba(255, 245, 240, 0.98), rgba(244, 226, 213, 0.94)) !important;
   border-color: rgba(184, 92, 56, 0.3) !important;
   box-shadow: 0 18px 34px rgba(122, 71, 43, 0.14);
 }
 
-html[data-theme="light"] .lb-primary {
+html[data-theme="light"] .leaderboard-name,
+html[data-theme="light"] .leaderboard-score {
   color: var(--mdq-ink) !important;
 }
 
-html[data-theme="light"] .lb-meta {
+html[data-theme="light"] .leaderboard-id,
+html[data-theme="light"] .leaderboard-score small,
+html[data-theme="light"] .leaderboard-overflow,
+html[data-theme="light"] .leaderboard-empty {
   color: var(--mdq-muted) !important;
 }
 
-html[data-theme="light"] .lb-row-highlight .lb-meta {
+html[data-theme="light"] .leaderboard-row-highlight .leaderboard-id,
+html[data-theme="light"] .leaderboard-row-highlight .leaderboard-score small {
   color: rgba(98, 63, 48, 0.88) !important;
 }
 
-html[data-theme="light"] .lb-row-highlight .lb-rank.rank-first {
-  color: #965929 !important;
+html[data-theme="light"] .leaderboard-row.rank-first {
+  --leaderboard-rank-color: #965929;
 }
 
-html[data-theme="light"] .lb-row-highlight .lb-rank.rank-second {
-  color: #68584b !important;
+html[data-theme="light"] .leaderboard-row.rank-second {
+  --leaderboard-rank-color: #68584b;
 }
 
-html[data-theme="light"] .lb-row-highlight .lb-rank.rank-third {
-  color: #8e5f34 !important;
+html[data-theme="light"] .leaderboard-row.rank-third {
+  --leaderboard-rank-color: #8e5f34;
 }
 
-html[data-theme="light"] .lb-row-highlight .lb-rank.rank-standard {
-  color: var(--mdq-accent-ink) !important;
+html[data-theme="light"] .leaderboard-row.rank-standard {
+  --leaderboard-rank-color: var(--mdq-accent-ink);
 }
 
 html[data-theme="light"] [class*="bg-[#0f1117]/90"] {

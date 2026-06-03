@@ -23,7 +23,8 @@ import Leaderboard from "../components/Leaderboard";
 import OpenResponseList from "../components/OpenResponseList";
 import QRPanel from "../components/QRPanel";
 import QuizHtml from "../components/QuizHtml";
-import SlideContent from "../components/SlideContent";
+import LiveSurface, { type LiveSurfaceAction } from "../components/LiveSurface";
+import SlideContent, { SlideContentBody } from "../components/SlideContent";
 import { getQuestionModeText, getRevealActionLabel } from "../questionMode";
 
 type InstructorPhase = "setup" | "lobby" | "live" | "ended";
@@ -42,6 +43,10 @@ function formatQuizLabel(quizKey: string): string {
   if (!normalized) return "MDQ";
   if (/\bmdq\b/i.test(normalized)) return normalized;
   return `${normalized} MDQ`;
+}
+
+function formatPositionLabel(questionIndex: number, totalQuestions: number): string {
+  return totalQuestions > 0 ? `${questionIndex + 1}/${totalQuestions}` : `${questionIndex + 1}`;
 }
 
 function clearInstructorRestore(): void {
@@ -538,15 +543,361 @@ function LiveView({
     ? displayReveal.openResponses
     : [];
   const isSlideDisplay = displayQuestion?.questionType === "slide" && !displayReveal;
+  const isQuizSurfaceDisplay = !!displayQuestion && displayQuestion.questionType !== "slide" && state !== "LEADERBOARD";
+  const isLeaderboardDisplay = state === "LEADERBOARD" && !isReviewing;
+  const isReviewSurfaceDisplay = isReviewing && !!displayQuestion;
+  const isLiveSurfaceDisplay = isSlideDisplay || isQuizSurfaceDisplay || isLeaderboardDisplay || isReviewSurfaceDisplay;
   const participantCount = sock.participants?.count ?? 0;
-  const slideStatusLabel = isReviewing && reviewQuestionIndex !== null
-    ? `Reviewing slide ${reviewQuestionIndex + 1}; students stay live`
+  const liveRestoreNoticeLabel = restoreNotice && isLiveSurfaceDisplay
+    ? restoreNotice === INSTRUCTOR_RESTORE_SUCCESS_NOTICE
+      ? "Session resumed"
+      : restoreNotice.replace(/\.$/, "")
     : null;
+  const liveStatusTone: "neutral" | "success" | "warning" = liveRestoreNoticeLabel
+    ? "success"
+    : isReviewing
+      ? "warning"
+      : "neutral";
+  const slideStatusLabel = liveRestoreNoticeLabel ?? (isReviewing && reviewQuestionIndex !== null
+    ? `Reviewing ${formatPositionLabel(reviewQuestionIndex, totalQuestionsInQuiz)}; students stay live`
+    : null);
+  const quizStatusLabel = (() => {
+    if (liveRestoreNoticeLabel) return liveRestoreNoticeLabel;
+    if (!displayQuestion || displayQuestion.questionType === "slide") return null;
+    if (isReviewing && reviewQuestionIndex !== null) {
+      return `Reviewing ${formatPositionLabel(reviewQuestionIndex, totalQuestionsInQuiz)}; students stay live`;
+    }
+    if (displayReveal) return displayReveal.isPoll ? "Results open" : "Answer revealed";
+    if (state === "QUESTION_CLOSED") return "Time's up";
+    if (sock.answerCount && state === "QUESTION_OPEN") {
+      return `${sock.answerCount.submitted}/${sock.answerCount.total} answered`;
+    }
+    return null;
+  })();
+  const displayPositionLabel = displayQuestion
+    ? formatPositionLabel(displayQuestion.questionIndex, totalQuestionsInQuiz)
+    : undefined;
+  const currentReviewListIndex = isReviewing && reviewQuestionIndex !== null
+    ? availableReviewIndices.findIndex((v) => v === reviewQuestionIndex)
+    : -1;
+  const liveSurfaceActions: LiveSurfaceAction[] = (() => {
+    if (isReviewing && reviewQuestionIndex !== null) {
+      return [
+        {
+          label: "Prev Review",
+          onClick: () => {
+            if (currentReviewListIndex > 0) {
+              setReviewQuestionIndex(availableReviewIndices[currentReviewListIndex - 1]);
+            }
+          },
+          disabled: currentReviewListIndex <= 0,
+        },
+        {
+          label: "Next Review",
+          onClick: () => {
+            if (currentReviewListIndex >= 0 && currentReviewListIndex < availableReviewIndices.length - 1) {
+              setReviewQuestionIndex(availableReviewIndices[currentReviewListIndex + 1]);
+            }
+          },
+          disabled: currentReviewListIndex >= availableReviewIndices.length - 1,
+        },
+        {
+          label: "Back to Live",
+          onClick: () => setReviewQuestionIndex(null),
+          tone: "primary",
+        },
+      ];
+    }
+
+    if (state === "LEADERBOARD") {
+      return [
+        {
+          label: isFinalQuestion ? "Review Final" : "Back to Quiz",
+          onClick: () => {
+            if (isFinalQuestion) {
+              setReviewQuestionIndex(liveQuestionIndex);
+              return;
+            }
+            onAction(() => hideLeaderboard(sessionId), "resume");
+          },
+          disabled: loading,
+        },
+        {
+          label: "End Session",
+          onClick: () => onAction(() => endSession(sessionId), "end"),
+          disabled: loading,
+          tone: "danger",
+        },
+      ];
+    }
+
+    const actions: LiveSurfaceAction[] = [];
+    if (latestPriorReview !== undefined) {
+      actions.push({
+        label: "Review Previous",
+        onClick: () => setReviewQuestionIndex(latestPriorReview),
+      });
+    }
+    if (canClose) {
+      actions.push({
+        label: "Close Question",
+        onClick: () => onAction(() => closeQuestion(sessionId), "close"),
+        disabled: loading,
+        tone: "warning",
+      });
+    }
+    if (canReveal) {
+      actions.push({
+        label: liveRevealActionLabel,
+        onClick: () => onAction(() => revealAnswer(sessionId), "reveal"),
+        disabled: loading,
+        tone: "primary",
+      });
+    }
+    if (canNext) {
+      actions.push({
+        label: liveIsSlide ? "Next Item" : "Next Question",
+        onClick: () => onAction(() => nextQuestion(sessionId), "next"),
+        disabled: loading,
+        tone: "primary",
+      });
+    }
+    if (canShowLeaderboard) {
+      actions.push({
+        label: "Show Leaderboard",
+        onClick: () => onAction(() => showLeaderboard(sessionId), "leaderboard"),
+        disabled: loading,
+        tone: "primary",
+      });
+    }
+    if (canEndFromSlide) {
+      actions.push({
+        label: "End Session",
+        onClick: () => onAction(() => endSession(sessionId), "end"),
+        disabled: loading,
+        tone: "danger",
+      });
+    }
+    return actions;
+  })();
+
+  const liveSurfaceStatusLabel = isLeaderboardDisplay
+    ? quizLabel ? `Leaderboard for ${quizLabel.toUpperCase()}` : "Leaderboard"
+    : isSlideDisplay
+      ? slideStatusLabel
+      : quizStatusLabel;
+  const liveSurfaceContent = (() => {
+    if (displayQuestion && (((state === "QUESTION_OPEN" || state === "QUESTION_CLOSED") && !isReviewing) || (isReviewing && !displayReveal))) {
+      if (displayQuestion.questionType === "slide") {
+        return (
+          <SlideContentBody
+            title={displayHeading || displayQuestion.topic}
+            html={displayQuestion.text}
+            attendeeNotes={displayQuestion.attendeeNotes}
+          />
+        );
+      }
+
+      return (
+        <div className="quiz-surface-content">
+          {state === "QUESTION_OPEN" && !isReviewing && (
+            <Timer
+              remainingSec={sock.remainingSec}
+              totalSec={displayQuestion.timeLimitSec}
+              size={140}
+            />
+          )}
+          {state === "QUESTION_CLOSED" && !isReviewing && (
+            <div className="text-amber-400 text-2xl font-bold">Time's up</div>
+          )}
+          {isReviewing && (
+            <div className="text-amber-300 text-lg font-semibold">Review Mode</div>
+          )}
+
+          <QuizHtml
+            className="quiz-html text-2xl lg:text-3xl text-white text-center leading-relaxed max-w-3xl"
+            html={displayQuestion.text}
+          />
+
+          <div className={`selection-mode-chip ${displayQuestion.questionType === "open_response" || displayQuestion.allowsMultiple ? "selection-mode-chip-multi" : "selection-mode-chip-single"}`}>
+            {displayQuestionModeText}
+          </div>
+
+          {displayQuestion.questionType === "open_response" ? (
+            <OpenResponseList
+              responses={liveOpenResponses}
+              title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
+            />
+          ) : (
+            (() => {
+              const dist = state === "QUESTION_CLOSED" && !isReviewing ? sock.distribution?.distribution : null;
+              const totalResponses = sock.answerCount?.submitted ?? 0;
+              const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
+              return (
+                <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}`}>
+                  {displayQuestion.options.map((opt) => {
+                    const count = dist?.[opt.label] ?? 0;
+                    const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                    const pctOfTotal = totalResponses > 0 ? Math.round((count / totalResponses) * 100) : 0;
+                    return (
+                      <div key={opt.label} className="relative rounded-xl border border-zinc-700 bg-zinc-800 overflow-hidden">
+                        {dist && (
+                          <div
+                            className="bar-fill absolute inset-0 bg-indigo-500/30 rounded-xl"
+                            style={{ width: `${Math.max(pct, 2)}%` }}
+                          />
+                        )}
+                        <div className="relative flex items-center gap-3 px-5 py-4">
+                          <span className={`bg-zinc-700 text-zinc-300 font-mono font-bold w-9 h-9 flex items-center justify-center shrink-0 text-lg ${displayQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
+                            {opt.label}
+                          </span>
+                          <QuizHtml className="quiz-html text-zinc-200 text-lg flex-1" html={opt.text} as="span" />
+                          {dist && count > 0 && (
+                            <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
+                              {count} ({pctOfTotal}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
+          )}
+        </div>
+      );
+    }
+
+    if (displayReveal && displayQuestion && (((state === "REVEAL") && !isReviewing) || isReviewing)) {
+      return (
+        <div className="quiz-surface-content quiz-surface-content-reveal">
+          <QuizHtml
+            className={`quiz-html text-center leading-relaxed max-w-3xl ${isReviewing ? "text-2xl lg:text-3xl text-white" : "text-xl lg:text-2xl text-zinc-300"}`}
+            html={displayQuestion.text}
+          />
+
+          {displayQuestion.questionType === "open_response" ? (
+            <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." />
+          ) : showDetailedRevealChoices && (() => {
+            const dist = displayReveal.distribution;
+            const maxCount = Math.max(1, ...Object.values(dist));
+            const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);
+            return (
+              <div className="w-full max-w-2xl space-y-2">
+                {displayQuestion.options.map((opt) => {
+                  const isCorrect = displayReveal.correctOptions.includes(opt.label);
+                  const count = dist[opt.label] ?? 0;
+                  const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                  const pctOfTotal = totalSelections > 0 ? Math.round((count / totalSelections) * 100) : 0;
+
+                  const borderClass = displayReveal.isPoll
+                    ? "border-zinc-800"
+                    : isCorrect
+                      ? "border-emerald-500/60"
+                      : "border-zinc-800";
+                  const barColor = displayReveal.isPoll
+                    ? "bg-indigo-500/30"
+                    : isCorrect
+                      ? "bg-emerald-500/25"
+                      : "bg-zinc-600/25";
+                  const markerClass = displayReveal.isPoll
+                    ? "bg-zinc-700 text-zinc-300"
+                    : isCorrect
+                      ? "bg-emerald-600 text-white"
+                      : "bg-zinc-700 text-zinc-300";
+                  const textClass = displayReveal.isPoll
+                    ? "text-zinc-200"
+                    : isCorrect
+                      ? "text-emerald-100"
+                      : "text-zinc-200";
+
+                  return (
+                    <div
+                      key={opt.label}
+                      className={`relative rounded-xl border bg-zinc-900/60 overflow-hidden ${borderClass}`}
+                    >
+                      <div
+                        className={`bar-fill absolute inset-0 rounded-xl ${barColor}`}
+                        style={{ width: `${Math.max(pct, 2)}%` }}
+                      />
+                      <div className="relative flex items-center gap-3 px-4 py-3">
+                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm ${markerClass}`}>
+                          {opt.label}
+                        </span>
+                        <QuizHtml className={`quiz-html pt-0.5 flex-1 ${textClass}`} html={opt.text} as="span" />
+                        {count > 0 && (
+                          <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !displayReveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
+                            {count} ({pctOfTotal}%)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {displayReveal.explanation && (
+            <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-2xl w-full">
+              <h3 className="text-emerald-400 font-semibold mb-2">Explanation</h3>
+              <p className="text-emerald-100 text-lg leading-relaxed">{displayReveal.explanation}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (isLeaderboardDisplay) {
+      return (
+        <div className="quiz-surface-content quiz-surface-content-leaderboard">
+          <Leaderboard
+            entries={sock.leaderboard}
+            totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
+            maxRows={10}
+          />
+        </div>
+      );
+    }
+
+    return null;
+  })();
+
+  if (isLiveSurfaceDisplay) {
+    return (
+      <div className="slide-live-shell slide-live-shell-controls">
+        <div className="slide-live-main">
+          <LiveSurface
+            mode={isReviewing ? "review" : "projector"}
+            surfaceClassName={isSlideDisplay ? undefined : "quiz-surface"}
+            nextLabel={isReviewing || isLeaderboardDisplay ? null : nextQuestionHeading}
+            qrDataUrl={accessInfo?.qrCodeDataUrl}
+            sessionCode={sessionCode}
+            participantCount={participantCount}
+            presentationUrl={accessInfo?.presentationUrl}
+            positionLabel={isLeaderboardDisplay ? undefined : displayPositionLabel}
+            statusLabel={liveSurfaceStatusLabel}
+            statusTone={liveStatusTone}
+            actions={liveSurfaceActions}
+          >
+            {liveSurfaceContent}
+          </LiveSurface>
+        </div>
+
+        {errorMsg && (
+          <div className="slide-page-error bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-xl text-center">
+            {errorMsg}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className={isSlideDisplay ? "slide-live-shell slide-live-shell-controls" : `min-h-dvh flex flex-col p-6 lg:p-10 ${accessInfo && sessionCode ? "lg:pr-56" : ""}`}>
+    <div className={isLiveSurfaceDisplay ? "slide-live-shell slide-live-shell-controls" : `min-h-dvh flex flex-col p-6 lg:p-10 ${accessInfo && sessionCode ? "lg:pr-56" : ""}`}>
       {/* Top bar: question progress + timer + participant count */}
-      {!isSlideDisplay && (
+      {!isLiveSurfaceDisplay && (
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           {displayQuestion && (
@@ -580,8 +931,8 @@ function LiveView({
       )}
 
       {/* Main content */}
-      <div className={isSlideDisplay ? "slide-live-main" : "flex-1 flex flex-col items-center justify-center gap-8 mx-auto w-full max-w-4xl"}>
-        {nextQuestionHeading && !isSlideDisplay && (
+      <div className={isLiveSurfaceDisplay ? "slide-live-main" : "flex-1 flex flex-col items-center justify-center gap-8 mx-auto w-full max-w-4xl"}>
+        {nextQuestionHeading && !isLiveSurfaceDisplay && (
           <div className="w-full max-w-3xl rounded-2xl border border-sky-500/30 bg-sky-500/10 px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">Next up</p>
             <p className="mt-2 text-lg text-sky-50">{nextQuestionHeading}</p>
@@ -596,74 +947,174 @@ function LiveView({
                 title={displayHeading || displayQuestion.topic}
                 html={displayQuestion.text}
                 attendeeNotes={displayQuestion.attendeeNotes}
-                positionLabel={`Slide ${displayQuestion.questionIndex + 1} / ${totalQuestionsInQuiz}`}
+                positionLabel={displayPositionLabel}
                 nextLabel={isReviewing ? null : nextQuestionHeading}
                 qrDataUrl={accessInfo?.qrCodeDataUrl}
                 sessionCode={sessionCode}
                 participantCount={participantCount}
                 presentationUrl={accessInfo?.presentationUrl}
                 statusLabel={slideStatusLabel}
-                chromeLabel={isReviewing ? "Review Slide" : "Slide"}
-                onNext={!isReviewing && canNext ? () => onAction(() => nextQuestion(sessionId), "next") : undefined}
+                statusTone={liveStatusTone}
+                actions={liveSurfaceActions}
               />
             ) : (
-              <>
-            {/* Timer */}
-            {state === "QUESTION_OPEN" && !isReviewing && (
-              <Timer
-                remainingSec={sock.remainingSec}
-                totalSec={displayQuestion.timeLimitSec}
-                size={140}
-              />
-            )}
-            {state === "QUESTION_CLOSED" && !isReviewing && (
-              <div className="text-amber-400 text-2xl font-bold">Time's up</div>
-            )}
-            {isReviewing && (
-              <div className="text-amber-300 text-lg font-semibold">Review Mode</div>
-            )}
+              <LiveSurface
+                surfaceClassName="quiz-surface"
+                nextLabel={isReviewing ? null : nextQuestionHeading}
+                qrDataUrl={accessInfo?.qrCodeDataUrl}
+                sessionCode={sessionCode}
+                participantCount={participantCount}
+                presentationUrl={accessInfo?.presentationUrl}
+                positionLabel={displayPositionLabel}
+                statusLabel={quizStatusLabel}
+                statusTone={liveStatusTone}
+                actions={liveSurfaceActions}
+              >
+                <div className="quiz-surface-content">
+                  {/* Timer */}
+                  {state === "QUESTION_OPEN" && !isReviewing && (
+                    <Timer
+                      remainingSec={sock.remainingSec}
+                      totalSec={displayQuestion.timeLimitSec}
+                      size={140}
+                    />
+                  )}
+                  {state === "QUESTION_CLOSED" && !isReviewing && (
+                    <div className="text-amber-400 text-2xl font-bold">Time's up</div>
+                  )}
+                  {isReviewing && (
+                    <div className="text-amber-300 text-lg font-semibold">Review Mode</div>
+                  )}
 
-            {/* Question text */}
-            <QuizHtml
-              className="quiz-html text-2xl lg:text-3xl text-white text-center leading-relaxed max-w-3xl"
-              html={displayQuestion.text}
-            />
+                  {/* Question text */}
+                  <QuizHtml
+                    className="quiz-html text-2xl lg:text-3xl text-white text-center leading-relaxed max-w-3xl"
+                    html={displayQuestion.text}
+                  />
 
-            <div className={`selection-mode-chip ${displayQuestion.questionType === "open_response" || displayQuestion.allowsMultiple ? "selection-mode-chip-multi" : "selection-mode-chip-single"}`}>
-              {displayQuestionModeText}
-            </div>
+                  <div className={`selection-mode-chip ${displayQuestion.questionType === "open_response" || displayQuestion.allowsMultiple ? "selection-mode-chip-multi" : "selection-mode-chip-single"}`}>
+                    {displayQuestionModeText}
+                  </div>
 
-            {displayQuestion.questionType === "open_response" ? (
-              <OpenResponseList
-                responses={liveOpenResponses}
-                title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
-              />
-            ) : (
-              (() => {
-                const dist = state === "QUESTION_CLOSED" && !isReviewing ? sock.distribution?.distribution : null;
-                const totalResponses = sock.answerCount?.submitted ?? 0;
-                const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
-                return (
-                  <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}`}>
-                    {displayQuestion.options.map((opt) => {
-                      const count = dist?.[opt.label] ?? 0;
-                      const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
-                      const pctOfTotal = totalResponses > 0 ? Math.round((count / totalResponses) * 100) : 0;
+                  {displayQuestion.questionType === "open_response" ? (
+                    <OpenResponseList
+                      responses={liveOpenResponses}
+                      title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
+                    />
+                  ) : (
+                    (() => {
+                      const dist = state === "QUESTION_CLOSED" && !isReviewing ? sock.distribution?.distribution : null;
+                      const totalResponses = sock.answerCount?.submitted ?? 0;
+                      const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
                       return (
-                        <div key={opt.label} className="relative rounded-xl border border-zinc-700 bg-zinc-800 overflow-hidden">
-                          {dist && (
-                            <div
-                              className="bar-fill absolute inset-0 bg-indigo-500/30 rounded-xl"
-                              style={{ width: `${Math.max(pct, 2)}%` }}
-                            />
-                          )}
-                          <div className="relative flex items-center gap-3 px-5 py-4">
-                            <span className={`bg-zinc-700 text-zinc-300 font-mono font-bold w-9 h-9 flex items-center justify-center shrink-0 text-lg ${displayQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
+                        <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}`}>
+                          {displayQuestion.options.map((opt) => {
+                            const count = dist?.[opt.label] ?? 0;
+                            const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                            const pctOfTotal = totalResponses > 0 ? Math.round((count / totalResponses) * 100) : 0;
+                            return (
+                              <div key={opt.label} className="relative rounded-xl border border-zinc-700 bg-zinc-800 overflow-hidden">
+                                {dist && (
+                                  <div
+                                    className="bar-fill absolute inset-0 bg-indigo-500/30 rounded-xl"
+                                    style={{ width: `${Math.max(pct, 2)}%` }}
+                                  />
+                                )}
+                                <div className="relative flex items-center gap-3 px-5 py-4">
+                                  <span className={`bg-zinc-700 text-zinc-300 font-mono font-bold w-9 h-9 flex items-center justify-center shrink-0 text-lg ${displayQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
+                                    {opt.label}
+                                  </span>
+                                  <QuizHtml className="quiz-html text-zinc-200 text-lg flex-1" html={opt.text} as="span" />
+                                  {dist && count > 0 && (
+                                    <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
+                                      {count} ({pctOfTotal}%)
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              </LiveSurface>
+            )}
+          </>
+        )}
+
+        {/* Reveal view */}
+        {displayReveal && (((state === "REVEAL" && displayQuestion && !isReviewing) || (isReviewing && displayQuestion))) && (
+          <LiveSurface
+            surfaceClassName="quiz-surface"
+            nextLabel={isReviewing ? null : nextQuestionHeading}
+            qrDataUrl={accessInfo?.qrCodeDataUrl}
+            sessionCode={sessionCode}
+            participantCount={participantCount}
+            presentationUrl={accessInfo?.presentationUrl}
+            positionLabel={displayPositionLabel}
+            statusLabel={quizStatusLabel}
+            statusTone={liveStatusTone}
+            actions={liveSurfaceActions}
+          >
+            <div className="quiz-surface-content quiz-surface-content-reveal">
+              <QuizHtml
+                className={`quiz-html text-center leading-relaxed max-w-3xl ${isReviewing ? "text-2xl lg:text-3xl text-white" : "text-xl lg:text-2xl text-zinc-300"}`}
+                html={displayQuestion.text}
+              />
+
+              {displayQuestion.questionType === "open_response" ? (
+                <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." />
+              ) : showDetailedRevealChoices && (() => {
+                const dist = displayReveal.distribution;
+                const maxCount = Math.max(1, ...Object.values(dist));
+                const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);
+                return (
+                  <div className="w-full max-w-2xl space-y-2">
+                    {displayQuestion.options.map((opt) => {
+                      const isCorrect = displayReveal.correctOptions.includes(opt.label);
+                      const count = dist[opt.label] ?? 0;
+                      const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                      const pctOfTotal = totalSelections > 0 ? Math.round((count / totalSelections) * 100) : 0;
+
+                      const borderClass = displayReveal.isPoll
+                        ? "border-zinc-800"
+                        : isCorrect
+                          ? "border-emerald-500/60"
+                          : "border-zinc-800";
+                      const barColor = displayReveal.isPoll
+                        ? "bg-indigo-500/30"
+                        : isCorrect
+                          ? "bg-emerald-500/25"
+                          : "bg-zinc-600/25";
+                      const markerClass = displayReveal.isPoll
+                        ? "bg-zinc-700 text-zinc-300"
+                        : isCorrect
+                          ? "bg-emerald-600 text-white"
+                          : "bg-zinc-700 text-zinc-300";
+                      const textClass = displayReveal.isPoll
+                        ? "text-zinc-200"
+                        : isCorrect
+                          ? "text-emerald-100"
+                          : "text-zinc-200";
+
+                      return (
+                        <div
+                          key={opt.label}
+                          className={`relative rounded-xl border bg-zinc-900/60 overflow-hidden ${borderClass}`}
+                        >
+                          <div
+                            className={`bar-fill absolute inset-0 rounded-xl ${barColor}`}
+                            style={{ width: `${Math.max(pct, 2)}%` }}
+                          />
+                          <div className="relative flex items-center gap-3 px-4 py-3">
+                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm ${markerClass}`}>
                               {opt.label}
                             </span>
-                            <QuizHtml className="quiz-html text-zinc-200 text-lg flex-1" html={opt.text} as="span" />
-                            {dist && count > 0 && (
-                              <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
+                            <QuizHtml className={`quiz-html pt-0.5 flex-1 ${textClass}`} html={opt.text} as="span" />
+                            {count > 0 && (
+                              <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !displayReveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
                                 {count} ({pctOfTotal}%)
                               </span>
                             )}
@@ -673,236 +1124,53 @@ function LiveView({
                     })}
                   </div>
                 );
-              })()
-            )}
-              </>
-            )}
-          </>
-        )}
+              })()}
 
-        {/* Reveal view */}
-        {displayReveal && (((state === "REVEAL" && displayQuestion && !isReviewing) || (isReviewing && displayQuestion))) && (
-          <>
-            <QuizHtml
-              className={`quiz-html text-center leading-relaxed max-w-3xl ${isReviewing ? "text-2xl lg:text-3xl text-white" : "text-xl lg:text-2xl text-zinc-300"}`}
-              html={displayQuestion.text}
-            />
-
-            {displayQuestion.questionType === "open_response" ? (
-              <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." />
-            ) : showDetailedRevealChoices && (() => {
-              const dist = displayReveal.distribution;
-              const maxCount = Math.max(1, ...Object.values(dist));
-              const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);
-              return (
-                <div className="w-full max-w-2xl space-y-2">
-                  {displayQuestion.options.map((opt) => {
-                    const isCorrect = displayReveal.correctOptions.includes(opt.label);
-                    const count = dist[opt.label] ?? 0;
-                    const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
-                    const pctOfTotal = totalSelections > 0 ? Math.round((count / totalSelections) * 100) : 0;
-
-                    const borderClass = displayReveal.isPoll
-                      ? "border-zinc-800"
-                      : isCorrect
-                        ? "border-emerald-500/60"
-                        : "border-zinc-800";
-                    const barColor = displayReveal.isPoll
-                      ? "bg-indigo-500/30"
-                      : isCorrect
-                        ? "bg-emerald-500/25"
-                        : "bg-zinc-600/25";
-                    const markerClass = displayReveal.isPoll
-                      ? "bg-zinc-700 text-zinc-300"
-                      : isCorrect
-                        ? "bg-emerald-600 text-white"
-                        : "bg-zinc-700 text-zinc-300";
-                    const textClass = displayReveal.isPoll
-                      ? "text-zinc-200"
-                      : isCorrect
-                        ? "text-emerald-100"
-                        : "text-zinc-200";
-
-                    return (
-                      <div
-                        key={opt.label}
-                        className={`relative rounded-xl border bg-zinc-900/60 overflow-hidden ${borderClass}`}
-                      >
-                        <div
-                          className={`bar-fill absolute inset-0 rounded-xl ${barColor}`}
-                          style={{ width: `${Math.max(pct, 2)}%` }}
-                        />
-                        <div className="relative flex items-center gap-3 px-4 py-3">
-                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm ${markerClass}`}>
-                            {opt.label}
-                          </span>
-                          <QuizHtml className={`quiz-html pt-0.5 flex-1 ${textClass}`} html={opt.text} as="span" />
-                          {count > 0 && (
-                            <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !displayReveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
-                              {count} ({pctOfTotal}%)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+              {displayReveal.explanation && (
+                <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-2xl w-full">
+                  <h3 className="text-emerald-400 font-semibold mb-2">Explanation</h3>
+                  <p className="text-emerald-100 text-lg leading-relaxed">{displayReveal.explanation}</p>
                 </div>
-              );
-            })()}
-
-            {displayReveal.explanation && (
-              <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-2xl w-full">
-                <h3 className="text-emerald-400 font-semibold mb-2">Explanation</h3>
-                <p className="text-emerald-100 text-lg leading-relaxed">{displayReveal.explanation}</p>
-              </div>
-            )}
-          </>
+              )}
+            </div>
+          </LiveSurface>
         )}
 
-        {/* Leaderboard view */}
-        {state === "LEADERBOARD" && !isReviewing && (
-          <div className="w-full">
-            <h2 className="text-2xl font-bold text-white text-center mb-6">
-              {quizLabel ? `Leaderboard for ${quizLabel.toUpperCase()}` : "Leaderboard"}
-            </h2>
-            <Leaderboard
-              entries={sock.leaderboard}
-              totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
-              maxRows={10}
-            />
-          </div>
+        {isLeaderboardDisplay && (
+          <LiveSurface
+            surfaceClassName="quiz-surface"
+            qrDataUrl={accessInfo?.qrCodeDataUrl}
+            sessionCode={sessionCode}
+            participantCount={participantCount}
+            presentationUrl={accessInfo?.presentationUrl}
+            statusLabel={quizLabel ? `Leaderboard for ${quizLabel.toUpperCase()}` : "Leaderboard"}
+            actions={liveSurfaceActions}
+          >
+            <div className="quiz-surface-content">
+              <Leaderboard
+                entries={sock.leaderboard}
+                totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
+                maxRows={10}
+              />
+            </div>
+          </LiveSurface>
         )}
       </div>
 
       {/* Error */}
       {errorMsg && (
-        <div className={`${isSlideDisplay ? "slide-page-error" : "mt-4"} bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-xl text-center`}>
+        <div className={`${isLiveSurfaceDisplay ? "slide-page-error" : "mt-4"} bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-xl text-center`}>
           {errorMsg}
         </div>
       )}
 
-      {restoreNotice && (
-        <div className={`${isSlideDisplay ? "slide-page-notice" : "mt-4"} bg-emerald-900/40 border border-emerald-700 text-emerald-100 px-4 py-3 rounded-xl text-center text-sm`}>
+      {restoreNotice && !isLiveSurfaceDisplay && (
+        <div className="mt-4 bg-emerald-900/40 border border-emerald-700 text-emerald-100 px-4 py-3 rounded-xl text-center text-sm">
           {restoreNotice}
         </div>
       )}
 
-      {/* Control bar (sticky bottom) */}
-      <div className={isSlideDisplay ? "slide-control-bar-floating" : "sticky bottom-0 bg-[#0f1117]/90 backdrop-blur-sm border-t border-zinc-800 py-4 -mx-6 px-6 lg:-mx-10 lg:px-10 mt-8"}>
-        <div className="flex items-center justify-center gap-4 flex-wrap">
-          {!isReviewing && latestPriorReview !== undefined && (
-            <button
-              onClick={() => setReviewQuestionIndex(latestPriorReview)}
-              className="bg-zinc-700 hover:bg-zinc-600 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              Review Previous
-            </button>
-          )}
-          {isReviewing && reviewQuestionIndex !== null && (
-            <button
-              onClick={() => {
-                const idx = availableReviewIndices.findIndex((v) => v === reviewQuestionIndex);
-                if (idx > 0) setReviewQuestionIndex(availableReviewIndices[idx - 1]);
-              }}
-              disabled={availableReviewIndices.findIndex((v) => v === reviewQuestionIndex) <= 0}
-              className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              Prev Review
-            </button>
-          )}
-          {isReviewing && reviewQuestionIndex !== null && (
-            <button
-              onClick={() => {
-                const idx = availableReviewIndices.findIndex((v) => v === reviewQuestionIndex);
-                if (idx >= 0 && idx < availableReviewIndices.length - 1) setReviewQuestionIndex(availableReviewIndices[idx + 1]);
-              }}
-              disabled={availableReviewIndices.findIndex((v) => v === reviewQuestionIndex) >= availableReviewIndices.length - 1}
-              className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              Next Review
-            </button>
-          )}
-          {isReviewing && (
-            <button
-              onClick={() => setReviewQuestionIndex(null)}
-              className="bg-zinc-700 hover:bg-zinc-600 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              Back to Live
-            </button>
-          )}
-          {!isReviewing && canClose && (
-            <button
-              onClick={() => onAction(() => closeQuestion(sessionId), "close")}
-              disabled={loading}
-              className="bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              Close Question
-            </button>
-          )}
-          {!isReviewing && canReveal && (
-            <button
-              onClick={() => onAction(() => revealAnswer(sessionId), "reveal")}
-              disabled={loading}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              {liveRevealActionLabel}
-            </button>
-          )}
-          {!isReviewing && canNext && (
-            <button
-              onClick={() => onAction(() => nextQuestion(sessionId), "next")}
-              disabled={loading}
-              className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              {liveIsSlide ? "Next Item" : "Next Question"}
-            </button>
-          )}
-          {!isReviewing && canShowLeaderboard && (
-            <button
-              onClick={() => onAction(() => showLeaderboard(sessionId), "leaderboard")}
-              disabled={loading}
-              className="bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              Show Leaderboard
-            </button>
-          )}
-          {!isReviewing && state === "LEADERBOARD" && (
-            <button
-              onClick={() => {
-                if (isFinalQuestion) {
-                  setReviewQuestionIndex(liveQuestionIndex);
-                  return;
-                }
-                onAction(() => hideLeaderboard(sessionId), "resume");
-              }}
-              disabled={loading}
-              className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              Back to Quiz
-            </button>
-          )}
-          {!isReviewing && state === "LEADERBOARD" && (
-            <button
-              onClick={() => onAction(() => endSession(sessionId), "end")}
-              disabled={loading}
-              className="bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              End Session
-            </button>
-          )}
-          {!isReviewing && canEndFromSlide && (
-            <button
-              onClick={() => onAction(() => endSession(sessionId), "end")}
-              disabled={loading}
-              className="bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-            >
-              End Session
-            </button>
-          )}
-        </div>
-      </div>
-
-      {accessInfo && sessionCode && !isSlideDisplay && (
+      {accessInfo && sessionCode && !isLiveSurfaceDisplay && (
         <div className="fixed top-4 right-4 z-20 bg-white text-zinc-900 rounded-xl shadow-xl border border-zinc-200 p-3 w-40">
           {accessInfo.qrCodeDataUrl && (
             <img
