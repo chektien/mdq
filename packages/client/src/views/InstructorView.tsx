@@ -694,6 +694,8 @@ function LiveView({
             title={displayHeading || displayQuestion.topic}
             html={displayQuestion.text}
             attendeeNotes={displayQuestion.attendeeNotes}
+            slideMedia={displayQuestion.slideMedia}
+            slideReferences={displayQuestion.slideReferences}
           />
         );
       }
@@ -947,6 +949,8 @@ function LiveView({
                 title={displayHeading || displayQuestion.topic}
                 html={displayQuestion.text}
                 attendeeNotes={displayQuestion.attendeeNotes}
+                slideMedia={displayQuestion.slideMedia}
+                slideReferences={displayQuestion.slideReferences}
                 positionLabel={displayPositionLabel}
                 nextLabel={isReviewing ? null : nextQuestionHeading}
                 qrDataUrl={accessInfo?.qrCodeDataUrl}

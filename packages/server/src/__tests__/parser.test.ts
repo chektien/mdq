@@ -252,6 +252,68 @@ type: slide
       expect(q.presenterNotes?.[0].bodyMd).toContain("Keep the pause short.");
     });
 
+    it("extracts slide images into structured media", () => {
+      const md = `# Quiz
+
+---
+
+## Visual Comparison
+
+type: slide
+
+- Compare the headset views.
+- Look for overlap and field of view differences.
+
+![Left frustum](../images/frustum-left.png "Left eye")
+![Right frustum](../images/frustum-right.png "Right eye")
+
+---`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.questionType).toBe("slide");
+      expect(q.textMd).toContain("Compare the headset views.");
+      expect(q.textMd).not.toContain("frustum-left.png");
+      expect(q.textHtml).not.toContain("quiz-embedded-image");
+      expect(q.slideMedia).toEqual([
+        {
+          src: "/data/images/frustum-left.png",
+          alt: "Left frustum",
+          title: "Left eye",
+        },
+        {
+          src: "/data/images/frustum-right.png",
+          alt: "Right frustum",
+          title: "Right eye",
+        },
+      ]);
+    });
+
+    it("extracts slide references into footer-ready inline html", () => {
+      const md = `# Quiz
+
+---
+
+## Paper Trail
+
+type: slide
+
+Use the result as visual context.
+
+> Reference: [Milgram and Kishino, 1994](https://doi.org/10.1000/example)
+> Image Source: [HMD schematic](https://example.com/hmd.png)
+
+---`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.textMd).toBe("Use the result as visual context.");
+      expect(q.textHtml).not.toContain("Reference:");
+      expect(q.slideReferences).toHaveLength(2);
+      expect(q.slideReferences?.[0].html).toContain('<a href="https://doi.org/10.1000/example"');
+      expect(q.slideReferences?.[1].textMd).toContain("HMD schematic");
+    });
+
     it("uses full week key from variant filenames", () => {
       const md = `# Quiz
 

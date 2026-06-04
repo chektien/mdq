@@ -1,4 +1,22 @@
-import { memo } from "react";
+import {
+  memo,
+  type Ref,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { type ExpandedImage, ImageExpansionOverlay } from "./ImageExpansion";
+
+function findImageTarget(target: EventTarget | null, container: HTMLElement): HTMLImageElement | null {
+  if (!(target instanceof Element)) return null;
+  const image = target.closest("img");
+  return image instanceof HTMLImageElement && container.contains(image) ? image : null;
+}
+
+function getImageLabel(image: HTMLImageElement): string {
+  return image.getAttribute("title") || image.getAttribute("alt") || "image";
+}
 
 function QuizHtml({
   html,
@@ -9,8 +27,87 @@ function QuizHtml({
   className: string;
   as?: "div" | "span";
 }) {
-  const Tag = as;
-  return <Tag className={className} dangerouslySetInnerHTML={{ __html: html }} />;
+  const containerRef = useRef<HTMLElement | null>(null);
+  const lastTriggerSrcRef = useRef<string | null>(null);
+  const shouldRestoreFocusRef = useRef(false);
+  const [expandedImage, setExpandedImage] = useState<ExpandedImage | null>(null);
+
+  const closeExpandedImage = useCallback(() => {
+    shouldRestoreFocusRef.current = true;
+    setExpandedImage(null);
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+
+    const images = Array.from(container.querySelectorAll("img"));
+    for (const image of images) {
+      const label = getImageLabel(image);
+      image.classList.add("image-expandable-inline");
+      image.setAttribute("role", "button");
+      image.setAttribute("tabindex", image.getAttribute("tabindex") || "0");
+      image.setAttribute("aria-label", `Expand ${label}`);
+    }
+
+    if (shouldRestoreFocusRef.current) {
+      const targetImage =
+        images.find((image) => (image.currentSrc || image.src) === lastTriggerSrcRef.current)
+        ?? images[0];
+      shouldRestoreFocusRef.current = false;
+      window.setTimeout(() => targetImage?.focus(), 0);
+    }
+
+    const openImage = (image: HTMLImageElement) => {
+      lastTriggerSrcRef.current = image.currentSrc || image.src;
+      setExpandedImage({
+        src: image.currentSrc || image.src,
+        alt: image.getAttribute("alt") || "",
+        title: image.getAttribute("title") || image.getAttribute("alt") || undefined,
+      });
+    };
+
+    const onClick = (event: MouseEvent) => {
+      const image = findImageTarget(event.target, container);
+      if (!image) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openImage(image);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const image = findImageTarget(event.target, container);
+      if (!image) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openImage(image);
+    };
+
+    container.addEventListener("click", onClick);
+    container.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      container.removeEventListener("click", onClick);
+      container.removeEventListener("keydown", onKeyDown);
+    };
+  }, [expandedImage, html]);
+
+  const htmlProps = {
+    className,
+    dangerouslySetInnerHTML: { __html: html },
+  };
+
+  return (
+    <>
+      {as === "span" ? (
+        <span ref={containerRef as Ref<HTMLSpanElement>} {...htmlProps} />
+      ) : (
+        <div ref={containerRef as Ref<HTMLDivElement>} {...htmlProps} />
+      )}
+      <ImageExpansionOverlay image={expandedImage} onClose={closeExpandedImage} />
+    </>
+  );
 }
 
 export default memo(QuizHtml);

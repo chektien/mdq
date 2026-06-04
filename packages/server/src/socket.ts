@@ -6,8 +6,8 @@ import {
   AnswerSubmitPayload,
   TICK_INTERVAL_MS,
   Quiz,
-  QuestionType,
   FoldoutNote,
+  QuestionOpenPayload,
 } from "@mdq/shared";
 import {
   getSession,
@@ -64,18 +64,7 @@ function buildPublicNotes(question: Quiz["questions"][number]): FoldoutNote[] | 
     : undefined;
 }
 
-function buildQuestionOpenPayload(session: Session): {
-  questionIndex: number;
-  topic: string;
-  text: string;
-  questionType: QuestionType;
-  attendeeNotes?: FoldoutNote[];
-  options: { label: string; text: string }[];
-  allowsMultiple: boolean;
-  isPoll: boolean;
-  timeLimitSec: number;
-  startedAt: number;
-} | null {
+function buildQuestionOpenPayload(session: Session): QuestionOpenPayload | null {
   const quiz = quizStore.get(session.week);
   const question =
     quiz && session.currentQuestionIndex >= 0
@@ -92,6 +81,8 @@ function buildQuestionOpenPayload(session: Session): {
     text: question.textHtml,
     questionType: getQuestionType(question),
     attendeeNotes: buildPublicNotes(question),
+    slideMedia: question.slideMedia,
+    slideReferences: question.slideReferences,
     options: question.options.map((o) => ({ label: o.label, text: o.textHtml })),
     allowsMultiple: question.allowsMultiple,
     isPoll: question.isPoll === true,
@@ -533,6 +524,8 @@ export function broadcastQuestionOpen(
     text: q.textHtml,
     questionType: getQuestionType(q),
     attendeeNotes: buildPublicNotes(q),
+    slideMedia: q.slideMedia,
+    slideReferences: q.slideReferences,
     options: q.options.map((o) => ({ label: o.label, text: o.textHtml })),
     allowsMultiple: q.allowsMultiple,
     isPoll: q.isPoll === true,

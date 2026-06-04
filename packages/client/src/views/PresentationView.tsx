@@ -215,6 +215,8 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
             title={currentHeading || currentQuestion.topic}
             html={currentQuestion.text}
             attendeeNotes={currentQuestion.attendeeNotes}
+            slideMedia={currentQuestion.slideMedia}
+            slideReferences={currentQuestion.slideReferences}
           />
         );
       }
@@ -434,6 +436,8 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                 title={currentHeading || currentQuestion.topic}
                 html={currentQuestion.text}
                 attendeeNotes={currentQuestion.attendeeNotes}
+                slideMedia={currentQuestion.slideMedia}
+                slideReferences={currentQuestion.slideReferences}
                 positionLabel={positionLabel}
                 nextLabel={nextHeading}
                 qrDataUrl={accessInfo?.qrCodeDataUrl}

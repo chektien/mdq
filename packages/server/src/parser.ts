@@ -1,8 +1,18 @@
-import { Quiz, Question, QuestionOption, DEFAULT_TIME_LIMIT_SEC, QuestionType, FoldoutNote } from "@mdq/shared";
+import {
+  Quiz,
+  Question,
+  QuestionOption,
+  DEFAULT_TIME_LIMIT_SEC,
+  QuestionType,
+  FoldoutNote,
+  SlideMedia,
+  SlideReference,
+} from "@mdq/shared";
 import { marked } from "marked";
 
 const QUIZ_IMAGE_SOURCE_PREFIX = "../images/";
 const QUIZ_IMAGE_PUBLIC_PREFIX = "/data/images/";
+const MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(?:\s+["']([^"']+)["'])?\)/g;
 
 /** Error describing a problem in a specific question block */
 export class QuizParseError extends Error {
@@ -310,8 +320,16 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
   textLines = textLines.filter((l) => !/^time_limit:\s*\d+/i.test(l.trim()));
   textLines = textLines.filter((l) => !/^(?:type|question_type):\s*[a-z_]+$/i.test(l.trim()));
   textLines = textLines.filter((l) => !/^multi_select:\s*(true|false|yes|no|1|0)$/i.test(l.trim()));
+  const referenceExtraction = isSlide
+    ? extractSlideReferences(textLines)
+    : { contentLines: textLines, references: [] as SlideReference[] };
+  textLines = referenceExtraction.contentLines;
   const noteExtraction = extractFoldoutNotes(textLines);
   textLines = noteExtraction.contentLines;
+  const mediaExtraction = isSlide
+    ? extractSlideMedia(textLines)
+    : { contentLines: textLines, media: [] as SlideMedia[] };
+  textLines = mediaExtraction.contentLines;
   const textMd = textLines.join("\n").trim();
 
   // 7. Render markdown to HTML
@@ -333,6 +351,8 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     questionType: normalizedQuestionType,
     attendeeNotes: noteExtraction.notes.filter((note) => note.audience === "attendee"),
     presenterNotes: noteExtraction.notes.filter((note) => note.audience === "presenter"),
+    slideMedia: mediaExtraction.media.length > 0 ? mediaExtraction.media : undefined,
+    slideReferences: referenceExtraction.references.length > 0 ? referenceExtraction.references : undefined,
     options,
     correctOptions,
     allowsMultiple,
@@ -370,17 +390,83 @@ function escapeHtml(value: string): string {
 
 function resolveMarkdownImageHref(href: string): string {
   const normalizedHref = href.trim().replace(/\\/g, "/");
-  if (!normalizedHref.startsWith(QUIZ_IMAGE_SOURCE_PREFIX)) {
-    return normalizedHref;
+  const unwrappedHref = normalizedHref.startsWith("<") && normalizedHref.endsWith(">")
+    ? normalizedHref.slice(1, -1)
+    : normalizedHref;
+  if (!unwrappedHref.startsWith(QUIZ_IMAGE_SOURCE_PREFIX)) {
+    return unwrappedHref;
   }
 
-  const relativePath = normalizedHref.slice(QUIZ_IMAGE_SOURCE_PREFIX.length);
+  const relativePath = unwrappedHref.slice(QUIZ_IMAGE_SOURCE_PREFIX.length);
   const segments = relativePath.replace(/^\/+/, "").split("/").filter(Boolean);
   if (segments.length === 0 || segments.some((segment) => segment === "." || segment === "..")) {
-    return normalizedHref;
+    return unwrappedHref;
   }
 
   return `${QUIZ_IMAGE_PUBLIC_PREFIX}${segments.join("/")}`;
+}
+
+function extractSlideMedia(lines: string[]): { contentLines: string[]; media: SlideMedia[] } {
+  const contentLines: string[] = [];
+  const media: SlideMedia[] = [];
+
+  for (const line of lines) {
+    MARKDOWN_IMAGE_REGEX.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    let strippedLine = line;
+    let matchedLine = false;
+
+    while ((match = MARKDOWN_IMAGE_REGEX.exec(line)) !== null) {
+      matchedLine = true;
+      const alt = match[1]?.trim() || "Slide image";
+      const src = resolveMarkdownImageHref(match[2] || "");
+      const title = match[3]?.trim();
+      media.push({
+        src,
+        alt,
+        ...(title ? { title } : {}),
+      });
+    }
+
+    if (matchedLine) {
+      strippedLine = strippedLine.replace(MARKDOWN_IMAGE_REGEX, "").trimEnd();
+    }
+
+    if (strippedLine.trim()) {
+      contentLines.push(strippedLine);
+    } else if (!matchedLine) {
+      contentLines.push(line);
+    }
+  }
+
+  return { contentLines, media };
+}
+
+function extractSlideReferences(lines: string[]): { contentLines: string[]; references: SlideReference[] } {
+  const contentLines: string[] = [];
+  const references: SlideReference[] = [];
+  const referenceStart = /^\s*>\s*(References?|Sources?|Image\s+Sources?|Image\s+Credits?|Credits?):\s*(.*)$/i;
+
+  for (const line of lines) {
+    const match = line.match(referenceStart);
+    if (!match) {
+      contentLines.push(line);
+      continue;
+    }
+
+    const textMd = match[2].trim();
+    if (!textMd) {
+      continue;
+    }
+
+    references.push({
+      id: `reference-${references.length + 1}`,
+      textMd,
+      html: renderInlineMarkdown(textMd),
+    });
+  }
+
+  return { contentLines, references };
 }
 
 function extractFoldoutNotes(lines: string[]): { contentLines: string[]; notes: FoldoutNote[] } {
@@ -443,7 +529,7 @@ function parseBooleanField(value: string): boolean {
 }
 
 /** Render markdown to HTML using marked (synchronous) */
-function renderMarkdown(md: string): string {
+function createMarkdownRenderer() {
   const renderer = new marked.Renderer();
   renderer.image = (href: string, title: string | null, text: string): string => {
     const src = escapeHtml(resolveMarkdownImageHref(href));
@@ -451,9 +537,17 @@ function renderMarkdown(md: string): string {
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
     return `<img class="quiz-embedded-image" src="${src}" alt="${alt}"${titleAttr}>`;
   };
+  return renderer;
+}
 
+function renderMarkdown(md: string): string {
   // marked.parse can return string | Promise<string> depending on config,
   // but with default (sync) config it returns string
-  const result = marked.parse(md, { async: false, renderer }) as string;
+  const result = marked.parse(md, { async: false, renderer: createMarkdownRenderer() }) as string;
+  return result.trim();
+}
+
+function renderInlineMarkdown(md: string): string {
+  const result = marked.parseInline(md, { async: false, renderer: createMarkdownRenderer() }) as string;
   return result.trim();
 }

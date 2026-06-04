@@ -88,6 +88,18 @@ export interface FoldoutNote {
   bodyHtml: string;
 }
 
+export interface SlideMedia {
+  src: string;
+  alt: string;
+  title?: string;
+}
+
+export interface SlideReference {
+  id: string;
+  textMd: string;
+  html: string;
+}
+
 export interface OpenResponseEntry {
   studentId: string;
   displayName?: string;
@@ -101,6 +113,8 @@ export interface QuestionOpenPayload {
   text: string; // rendered HTML
   questionType?: QuestionType;
   attendeeNotes?: FoldoutNote[];
+  slideMedia?: SlideMedia[];
+  slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
   isPoll?: boolean;
@@ -220,6 +234,8 @@ export interface Question {
   questionType?: QuestionType;
   attendeeNotes?: FoldoutNote[];
   presenterNotes?: FoldoutNote[];
+  slideMedia?: SlideMedia[];
+  slideReferences?: SlideReference[];
   options: QuestionOption[];
   correctOptions: string[];
   allowsMultiple: boolean;
@@ -310,7 +326,7 @@ export interface AccessInfo {
   qrCodeDataUrl: string;
   qrTargetUrl: string;
   presentationUrl?: string;
-  source: "tailscale" | "lan-fallback";
+  source: "public-override" | "tailscale" | "lan-fallback";
   warning?: string;
   detectedAt: number;
 }
