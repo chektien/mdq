@@ -18,7 +18,7 @@ import {
   persistSessionProgressOnReveal,
 } from "./persistence";
 import { buildScoredCorrectAnswersMap, getQuestionType, getScoredQuestionCount } from "./scoring";
-import { getCachedAccessInfo, generateQrDataUrl, generateShortUrl } from "./access-info";
+import { getCachedAccessInfo, generateQrDataUrl, generateShortUrl, type ShortUrlProvider } from "./access-info";
 import {
   INSTRUCTOR_SESSION_COOKIE,
   isInstructorAuthEnabled,
@@ -36,6 +36,7 @@ export interface AppOptions {
   dataDir?: string;
   instanceId?: string;
   theme?: "dark" | "light";
+  shortUrlProviders?: ShortUrlProvider[];
   /** Called after a successful REST-driven state transition */
   onStateChange?: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => void;
 }
@@ -75,6 +76,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   let dataDir: string | undefined;
   let instanceId: string | undefined;
   let theme: "dark" | "light" = "dark";
+  let shortUrlProviders: ShortUrlProvider[] | undefined;
   let onStateChange: AppOptions["onStateChange"];
   if (typeof quizDirOrOpts === "string") {
     quizDir = quizDirOrOpts;
@@ -83,6 +85,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     dataDir = quizDirOrOpts.dataDir;
     instanceId = quizDirOrOpts.instanceId;
     theme = quizDirOrOpts.theme || "dark";
+    shortUrlProviders = quizDirOrOpts.shortUrlProviders;
     onStateChange = quizDirOrOpts.onStateChange;
   }
   const resolvedInstanceId = (instanceId || process.env.MDQ_INSTANCE_ID || "").trim() || `pid-${process.pid}`;
@@ -253,7 +256,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     };
 
     const joinFullUrl = buildJoinUrl(baseInfo.fullUrl, sessionCode);
-    const joinShortUrl = await generateShortUrl(joinFullUrl);
+    const joinShortUrl = await generateShortUrl(joinFullUrl, shortUrlProviders);
     const qrCodeDataUrl = await generateQrDataUrl(joinFullUrl);
 
     return {

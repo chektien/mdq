@@ -10,7 +10,7 @@ import * as os from "os";
 const quizDir = path.join(__dirname, "fixtures/quizzes");
 
 describe("REST API", () => {
-  const app = createApp(quizDir);
+  const app = createApp({ quizDir, shortUrlProviders: [] });
 
   beforeEach(() => {
     clearAllSessions();
@@ -84,7 +84,7 @@ describe("REST API", () => {
 
     it("requires instructor auth for presentation metadata when password is configured", async () => {
       process.env.INSTRUCTOR_PASSWORD = "presentation-secret";
-      const protectedApp = createApp(quizDir);
+      const protectedApp = createApp({ quizDir, shortUrlProviders: [] });
 
       const agent = request.agent(protectedApp);
       await agent
