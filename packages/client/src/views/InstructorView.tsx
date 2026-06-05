@@ -649,7 +649,11 @@ function LiveView({
     onAction(() => endSession(sessionId), "end");
   }, [onAction, sessionId]);
 
-  const liveSurfaceActions: LiveSurfaceAction[] = (() => {
+  const liveSurfaceNavActions: LiveSurfaceAction[] = (() => {
+    if (state === "LEADERBOARD") {
+      return [];
+    }
+
     if (isReviewing && reviewQuestionIndex !== null) {
       return [
         {
@@ -670,6 +674,32 @@ function LiveView({
           },
           disabled: currentReviewListIndex >= availableReviewIndices.length - 1,
         },
+      ];
+    }
+
+    return [
+      {
+        label: "Prev",
+        onClick: () => {
+          if (latestPriorReview !== undefined) {
+            setReviewQuestionIndex(latestPriorReview);
+          }
+        },
+        disabled: latestPriorReview === undefined,
+      },
+      {
+        label: "Next",
+        detail: nextQuestionHeading,
+        onClick: () => onAction(() => nextQuestion(sessionId), "next"),
+        disabled: !canNext || loading,
+        tone: canNext ? "primary" : "neutral",
+      },
+    ];
+  })();
+
+  const liveSurfaceActions: LiveSurfaceAction[] = (() => {
+    if (isReviewing && reviewQuestionIndex !== null) {
+      return [
         {
           label: "Back to Live",
           onClick: () => setReviewQuestionIndex(null),
@@ -707,12 +737,6 @@ function LiveView({
     }
 
     const actions: LiveSurfaceAction[] = [];
-    if (latestPriorReview !== undefined) {
-      actions.push({
-        label: "Prev",
-        onClick: () => setReviewQuestionIndex(latestPriorReview),
-      });
-    }
     if (canClose) {
       actions.push({
         label: "Close Question",
@@ -725,14 +749,6 @@ function LiveView({
       actions.push({
         label: liveRevealActionLabel,
         onClick: () => onAction(() => revealAnswer(sessionId), "reveal"),
-        disabled: loading,
-        tone: "primary",
-      });
-    }
-    if (canNext) {
-      actions.push({
-        label: "Next",
-        onClick: () => onAction(() => nextQuestion(sessionId), "next"),
         disabled: loading,
         tone: "primary",
       });
@@ -999,7 +1015,7 @@ function LiveView({
           <LiveSurface
             mode={isReviewing ? "review" : "projector"}
             surfaceClassName={isSlideDisplay ? undefined : "quiz-surface"}
-            nextLabel={isReviewing || isLeaderboardDisplay ? null : nextQuestionHeading}
+            nextLabel={null}
             qrDataUrl={accessInfo?.qrCodeDataUrl}
             sessionCode={sessionCode}
             participantCount={participantCount}
@@ -1007,6 +1023,7 @@ function LiveView({
             positionLabel={isLeaderboardDisplay ? undefined : displayPositionLabel}
             statusLabel={liveSurfaceStatusLabel}
             statusTone={liveStatusTone}
+            navActions={liveSurfaceNavActions}
             actions={liveSurfaceActions}
           >
             {liveSurfaceContent}
@@ -1079,19 +1096,20 @@ function LiveView({
                 slideMedia={displayQuestion.slideMedia}
                 slideReferences={displayQuestion.slideReferences}
                 positionLabel={displayPositionLabel}
-                nextLabel={isReviewing ? null : nextQuestionHeading}
+                nextLabel={null}
                 qrDataUrl={accessInfo?.qrCodeDataUrl}
                 sessionCode={sessionCode}
                 participantCount={participantCount}
                 presentationUrl={accessInfo?.presentationUrl}
                 statusLabel={slideStatusLabel}
                 statusTone={liveStatusTone}
+                navActions={liveSurfaceNavActions}
                 actions={liveSurfaceActions}
               />
             ) : (
               <LiveSurface
                 surfaceClassName="quiz-surface"
-                nextLabel={isReviewing ? null : nextQuestionHeading}
+                nextLabel={null}
                 qrDataUrl={accessInfo?.qrCodeDataUrl}
                 sessionCode={sessionCode}
                 participantCount={participantCount}
@@ -1099,6 +1117,7 @@ function LiveView({
                 positionLabel={displayPositionLabel}
                 statusLabel={quizStatusLabel}
                 statusTone={liveStatusTone}
+                navActions={liveSurfaceNavActions}
                 actions={liveSurfaceActions}
               >
                 <div className="quiz-surface-content">
@@ -1179,7 +1198,7 @@ function LiveView({
         {displayReveal && (((state === "REVEAL" && displayQuestion && !isReviewing) || (isReviewing && displayQuestion))) && (
           <LiveSurface
             surfaceClassName="quiz-surface"
-            nextLabel={isReviewing ? null : nextQuestionHeading}
+            nextLabel={null}
             qrDataUrl={accessInfo?.qrCodeDataUrl}
             sessionCode={sessionCode}
             participantCount={participantCount}
@@ -1187,6 +1206,7 @@ function LiveView({
             positionLabel={displayPositionLabel}
             statusLabel={quizStatusLabel}
             statusTone={liveStatusTone}
+            navActions={liveSurfaceNavActions}
             actions={liveSurfaceActions}
           >
             <div className="quiz-surface-content quiz-surface-content-reveal">
@@ -1275,6 +1295,7 @@ function LiveView({
             participantCount={participantCount}
             presentationUrl={accessInfo?.presentationUrl}
             statusLabel={quizLabel ? `Leaderboard for ${quizLabel.toUpperCase()}` : "Leaderboard"}
+            navActions={liveSurfaceNavActions}
             actions={liveSurfaceActions}
           >
             <div className="quiz-surface-content">

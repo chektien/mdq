@@ -29,6 +29,7 @@ interface SlideContentProps extends SlideContentBodyProps {
   showFullscreenButton?: boolean;
   statusLabel?: string | null;
   statusTone?: "neutral" | "success" | "warning";
+  navActions?: LiveSurfaceAction[];
   actions?: LiveSurfaceAction[];
 }
 
@@ -136,6 +137,7 @@ export default function SlideContent({
   statusLabel,
   statusTone,
   chromeLabel = null,
+  navActions = [],
   actions = [],
 }: SlideContentProps) {
   return (
@@ -150,6 +152,7 @@ export default function SlideContent({
       showFullscreenButton={showFullscreenButton}
       statusLabel={statusLabel}
       statusTone={statusTone}
+      navActions={navActions}
       actions={actions}
     >
       <SlideContentBody

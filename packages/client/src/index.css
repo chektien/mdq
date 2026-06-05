@@ -489,20 +489,30 @@ html[data-theme="light"] .slide-surface::after {
   position: absolute;
   top: clamp(1.2rem, 2.4cqi, 2.6rem);
   right: clamp(1.2rem, 3.2cqi, 3.5rem);
-  left: clamp(2.4rem, 7.2cqi, 7.8rem);
+  left: clamp(1.2rem, 3.2cqi, 3.5rem);
   z-index: 3;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
   gap: 1rem;
   pointer-events: none;
+}
+
+.slide-toolbar-nav {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  justify-self: start;
+  gap: 0.45rem;
+  pointer-events: auto;
 }
 
 .slide-toolbar-stack {
   display: flex;
   min-width: 0;
-  max-width: min(58rem, 52%);
+  max-width: min(46rem, 38cqi);
   align-items: center;
+  justify-self: start;
   gap: 0.5rem;
 }
 
@@ -532,6 +542,10 @@ html[data-theme="light"] .slide-surface::after {
 
 .slide-action-button {
   flex: 0 0 auto;
+  display: inline-flex;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: center;
   padding: 0.68rem 0.78rem;
   color: var(--mdq-slide-ink);
   font-size: 0.72rem;
@@ -542,6 +556,37 @@ html[data-theme="light"] .slide-surface::after {
   white-space: nowrap;
 }
 
+.slide-button-label,
+.slide-button-detail {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slide-button-detail {
+  color: var(--mdq-slide-ink-soft);
+  font-size: clamp(0.74rem, 0.95cqi, 0.9rem);
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.15;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.slide-nav-button {
+  min-width: 4.5rem;
+}
+
+.slide-nav-button.slide-action-button-with-detail {
+  min-width: min(20rem, 28cqi);
+  max-width: min(30rem, 34cqi);
+  align-items: flex-start;
+  flex-direction: column;
+  padding: 0.58rem 0.82rem;
+  text-align: left;
+}
+
 .slide-action-button:hover:not(:disabled) {
   background: var(--mdq-slide-glass-strong);
 }
@@ -549,6 +594,10 @@ html[data-theme="light"] .slide-surface::after {
 .slide-action-button:disabled {
   cursor: not-allowed;
   opacity: 0.42;
+}
+
+.slide-nav-button:disabled {
+  opacity: 0.62;
 }
 
 .slide-action-button-primary {
@@ -1186,19 +1235,28 @@ html[data-theme="light"] .slide-surface::after {
   .slide-toolbar {
     top: 1rem;
     right: 1rem;
-    left: 1.65rem;
-    align-items: center;
-    flex-direction: row;
+    left: 1rem;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .slide-toolbar-nav {
+    display: grid;
+    grid-template-columns: minmax(4.5rem, 0.42fr) minmax(0, 1fr);
+    width: 100%;
   }
 
   .slide-toolbar-stack {
     flex-wrap: wrap;
     max-width: 100%;
     gap: 0.38rem;
+    justify-self: stretch;
   }
 
   .slide-toolbar-actions {
     max-width: none;
+    justify-content: flex-start;
+    justify-self: stretch;
   }
 
   .slide-action-button,
@@ -1209,6 +1267,12 @@ html[data-theme="light"] .slide-surface::after {
 
   .slide-next-up {
     max-width: 100%;
+  }
+
+  .slide-nav-button.slide-action-button-with-detail {
+    max-width: none;
+    min-width: 0;
+    width: 100%;
   }
 
   .slide-status-pill {
@@ -1318,20 +1382,31 @@ html[data-theme="light"] .slide-surface::after {
   }
 
   .slide-live-shell-controls .slide-safe {
-    padding-bottom: 1rem;
+    padding: 1rem 1rem 1rem 1.2rem;
+  }
+
+  .quiz-surface .slide-safe {
+    justify-content: flex-start;
   }
 
   .slide-toolbar {
     position: static;
     inset: auto;
     align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.55rem;
+  }
+
+  .slide-toolbar-nav {
+    display: grid;
+    grid-template-columns: minmax(4.5rem, 0.42fr) minmax(0, 1fr);
+    width: 100%;
   }
 
   .slide-toolbar-stack,
   .slide-toolbar-actions {
     max-width: 100%;
+    justify-self: stretch;
   }
 
   .slide-toolbar-actions {
@@ -1339,6 +1414,12 @@ html[data-theme="light"] .slide-surface::after {
   }
 
   .slide-next-up {
+    width: 100%;
+  }
+
+  .slide-nav-button.slide-action-button-with-detail {
+    max-width: none;
+    min-width: 0;
     width: 100%;
   }
 
