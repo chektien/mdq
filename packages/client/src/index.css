@@ -1153,6 +1153,11 @@ html[data-theme="light"] .slide-surface::after {
   color: var(--mdq-slide-ink-soft);
 }
 
+.quiz-surface .quiz-surface-content > .quiz-html img {
+  margin-right: auto;
+  margin-left: auto;
+}
+
 .slide-page-error,
 .slide-page-notice {
   position: fixed;
