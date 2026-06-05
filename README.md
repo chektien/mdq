@@ -51,6 +51,7 @@ The `data/` folder is intentionally ignored so local state and access info do no
 MDQ is optimized for a narrow classroom usage scenario:
 - markdown-first teaching material that can mix short explanation slides, proportionally scaled images, small references, and live quiz prompts
 - quiz-centered presentation sessions where interaction is the main pedagogical event
+- a stable instructor live surface with fixed Prev/Next controls, fullscreen support, review mode, and guarded session ending
 - This project is intentionally built with tight operational integration around Tailscale (secure tunnel/Funnel) and is.gd (short links in instructor flow).
 - The core MDQ logic does not depend on those specific vendors, so you can adapt the same flow to other tunnel providers and URL shorteners if your environment prefers different services.
 - short, synchronous quiz sessions
@@ -178,7 +179,16 @@ Tip for classroom privacy and mobility: present from iPad, add MDQ to your iPad 
 
 **For classroom security:** Keep your Tailscale Funnel URL private. The security boundary is your private network (Tailscale) plus operational secrecy (don't share the instructor route with students).
 
-While a quiz is running, the instructor screen also shows a `Next up` card with the next question's markdown heading. Use that as your cue in the lectorial slides before you tap `Next Question`.
+### 2) instructor live surface controls
+
+- The quiz chooser shows each deck summary as separate quiz question and slide counts, for example `(22 questions, 17 slides)`.
+- The live surface uses the HMD-simulator-inspired dark theme by default: deep background, restrained purple accents, rounded controls, and clean dot bullets.
+- `Prev` and `Next` stay pinned together near the top-left of the live surface so their click targets do not drift when other controls appear or disappear.
+- In live mode, `Next` includes the next item's markdown heading inside the button. In review mode, `Next` stays a plain button.
+- `End Session` remains available from the live controls and opens a confirmation dialog before closing the room. The dialog shows how many quiz questions and slides are left.
+- The fullscreen control appears when the browser supports the Fullscreen API, letting the instructor/projector surface fill the display without browser chrome.
+- Review mode lets the instructor step through previous slides/questions without moving students, then return to the current live item with `Back to Live`.
+- On narrow screens, the same controls stack from the top-left so phone and iPad use keeps the same visual order.
 
 ### 3) student join flow (share this one)
 
@@ -282,7 +292,7 @@ Rules:
 - Add standard markdown images to slide bodies when you want MDQ to arrange media beside the text. Images are scaled proportionately and never cropped or stretched.
 - Add slide references with blockquote labels such as `> Reference:` or `> Image Source:`. References render as small, grey, right-aligned footer text and links.
 - Do not combine `multi_select: false` with multiple correct answers.
-- The instructor `Next up` preview uses the existing `## ...` question heading, including both sides of `Topic: Subtopic` when present.
+- The instructor live `Next` button preview uses the existing `## ...` item heading, including both sides of `Topic: Subtopic` when present.
 
 Slide example:
 
@@ -314,6 +324,7 @@ Slide images and references:
 - For `type: slide`, ordinary markdown image lines are extracted into a structured media area instead of staying inline with the body copy.
 - One to three images are the intended sweet spot. MDQ automatically chooses a balanced layout beside the text on wide screens and stacks the media cleanly on narrow screens.
 - Image aspect ratios are preserved. MDQ only scales images within available width and height constraints, so portrait assets such as iPhone screenshots stay portrait.
+- Slide images and quiz prompt images are expandable. Click or tap an image to open a responsive overlay; close it with the close control, backdrop, or `Escape`.
 - Use the optional markdown image title for a figure caption: `![Alt text](../images/file.png "Visible caption")`.
 - Supported reference labels are `Reference`, `References`, `Source`, `Sources`, `Image Source`, `Image Sources`, `Image Credit`, `Image Credits`, `Credit`, and `Credits`.
 - Reference values may include markdown links and are rendered in the bottom-right of the slide surface.
@@ -362,6 +373,7 @@ C. The HDMI adapter
 - MDQ rewrites that quiz-relative path to `/data/images/...` when rendering, so the same markdown works cleanly in the live frontend.
 - In quiz stems and option text, images stay inline with the prompt content. In slide bodies, images move into the slide media layout.
 - MDQ preserves the source image aspect ratio in all quiz and slide surfaces.
+- Images are keyboard-accessible expansion targets when rendered in quiz or slide surfaces.
 
 ## iPad usage and troubleshooting (optional)
 
@@ -430,7 +442,7 @@ Design notes:
 
 ## Media Scope
 
-Image attachments are supported for quiz stems, option text, and slide bodies through standard markdown syntax. Slide images are automatically arranged into a media layout and keep their original aspect ratio while scaling to fit.
+Image attachments are supported for quiz stems, option text, and slide bodies through standard markdown syntax. Slide images are automatically arranged into a media layout and keep their original aspect ratio while scaling to fit. Rendered quiz and slide images can be expanded into an overlay for closer inspection without changing their aspect ratio.
 
 Embedded video is still out of scope for now. Keep video context in slides or a separate instructor-controlled window while mdq handles the prompt, options, explanations, and scoring.
 
