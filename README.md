@@ -267,7 +267,7 @@ Export a full MDQ markdown deck as a clean PDF packet from the CLI:
 npm run print:pdf -- data/quizzes/week00.md --out exports/week00.pdf
 ```
 
-The exporter builds the shared/server packages, parses the same markdown used by live sessions, renders a print-specific HTML view in Chromium, then writes a mostly vector PDF with crisp text and proportionally scaled images.
+The exporter builds the shared/server packages, parses the same markdown used by live sessions, renders a print-specific HTML view in Chromium, then writes a mostly vector PDF with crisp text and proportionally scaled images. Dark mode is the default so exported decks keep the original MDQ/HMD-simulator color direction; use `--theme light` when you want a conventional ink-friendly handout.
 
 Run this once on a fresh machine if Chromium has not been installed for Playwright yet:
 
@@ -281,14 +281,15 @@ Options:
 - `--foldouts` includes attendee and presenter fold-out notes expanded. This is the default and is useful for instructor packets.
 - `--no-foldouts` hides fold-out notes for a cleaner student handout.
 - `--page-size A4|Letter` chooses the print page size. A4 is the default.
+- `--theme dark|light` chooses the PDF color theme. Dark is the default and recommended for SA2026-style submission packets.
 - `--title <title>` overrides the cover title.
 - `--html <file>` also writes the generated print HTML for visual debugging.
 
 Examples:
 
 ```bash
-npm run print:pdf -- data/quizzes/week12.md --no-foldouts
-npm run print:pdf -- data/quizzes/week12.md --page-size Letter --out exports/week12-letter.pdf
+npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --no-foldouts
+npm run print:pdf -- data/quizzes/week12.md --theme light --page-size Letter --out exports/week12-letter.pdf
 ```
 
 PDF images keep their source aspect ratio. MDQ only scales images down to fit the print layout, so portrait screenshots and wide diagrams are not stretched, cropped, or reframed.

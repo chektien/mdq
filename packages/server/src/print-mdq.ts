@@ -5,12 +5,15 @@ import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
 
+type PrintTheme = "dark" | "light";
+
 interface PrintOptions {
   inputFile: string;
   outputFile: string;
   imagesDir: string;
   includeFoldouts: boolean;
   pageSize: "A4" | "Letter";
+  theme: PrintTheme;
   title?: string;
   htmlOut?: string;
 }
@@ -48,13 +51,14 @@ Options:
   --foldouts           Include attendee and presenter fold-out notes expanded. Default.
   --no-foldouts        Hide fold-out notes for a clean handout.
   --page-size <size>   A4 or Letter. Default: A4.
+  --theme <theme>      dark or light. Default: dark.
   --title <title>      Override the PDF cover title.
   --html <file>        Also write the generated print HTML for debugging.
   -h, --help           Show this help.
 
 Examples:
-  npm run print:pdf -- data/quizzes/week00.md --out exports/week00.pdf
-  npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --no-foldouts --page-size Letter
+  npm run print:pdf -- data/quizzes/week00.md --theme light --out exports/week00.pdf
+  npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --no-foldouts --page-size Letter
 `;
 }
 
@@ -72,6 +76,7 @@ function parseArgs(argv: string[]): CliResult {
   let imagesDir = path.resolve("data/images");
   let includeFoldouts = true;
   let pageSize: PrintOptions["pageSize"] = "A4";
+  let theme: PrintTheme = "dark";
   let title: string | undefined;
   let htmlOut: string | undefined;
 
@@ -86,6 +91,7 @@ function parseArgs(argv: string[]): CliResult {
           imagesDir,
           includeFoldouts,
           pageSize,
+          theme,
         },
       };
     }
@@ -114,6 +120,16 @@ function parseArgs(argv: string[]): CliResult {
         throw new Error(`Unsupported page size "${value}". Use A4 or Letter.`);
       }
       pageSize = normalized === "a4" ? "A4" : "Letter";
+      i++;
+      continue;
+    }
+    if (arg === "--theme") {
+      const value = readValue(argv, i, arg);
+      const normalized = value.toLowerCase();
+      if (normalized !== "dark" && normalized !== "light") {
+        throw new Error(`Unsupported theme "${value}". Use dark or light.`);
+      }
+      theme = normalized;
       i++;
       continue;
     }
@@ -153,6 +169,7 @@ function parseArgs(argv: string[]): CliResult {
       imagesDir,
       includeFoldouts,
       pageSize,
+      theme,
       title,
       htmlOut: htmlOut ? path.resolve(htmlOut) : undefined,
     },
@@ -420,29 +437,74 @@ function renderToc(quiz: Quiz): string {
   `;
 }
 
-function renderStyles(pageSize: PrintOptions["pageSize"]): string {
-  const pageRule = pageSize === "Letter" ? "size: Letter;" : "size: A4;";
-  return `
-    :root {
+function renderThemeTokens(theme: PrintTheme): string {
+  if (theme === "light") {
+    return `
+      --page-bg: #ffffff;
       --ink: #17151d;
+      --body: #292532;
       --muted: #615c6b;
       --line: #d9d2e4;
       --soft-line: #eee9f5;
       --paper: #ffffff;
       --wash: #f7f4fb;
+      --option-bg: #ffffff;
+      --media-bg: #fbfafd;
       --accent: #7a3fe0;
       --accent-soft: #efe8ff;
       --teal: #0d827b;
+      --teal-line: rgba(13, 130, 123, 0.35);
       --teal-soft: #e5f5f3;
       --amber: #9a6618;
+      --amber-line: rgba(154, 102, 24, 0.38);
       --amber-soft: #fff2d8;
       --green: #0f7a42;
+      --green-line: rgba(15, 122, 66, 0.45);
       --green-soft: #e7f6ed;
+      --reference: #8a8493;
+      --shadow: rgba(23, 21, 29, 0.04);
+    `;
+  }
+
+  return `
+      --page-bg: #242423;
+      --ink: #f6f0ff;
+      --body: #eee7f7;
+      --muted: #b9aeca;
+      --line: rgba(181, 111, 255, 0.46);
+      --soft-line: rgba(181, 111, 255, 0.23);
+      --paper: #2b292f;
+      --wash: #343038;
+      --option-bg: #302d34;
+      --media-bg: #252429;
+      --accent: #b56cff;
+      --accent-soft: rgba(181, 108, 255, 0.18);
+      --teal: #70ddd3;
+      --teal-line: rgba(112, 221, 211, 0.42);
+      --teal-soft: rgba(57, 171, 164, 0.2);
+      --amber: #f2bd73;
+      --amber-line: rgba(242, 189, 115, 0.42);
+      --amber-soft: rgba(242, 189, 115, 0.18);
+      --green: #78d99b;
+      --green-line: rgba(120, 217, 155, 0.46);
+      --green-soft: rgba(72, 176, 105, 0.2);
+      --reference: #a69daf;
+      --shadow: rgba(0, 0, 0, 0.18);
+    `;
+}
+
+function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): string {
+  const pageRule = pageSize === "Letter" ? "size: Letter;" : "size: A4;";
+  const pageBackground = theme === "dark" ? "#242423" : "#ffffff";
+  return `
+    :root {
+      ${renderThemeTokens(theme)}
     }
 
     @page {
       ${pageRule}
       margin: 14mm 14mm 16mm;
+      background: ${pageBackground};
     }
 
     * {
@@ -451,7 +513,7 @@ function renderStyles(pageSize: PrintOptions["pageSize"]): string {
 
     body {
       margin: 0;
-      background: var(--paper);
+      background: var(--page-bg);
       color: var(--ink);
       font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 10.6pt;
@@ -599,7 +661,7 @@ function renderStyles(pageSize: PrintOptions["pageSize"]): string {
       margin: 0 0 6mm;
       padding: 6mm;
       break-inside: avoid-page;
-      box-shadow: 0 0.6mm 0 rgba(23, 21, 29, 0.04);
+      box-shadow: 0 0.6mm 0 var(--shadow);
     }
 
     .item-header {
@@ -631,7 +693,7 @@ function renderStyles(pageSize: PrintOptions["pageSize"]): string {
 
     .body-copy {
       min-width: 0;
-      color: #292532;
+      color: var(--body);
       font-size: 11.2pt;
     }
 
@@ -683,7 +745,7 @@ function renderStyles(pageSize: PrintOptions["pageSize"]): string {
       padding: 2.2mm;
       border: 1px solid var(--soft-line);
       border-radius: 6px;
-      background: #fbfafd;
+      background: var(--media-bg);
       break-inside: avoid;
     }
 
@@ -713,7 +775,7 @@ function renderStyles(pageSize: PrintOptions["pageSize"]): string {
       margin: 3mm auto;
       border: 1px solid var(--soft-line);
       border-radius: 6px;
-      background: #fbfafd;
+      background: var(--media-bg);
       padding: 2mm;
     }
 
@@ -733,12 +795,12 @@ function renderStyles(pageSize: PrintOptions["pageSize"]): string {
       align-items: start;
       min-height: 10mm;
       padding: 2.8mm 3mm;
-      background: #fff;
+      background: var(--option-bg);
       break-inside: avoid;
     }
 
     .option-correct {
-      border-color: rgba(15, 122, 66, 0.45);
+      border-color: var(--green-line);
       background: var(--green-soft);
     }
 
@@ -788,7 +850,7 @@ function renderStyles(pageSize: PrintOptions["pageSize"]): string {
       gap: 2mm;
       align-items: baseline;
       padding: 2.8mm 3.2mm;
-      border-color: rgba(15, 122, 66, 0.45);
+      border-color: var(--green-line);
       background: var(--green-soft);
       color: var(--green);
       break-inside: avoid;
@@ -802,7 +864,7 @@ function renderStyles(pageSize: PrintOptions["pageSize"]): string {
 
     .explanation {
       padding: 3mm 3.2mm;
-      border-color: rgba(13, 130, 123, 0.35);
+      border-color: var(--teal-line);
       background: var(--teal-soft);
       break-inside: avoid;
     }
@@ -822,12 +884,12 @@ function renderStyles(pageSize: PrintOptions["pageSize"]): string {
     }
 
     .note-attendee {
-      border-color: rgba(13, 130, 123, 0.38);
+      border-color: var(--teal-line);
       background: var(--teal-soft);
     }
 
     .note-presenter {
-      border-color: rgba(154, 102, 24, 0.38);
+      border-color: var(--amber-line);
       background: var(--amber-soft);
     }
 
@@ -842,7 +904,7 @@ function renderStyles(pageSize: PrintOptions["pageSize"]): string {
     .references {
       padding-top: 2mm;
       border-top: 1px solid var(--soft-line);
-      color: #8a8493;
+      color: var(--reference);
       font-size: 7.6pt;
       font-weight: 600;
       letter-spacing: 0;
@@ -879,7 +941,7 @@ function buildHtml(quiz: Quiz, options: PrintOptions): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
-  <style>${renderStyles(options.pageSize)}</style>
+  <style>${renderStyles(options.pageSize, options.theme)}</style>
 </head>
 <body>
   <main>
@@ -890,6 +952,7 @@ function buildHtml(quiz: Quiz, options: PrintOptions): string {
         <ul class="cover-meta">
           <li>${escapeHtml(sourceLabel)}</li>
           <li>${options.includeFoldouts ? "Fold-outs expanded" : "Fold-outs hidden"}</li>
+          <li>${options.theme === "dark" ? "Dark theme" : "Light theme"}</li>
           <li>${escapeHtml(options.pageSize)}</li>
           <li>Generated ${escapeHtml(generatedAt)}</li>
         </ul>
