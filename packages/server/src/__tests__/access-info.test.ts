@@ -22,6 +22,7 @@ const mockExecSync = execSync as jest.MockedFunction<typeof execSync>;
 beforeEach(() => {
   mockExecSync.mockReset();
   setCachedAccessInfo(null);
+  delete process.env.MDQ_PUBLIC_URL;
 });
 
 describe("detectTailscaleUrl", () => {
@@ -215,6 +216,25 @@ describe("generateQrDataUrl", () => {
 });
 
 describe("detectAccessInfo", () => {
+  it("uses MDQ_PUBLIC_URL when configured", async () => {
+    process.env.MDQ_PUBLIC_URL = "https://mdq.ch3k.com/";
+    mockExecSync.mockReturnValue(
+      JSON.stringify({ Self: { DNSName: "quiz-host.tailnet.ts.net." } }),
+    );
+
+    const mockProvider: ShortUrlProvider = {
+      name: "mock",
+      generate: async () => "https://short.url/mdq",
+    };
+
+    const info = await detectAccessInfo(3000, [mockProvider]);
+    expect(info.source).toBe("public-override");
+    expect(info.fullUrl).toBe("https://mdq.ch3k.com");
+    expect(info.shortUrl).toBe("https://short.url/mdq");
+    expect(info.qrTargetUrl).toBe("https://mdq.ch3k.com");
+    expect(info.warning).toBeUndefined();
+  });
+
   it("returns tailscale source when tailscale is available", async () => {
     mockExecSync.mockReturnValue(
       JSON.stringify({ Self: { DNSName: "quiz-host.tailnet.ts.net." } }),

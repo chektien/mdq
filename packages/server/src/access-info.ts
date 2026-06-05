@@ -40,6 +40,21 @@ export function detectTailscaleUrl(): string | null {
   }
 }
 
+function normalizePublicUrl(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    url.hash = "";
+    url.search = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
 // ── Short URL generation ────────────────────
 
 export interface ShortUrlProvider {
@@ -148,14 +163,19 @@ export async function detectAccessInfo(
   port: number,
   shortUrlProviders?: ShortUrlProvider[],
 ): Promise<AccessInfo> {
+  const publicOverrideUrl = normalizePublicUrl(process.env.MDQ_PUBLIC_URL);
+
   // Try Tailscale first
   const tailscaleUrl = detectTailscaleUrl();
 
   let fullUrl: string;
-  let source: "tailscale" | "lan-fallback";
+  let source: AccessInfo["source"];
   let warning: string | undefined;
 
-  if (tailscaleUrl) {
+  if (publicOverrideUrl) {
+    fullUrl = publicOverrideUrl;
+    source = "public-override";
+  } else if (tailscaleUrl) {
     fullUrl = tailscaleUrl;
     source = "tailscale";
   } else {

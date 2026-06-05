@@ -215,6 +215,8 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
             title={currentHeading || currentQuestion.topic}
             html={currentQuestion.text}
             attendeeNotes={currentQuestion.attendeeNotes}
+            slideMedia={currentQuestion.slideMedia}
+            slideReferences={currentQuestion.slideReferences}
           />
         );
       }
@@ -262,7 +264,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                         <span className={`flex h-9 w-9 shrink-0 items-center justify-center bg-zinc-700 text-lg font-bold text-zinc-300 ${currentQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
                           {option.label}
                         </span>
-                        <QuizHtml className="quiz-html text-lg text-zinc-200 flex-1" html={option.text} as="span" />
+                        <QuizHtml className="quiz-html text-left text-lg text-zinc-200 flex-1" html={option.text} as="span" />
                         {dist && count > 0 && (
                           <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
                             {count} ({pctOfTotal}%)
@@ -335,7 +337,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                         <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-sm font-bold ${markerClass}`}>
                           {option.label}
                         </span>
-                        <QuizHtml className={`quiz-html pt-0.5 flex-1 ${textClass}`} html={option.text} as="span" />
+                        <QuizHtml className={`quiz-html text-left pt-0.5 flex-1 ${textClass}`} html={option.text} as="span" />
                         {count > 0 && (
                           <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !reveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
                             {count} ({pctOfTotal}%)
@@ -434,6 +436,8 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                 title={currentHeading || currentQuestion.topic}
                 html={currentQuestion.text}
                 attendeeNotes={currentQuestion.attendeeNotes}
+                slideMedia={currentQuestion.slideMedia}
+                slideReferences={currentQuestion.slideReferences}
                 positionLabel={positionLabel}
                 nextLabel={nextHeading}
                 qrDataUrl={accessInfo?.qrCodeDataUrl}
@@ -492,7 +496,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center bg-zinc-700 text-lg font-bold text-zinc-300 ${currentQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
                                   {option.label}
                                 </span>
-                                <QuizHtml className="quiz-html text-lg text-zinc-200 flex-1" html={option.text} as="span" />
+                                <QuizHtml className="quiz-html text-left text-lg text-zinc-200 flex-1" html={option.text} as="span" />
                                 {dist && count > 0 && (
                                   <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
                                     {count} ({pctOfTotal}%)
@@ -575,7 +579,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-sm font-bold ${markerClass}`}>
                               {option.label}
                             </span>
-                            <QuizHtml className={`quiz-html pt-0.5 flex-1 ${textClass}`} html={option.text} as="span" />
+                            <QuizHtml className={`quiz-html text-left pt-0.5 flex-1 ${textClass}`} html={option.text} as="span" />
                             {count > 0 && (
                               <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !reveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
                                 {count} ({pctOfTotal}%)

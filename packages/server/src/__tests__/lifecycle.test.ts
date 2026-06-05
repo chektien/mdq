@@ -10,7 +10,7 @@ import * as os from "os";
 const quizDir = path.join(__dirname, "fixtures/quizzes");
 
 describe("REST API", () => {
-  const app = createApp(quizDir);
+  const app = createApp({ quizDir, shortUrlProviders: [] });
 
   beforeEach(() => {
     clearAllSessions();
@@ -84,7 +84,7 @@ describe("REST API", () => {
 
     it("requires instructor auth for presentation metadata when password is configured", async () => {
       process.env.INSTRUCTOR_PASSWORD = "presentation-secret";
-      const protectedApp = createApp(quizDir);
+      const protectedApp = createApp({ quizDir, shortUrlProviders: [] });
 
       const agent = request.agent(protectedApp);
       await agent
@@ -142,6 +142,52 @@ describe("REST API", () => {
       const w1 = res.body.find((q: { week: string }) => q.week === "week01");
       expect(w1).toBeDefined();
       expect(w1.questionCount).toBe(3);
+      expect(w1.liveQuestionCount).toBe(3);
+      expect(w1.slideCount).toBe(0);
+    });
+
+    it("separates quiz questions from slides in quiz summaries", async () => {
+      const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-quiz-summary-"));
+      fs.writeFileSync(
+        path.join(tempQuizDir, "week99-mixed.md"),
+        `# Mixed Fixture Quiz
+
+---
+
+## Orientation Slide
+
+type: slide
+
+- First, orient the room.
+
+---
+
+## Live Check
+
+**Which item is interactive?**
+
+A. This answer
+B. The slide
+
+> Correct Answer: A
+> Overall Feedback: This is the live question.
+`,
+        "utf-8",
+      );
+
+      const mixedApp = createApp(tempQuizDir);
+
+      try {
+        const res = await request(mixedApp).get("/api/quizzes");
+        expect(res.status).toBe(200);
+        const summary = res.body.find((q: { week: string }) => q.week === "week99-mixed");
+        expect(summary).toBeDefined();
+        expect(summary.questionCount).toBe(2);
+        expect(summary.liveQuestionCount).toBe(1);
+        expect(summary.slideCount).toBe(1);
+      } finally {
+        fs.rmSync(tempQuizDir, { recursive: true, force: true });
+      }
     });
 
     it("loads week and lab variant quizzes as distinct keys", async () => {
@@ -334,6 +380,11 @@ Name the file to edit.
         "Intro: Defaults",
         "Intro: Multi-select",
       ]);
+      expect(res.body.questionSummaries).toEqual([
+        { heading: "Intro: Definitions", questionType: "multiple_choice" },
+        { heading: "Intro: Defaults", questionType: "multiple_choice" },
+        { heading: "Intro: Multi-select", questionType: "multiple_choice" },
+      ]);
     });
 
     it("rejects session creation without week", async () => {
@@ -425,6 +476,17 @@ Name the file to edit.
       res = await request(app).post(`/api/session/${sessionId}/close`);
       res = await request(app).post(`/api/session/${sessionId}/reveal`);
       res = await request(app).post(`/api/session/${sessionId}/end`);
+      expect(res.body.state).toBe("ENDED");
+    });
+
+    it("allows ending directly from a closed question", async () => {
+      await request(app).post(`/api/session/${sessionId}/start`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+
+      const res = await request(app)
+        .post(`/api/session/${sessionId}/end`)
+        .expect(200);
+
       expect(res.body.state).toBe("ENDED");
     });
 
@@ -587,6 +649,11 @@ Name the file to edit.
         "Intro: Defaults",
         "Intro: Multi-select",
       ]);
+      expect(res.body.questionSummaries).toEqual([
+        { heading: "Intro: Definitions", questionType: "multiple_choice" },
+        { heading: "Intro: Defaults", questionType: "multiple_choice" },
+        { heading: "Intro: Multi-select", questionType: "multiple_choice" },
+      ]);
       expect(res.body.accessInfo.fullUrl).toBe(`http://quiz-host.local:3001/join/${createRes.body.sessionCode}`);
       expect(res.body.accessInfo.presentationUrl).toBe(`http://quiz-host.local:3001/#/present/${createRes.body.sessionId}`);
     });
@@ -606,6 +673,11 @@ Name the file to edit.
         "Intro: Definitions",
         "Intro: Defaults",
         "Intro: Multi-select",
+      ]);
+      expect(res.body.questionSummaries).toEqual([
+        { heading: "Intro: Definitions", questionType: "multiple_choice" },
+        { heading: "Intro: Defaults", questionType: "multiple_choice" },
+        { heading: "Intro: Multi-select", questionType: "multiple_choice" },
       ]);
     });
 

@@ -209,7 +209,11 @@ async function onListening(): Promise<void> {
       console.warn(`Warning: ${info.warning}`);
     }
 
-    if (info.source === "tailscale") {
+    if (info.source === "public-override") {
+      console.log(
+        `[mdq readiness] public_url_override=true bound_port=${boundPort} public_url=${info.fullUrl}`,
+      );
+    } else if (info.source === "tailscale") {
       const readiness = inspectFunnelReadiness(info.fullUrl, boundPort);
       console.log(
         `[mdq readiness] funnel_ready=${readiness.ready} reason=${readiness.reason} bound_port=${boundPort} public_url=${info.fullUrl}`,

@@ -489,6 +489,8 @@ function QuestionView({
           title={question.topic}
           html={question.text}
           attendeeNotes={question.attendeeNotes}
+          slideMedia={question.slideMedia}
+          slideReferences={question.slideReferences}
           positionLabel={`${question.questionIndex + 1}`}
           mode="student"
           statusLabel="The instructor will advance shortly"

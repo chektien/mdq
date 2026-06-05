@@ -15,9 +15,10 @@ import {
   fetchSessionAccessInfo,
   fetchSessionStateForRestore,
   type QuizSummary,
+  type QuestionSummary,
   type CreateSessionResponse,
 } from "../hooks/api";
-import type { AccessInfo, SessionState } from "@mdq/shared";
+import type { AccessInfo, QuestionType, SessionState } from "@mdq/shared";
 import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
 import OpenResponseList from "../components/OpenResponseList";
@@ -49,6 +50,28 @@ function formatPositionLabel(questionIndex: number, totalQuestions: number): str
   return totalQuestions > 0 ? `${questionIndex + 1}/${totalQuestions}` : `${questionIndex + 1}`;
 }
 
+function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function formatQuizChooserSummary(quiz: QuizSummary): string {
+  const slideCount = quiz.slideCount ?? 0;
+  const liveQuestionCount = quiz.liveQuestionCount ?? Math.max(quiz.questionCount - slideCount, 0);
+  const parts = [pluralize(liveQuestionCount, "question")];
+  if (slideCount > 0) {
+    parts.push(pluralize(slideCount, "slide"));
+  }
+  return parts.join(", ");
+}
+
+function formatQuizChooserTitle(quiz: QuizSummary): string {
+  const titleWithoutLegacyCount = quiz.title.replace(
+    /\s*\(\s*\d+\s+(?:questions?|slides?)(?:\s*\+\s*\d+\s+(?:questions?|slides?))*\s*\)\s*$/i,
+    "",
+  );
+  return `${titleWithoutLegacyCount} (${formatQuizChooserSummary(quiz)})`;
+}
+
 function clearInstructorRestore(): void {
   try {
     sessionStorage.removeItem(INSTRUCTOR_RESTORE_KEY);
@@ -78,6 +101,7 @@ export default function InstructorView() {
   const [phase, setPhase] = useState<InstructorPhase>("setup");
   const [totalQuestionsInQuiz, setTotalQuestionsInQuiz] = useState(0);
   const [questionHeadings, setQuestionHeadings] = useState<string[]>([]);
+  const [questionSummaries, setQuestionSummaries] = useState<QuestionSummary[]>([]);
   const [quizLabel, setQuizLabel] = useState("");
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
   const restoreAttemptedRef = useRef(false);
@@ -133,12 +157,14 @@ export default function InstructorView() {
           sessionCode: snapshot.sessionCode,
           joinUrl: `/join/${snapshot.sessionCode}`,
           questionHeadings: snapshot.questionHeadings || [],
+          questionSummaries: snapshot.questionSummaries || [],
         };
 
         setSessionInfo(restoredInfo);
         setSelectedWeek(snapshot.week);
         setTotalQuestionsInQuiz(snapshot.questionCount);
         setQuestionHeadings(snapshot.questionHeadings || []);
+        setQuestionSummaries(snapshot.questionSummaries || []);
         setQuizLabel(formatQuizLabel(snapshot.week));
 
         if (snapshot.state === "LOBBY") {
@@ -199,6 +225,7 @@ export default function InstructorView() {
       const quiz = quizzes.find((q) => q.week === selectedWeek);
       if (quiz) setTotalQuestionsInQuiz(quiz.questionCount);
       setQuestionHeadings(info.questionHeadings || []);
+      setQuestionSummaries(info.questionSummaries || []);
       setQuizLabel(formatQuizLabel(quiz?.week || selectedWeek));
       setRestoreNotice(null);
       setPhase("lobby");
@@ -258,6 +285,7 @@ export default function InstructorView() {
     setAccessInfo(null);
     setTotalQuestionsInQuiz(0);
     setQuestionHeadings([]);
+    setQuestionSummaries([]);
     setQuizLabel("");
     setRestoreNotice(null);
     setErrorMsg(null);
@@ -301,7 +329,7 @@ export default function InstructorView() {
               >
                 {quizzes.map((q) => (
                   <option key={q.week} value={q.week}>
-                    {q.title}{/\d+\s*question/i.test(q.title) ? "" : ` (${q.questionCount} questions)`}
+                    {formatQuizChooserTitle(q)}
                   </option>
                 ))}
               </select>
@@ -438,6 +466,7 @@ export default function InstructorView() {
       accessInfo={accessInfo}
       totalQuestionsInQuiz={totalQuestionsInQuiz}
       questionHeadings={questionHeadings}
+      questionSummaries={questionSummaries}
       quizLabel={quizLabel}
       loading={loading}
       errorMsg={errorMsg}
@@ -456,6 +485,7 @@ function LiveView({
   accessInfo,
   totalQuestionsInQuiz,
   questionHeadings,
+  questionSummaries,
   quizLabel,
   loading,
   errorMsg,
@@ -468,6 +498,7 @@ function LiveView({
   accessInfo: AccessInfo | null;
   totalQuestionsInQuiz: number;
   questionHeadings: string[];
+  questionSummaries: QuestionSummary[];
   quizLabel: string;
   loading: boolean;
   errorMsg: string | null;
@@ -479,6 +510,7 @@ function LiveView({
   const rev = sock.reveal as RevealState | null;
 
   const [reviewQuestionIndex, setReviewQuestionIndex] = useState<number | null>(null);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [questionCache, setQuestionCache] = useState<Record<number, QuestionState>>({});
   const [revealCache, setRevealCache] = useState<Record<number, RevealState>>({});
 
@@ -531,7 +563,6 @@ function LiveView({
     q.questionIndex < totalQuestionsInQuiz - 1;
   const canShowLeaderboard = state === "REVEAL" && !liveIsSlide;
   const isFinalQuestion = liveQuestionIndex >= totalQuestionsInQuiz - 1;
-  const canEndFromSlide = state === "QUESTION_OPEN" && liveIsSlide && isFinalQuestion;
   const displayQuestionModeText = displayQuestion
     ? getQuestionModeText(displayQuestion.questionType, displayQuestion.allowsMultiple)
     : "";
@@ -580,11 +611,53 @@ function LiveView({
   const currentReviewListIndex = isReviewing && reviewQuestionIndex !== null
     ? availableReviewIndices.findIndex((v) => v === reviewQuestionIndex)
     : -1;
-  const liveSurfaceActions: LiveSurfaceAction[] = (() => {
+  const itemSummaries = questionSummaries.length > 0
+    ? questionSummaries
+    : questionHeadings.map((heading) => ({
+      heading,
+      questionType: "multiple_choice" as QuestionType,
+    }));
+  const activeItemStillPending = state === "QUESTION_OPEN" || state === "QUESTION_CLOSED";
+  const remainingStartIndex = liveQuestionIndex >= 0
+    ? liveQuestionIndex + (activeItemStillPending ? 0 : 1)
+    : 0;
+  const remainingItems = itemSummaries.slice(Math.max(0, Math.min(remainingStartIndex, itemSummaries.length)));
+  const remainingSlideCount = remainingItems.filter((item) => item.questionType === "slide").length;
+  const remainingQuizQuestionCount = Math.max(remainingItems.length - remainingSlideCount, 0);
+  const remainingItemCount = remainingQuizQuestionCount + remainingSlideCount;
+  const remainingVerb = remainingItemCount === 1 ? "remains" : "remain";
+
+  useEffect(() => {
+    if (!showEndConfirm) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowEndConfirm(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showEndConfirm]);
+
+  const requestEndSession = useCallback(() => {
+    setShowEndConfirm(true);
+  }, []);
+
+  const confirmEndSession = useCallback(() => {
+    setShowEndConfirm(false);
+    onAction(() => endSession(sessionId), "end");
+  }, [onAction, sessionId]);
+
+  const liveSurfaceNavActions: LiveSurfaceAction[] = (() => {
+    if (state === "LEADERBOARD") {
+      return [];
+    }
+
     if (isReviewing && reviewQuestionIndex !== null) {
       return [
         {
-          label: "Prev Review",
+          label: "Prev",
           onClick: () => {
             if (currentReviewListIndex > 0) {
               setReviewQuestionIndex(availableReviewIndices[currentReviewListIndex - 1]);
@@ -593,7 +666,7 @@ function LiveView({
           disabled: currentReviewListIndex <= 0,
         },
         {
-          label: "Next Review",
+          label: "Next",
           onClick: () => {
             if (currentReviewListIndex >= 0 && currentReviewListIndex < availableReviewIndices.length - 1) {
               setReviewQuestionIndex(availableReviewIndices[currentReviewListIndex + 1]);
@@ -601,10 +674,42 @@ function LiveView({
           },
           disabled: currentReviewListIndex >= availableReviewIndices.length - 1,
         },
+      ];
+    }
+
+    return [
+      {
+        label: "Prev",
+        onClick: () => {
+          if (latestPriorReview !== undefined) {
+            setReviewQuestionIndex(latestPriorReview);
+          }
+        },
+        disabled: latestPriorReview === undefined,
+      },
+      {
+        label: "Next",
+        detail: nextQuestionHeading,
+        onClick: () => onAction(() => nextQuestion(sessionId), "next"),
+        disabled: !canNext || loading,
+        tone: canNext ? "primary" : "neutral",
+      },
+    ];
+  })();
+
+  const liveSurfaceActions: LiveSurfaceAction[] = (() => {
+    if (isReviewing && reviewQuestionIndex !== null) {
+      return [
         {
           label: "Back to Live",
           onClick: () => setReviewQuestionIndex(null),
           tone: "primary",
+        },
+        {
+          label: "End Session",
+          onClick: requestEndSession,
+          disabled: loading,
+          tone: "danger",
         },
       ];
     }
@@ -624,7 +729,7 @@ function LiveView({
         },
         {
           label: "End Session",
-          onClick: () => onAction(() => endSession(sessionId), "end"),
+          onClick: requestEndSession,
           disabled: loading,
           tone: "danger",
         },
@@ -632,12 +737,6 @@ function LiveView({
     }
 
     const actions: LiveSurfaceAction[] = [];
-    if (latestPriorReview !== undefined) {
-      actions.push({
-        label: "Review Previous",
-        onClick: () => setReviewQuestionIndex(latestPriorReview),
-      });
-    }
     if (canClose) {
       actions.push({
         label: "Close Question",
@@ -654,14 +753,6 @@ function LiveView({
         tone: "primary",
       });
     }
-    if (canNext) {
-      actions.push({
-        label: liveIsSlide ? "Next Item" : "Next Question",
-        onClick: () => onAction(() => nextQuestion(sessionId), "next"),
-        disabled: loading,
-        tone: "primary",
-      });
-    }
     if (canShowLeaderboard) {
       actions.push({
         label: "Show Leaderboard",
@@ -670,16 +761,67 @@ function LiveView({
         tone: "primary",
       });
     }
-    if (canEndFromSlide) {
-      actions.push({
-        label: "End Session",
-        onClick: () => onAction(() => endSession(sessionId), "end"),
-        disabled: loading,
-        tone: "danger",
-      });
-    }
+    actions.push({
+      label: "End Session",
+      onClick: requestEndSession,
+      disabled: loading,
+      tone: "danger",
+    });
     return actions;
   })();
+
+  const endSessionConfirmDialog = showEndConfirm ? (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-[#07060b]/80 px-5 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          setShowEndConfirm(false);
+        }
+      }}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl border border-red-300/25 bg-[#201d28] p-6 text-white shadow-2xl shadow-black/50"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="end-session-title"
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-200/80">End live session</p>
+        <h2 id="end-session-title" className="mt-3 text-2xl font-semibold">Are you sure?</h2>
+        <p className="mt-3 text-sm leading-6 text-zinc-300">
+          Ending now will close the live room for everyone. If you continue, {pluralize(remainingQuizQuestionCount, "quiz question")} and {pluralize(remainingSlideCount, "slide")} {remainingVerb}.
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3">
+            <p className="text-3xl font-semibold tabular-nums text-white">{remainingQuizQuestionCount}</p>
+            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-zinc-400">Quiz questions left</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3">
+            <p className="text-3xl font-semibold tabular-nums text-white">{remainingSlideCount}</p>
+            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-zinc-400">Slides left</p>
+          </div>
+        </div>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            className="rounded-xl border border-white/12 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-zinc-100 transition-colors hover:bg-white/[0.08]"
+            onClick={() => setShowEndConfirm(false)}
+            autoFocus
+          >
+            Keep Session
+          </button>
+          <button
+            type="button"
+            className="rounded-xl border border-red-300/35 bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-950/25 transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-700 disabled:text-zinc-400 disabled:shadow-none"
+            onClick={confirmEndSession}
+            disabled={loading}
+          >
+            End Session
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const liveSurfaceStatusLabel = isLeaderboardDisplay
     ? quizLabel ? `Leaderboard for ${quizLabel.toUpperCase()}` : "Leaderboard"
@@ -694,6 +836,8 @@ function LiveView({
             title={displayHeading || displayQuestion.topic}
             html={displayQuestion.text}
             attendeeNotes={displayQuestion.attendeeNotes}
+            slideMedia={displayQuestion.slideMedia}
+            slideReferences={displayQuestion.slideReferences}
           />
         );
       }
@@ -751,7 +895,7 @@ function LiveView({
                           <span className={`bg-zinc-700 text-zinc-300 font-mono font-bold w-9 h-9 flex items-center justify-center shrink-0 text-lg ${displayQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
                             {opt.label}
                           </span>
-                          <QuizHtml className="quiz-html text-zinc-200 text-lg flex-1" html={opt.text} as="span" />
+                          <QuizHtml className="quiz-html text-left text-zinc-200 text-lg flex-1" html={opt.text} as="span" />
                           {dist && count > 0 && (
                             <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
                               {count} ({pctOfTotal}%)
@@ -825,7 +969,7 @@ function LiveView({
                         <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm ${markerClass}`}>
                           {opt.label}
                         </span>
-                        <QuizHtml className={`quiz-html pt-0.5 flex-1 ${textClass}`} html={opt.text} as="span" />
+                        <QuizHtml className={`quiz-html text-left pt-0.5 flex-1 ${textClass}`} html={opt.text} as="span" />
                         {count > 0 && (
                           <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !displayReveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
                             {count} ({pctOfTotal}%)
@@ -871,7 +1015,7 @@ function LiveView({
           <LiveSurface
             mode={isReviewing ? "review" : "projector"}
             surfaceClassName={isSlideDisplay ? undefined : "quiz-surface"}
-            nextLabel={isReviewing || isLeaderboardDisplay ? null : nextQuestionHeading}
+            nextLabel={null}
             qrDataUrl={accessInfo?.qrCodeDataUrl}
             sessionCode={sessionCode}
             participantCount={participantCount}
@@ -879,6 +1023,7 @@ function LiveView({
             positionLabel={isLeaderboardDisplay ? undefined : displayPositionLabel}
             statusLabel={liveSurfaceStatusLabel}
             statusTone={liveStatusTone}
+            navActions={liveSurfaceNavActions}
             actions={liveSurfaceActions}
           >
             {liveSurfaceContent}
@@ -890,6 +1035,7 @@ function LiveView({
             {errorMsg}
           </div>
         )}
+        {endSessionConfirmDialog}
       </div>
     );
   }
@@ -947,20 +1093,23 @@ function LiveView({
                 title={displayHeading || displayQuestion.topic}
                 html={displayQuestion.text}
                 attendeeNotes={displayQuestion.attendeeNotes}
+                slideMedia={displayQuestion.slideMedia}
+                slideReferences={displayQuestion.slideReferences}
                 positionLabel={displayPositionLabel}
-                nextLabel={isReviewing ? null : nextQuestionHeading}
+                nextLabel={null}
                 qrDataUrl={accessInfo?.qrCodeDataUrl}
                 sessionCode={sessionCode}
                 participantCount={participantCount}
                 presentationUrl={accessInfo?.presentationUrl}
                 statusLabel={slideStatusLabel}
                 statusTone={liveStatusTone}
+                navActions={liveSurfaceNavActions}
                 actions={liveSurfaceActions}
               />
             ) : (
               <LiveSurface
                 surfaceClassName="quiz-surface"
-                nextLabel={isReviewing ? null : nextQuestionHeading}
+                nextLabel={null}
                 qrDataUrl={accessInfo?.qrCodeDataUrl}
                 sessionCode={sessionCode}
                 participantCount={participantCount}
@@ -968,6 +1117,7 @@ function LiveView({
                 positionLabel={displayPositionLabel}
                 statusLabel={quizStatusLabel}
                 statusTone={liveStatusTone}
+                navActions={liveSurfaceNavActions}
                 actions={liveSurfaceActions}
               >
                 <div className="quiz-surface-content">
@@ -1024,7 +1174,7 @@ function LiveView({
                                   <span className={`bg-zinc-700 text-zinc-300 font-mono font-bold w-9 h-9 flex items-center justify-center shrink-0 text-lg ${displayQuestion.allowsMultiple ? "rounded-lg" : "rounded-full"}`}>
                                     {opt.label}
                                   </span>
-                                  <QuizHtml className="quiz-html text-zinc-200 text-lg flex-1" html={opt.text} as="span" />
+                                  <QuizHtml className="quiz-html text-left text-zinc-200 text-lg flex-1" html={opt.text} as="span" />
                                   {dist && count > 0 && (
                                     <span className="text-sm font-semibold tabular-nums text-zinc-300 shrink-0">
                                       {count} ({pctOfTotal}%)
@@ -1048,7 +1198,7 @@ function LiveView({
         {displayReveal && (((state === "REVEAL" && displayQuestion && !isReviewing) || (isReviewing && displayQuestion))) && (
           <LiveSurface
             surfaceClassName="quiz-surface"
-            nextLabel={isReviewing ? null : nextQuestionHeading}
+            nextLabel={null}
             qrDataUrl={accessInfo?.qrCodeDataUrl}
             sessionCode={sessionCode}
             participantCount={participantCount}
@@ -1056,6 +1206,7 @@ function LiveView({
             positionLabel={displayPositionLabel}
             statusLabel={quizStatusLabel}
             statusTone={liveStatusTone}
+            navActions={liveSurfaceNavActions}
             actions={liveSurfaceActions}
           >
             <div className="quiz-surface-content quiz-surface-content-reveal">
@@ -1112,7 +1263,7 @@ function LiveView({
                             <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-mono font-bold text-sm ${markerClass}`}>
                               {opt.label}
                             </span>
-                            <QuizHtml className={`quiz-html pt-0.5 flex-1 ${textClass}`} html={opt.text} as="span" />
+                            <QuizHtml className={`quiz-html text-left pt-0.5 flex-1 ${textClass}`} html={opt.text} as="span" />
                             {count > 0 && (
                               <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !displayReveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
                                 {count} ({pctOfTotal}%)
@@ -1144,6 +1295,7 @@ function LiveView({
             participantCount={participantCount}
             presentationUrl={accessInfo?.presentationUrl}
             statusLabel={quizLabel ? `Leaderboard for ${quizLabel.toUpperCase()}` : "Leaderboard"}
+            navActions={liveSurfaceNavActions}
             actions={liveSurfaceActions}
           >
             <div className="quiz-surface-content">
@@ -1194,6 +1346,7 @@ function LiveView({
           )}
         </div>
       )}
+      {endSessionConfirmDialog}
     </div>
   );
 }
