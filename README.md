@@ -259,6 +259,40 @@ Students connect with staggered timing and answer each question after a random d
 
 Requires `socket.io-client` to be resolvable — run `npm install -D socket.io-client` at the repo root if needed.
 
+## Print a Deck to PDF
+
+Export a full MDQ markdown deck as a clean PDF packet from the CLI:
+
+```bash
+npm run print:pdf -- data/quizzes/week00.md --out exports/week00.pdf
+```
+
+The exporter builds the shared/server packages, parses the same markdown used by live sessions, renders a print-specific HTML view in Chromium, then writes a mostly vector PDF with crisp text and proportionally scaled images.
+
+Run this once on a fresh machine if Chromium has not been installed for Playwright yet:
+
+```bash
+npx playwright install chromium
+```
+
+Options:
+
+- `--out <file>` writes to a specific PDF path. By default, the PDF is created next to the input markdown file.
+- `--foldouts` includes attendee and presenter fold-out notes expanded. This is the default and is useful for instructor packets.
+- `--no-foldouts` hides fold-out notes for a cleaner student handout.
+- `--page-size A4|Letter` chooses the print page size. A4 is the default.
+- `--title <title>` overrides the cover title.
+- `--html <file>` also writes the generated print HTML for visual debugging.
+
+Examples:
+
+```bash
+npm run print:pdf -- data/quizzes/week12.md --no-foldouts
+npm run print:pdf -- data/quizzes/week12.md --page-size Letter --out exports/week12-letter.pdf
+```
+
+PDF images keep their source aspect ratio. MDQ only scales images down to fit the print layout, so portrait screenshots and wide diagrams are not stretched, cropped, or reframed.
+
 ## Quiz Markdown Format
 
 Each interactive question supports the existing `time_limit:` metadata plus optional `multi_select:` and `type:` flags. `question_type:` remains accepted as a backward-compatible alias. Question stems, slide bodies, and option text can also include standard markdown images.

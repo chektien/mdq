@@ -14,6 +14,7 @@
     "verify": "./scripts/verify.sh",
     "verify:quick": "./scripts/verify.sh --quick",
     "verify:live": "bash ./scripts/verify-live-readiness.sh",
+    "print:pdf": "npm run build --workspace=@mdq/shared && npm run build --workspace=@mdq/server && node packages/server/dist/print-mdq.js",
     "test:e2e": "npx jest --testPathPattern e2e-lifecycle --forceExit --detectOpenHandles --config packages/server/jest.config.js",
     "test:e2e-live": "npx jest --testPathPattern e2e-live-readiness --forceExit --detectOpenHandles --config packages/server/jest.config.js",
     "test:load": "npx jest --testPathPattern load-smoke --forceExit --detectOpenHandles --config packages/server/jest.config.js"
@@ -23,6 +24,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.56.0",
+    "playwright": "^1.60.0",
     "socket.io-client": "^4.8.3",
     "typescript": "^5.5.0"
   }
