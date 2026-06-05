@@ -40,6 +40,17 @@ export interface AppOptions {
   onStateChange?: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => void;
 }
 
+function summarizeQuizForList(q: Quiz) {
+  const slideCount = q.questions.filter((question) => question.questionType === "slide").length;
+  return {
+    week: q.week,
+    title: q.title,
+    questionCount: q.questions.length,
+    liveQuestionCount: q.questions.length - slideCount,
+    slideCount,
+  };
+}
+
 export function createApp(quizDirOrOpts?: string | AppOptions) {
   const app = express();
   app.use(cors());
@@ -95,10 +106,19 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   const quizzes = new Map<string, Quiz>();
   let quizValidationErrors: ReturnType<typeof parseQuizMarkdown>["errors"] = [];
 
+  function getQuestionHeading(question: Quiz["questions"][number]): string {
+    return question.subtopic ? `${question.topic}: ${question.subtopic}` : question.topic;
+  }
+
   function getQuestionHeadings(quiz: Quiz): string[] {
-    return quiz.questions.map((question) => (
-      question.subtopic ? `${question.topic}: ${question.subtopic}` : question.topic
-    ));
+    return quiz.questions.map(getQuestionHeading);
+  }
+
+  function getQuestionSummaries(quiz: Quiz) {
+    return quiz.questions.map((question) => ({
+      heading: getQuestionHeading(question),
+      questionType: getQuestionType(question),
+    }));
   }
 
   function describeQuizValidationDetail(detail: string): string {
@@ -332,11 +352,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     if (validationMessage) {
       return res.status(409).json({ error: validationMessage });
     }
-    const list = [...quizzes.values()].map((q) => ({
-      week: q.week,
-      title: q.title,
-      questionCount: q.questions.length,
-    }));
+    const list = [...quizzes.values()].map(summarizeQuizForList);
     res.json(list);
   });
 
@@ -350,11 +366,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       if (validationMessage) {
         return res.status(409).json({ error: validationMessage });
       }
-      const list = [...quizzes.values()].map((q) => ({
-        week: q.week,
-        title: q.title,
-        questionCount: q.questions.length,
-      }));
+      const list = [...quizzes.values()].map(summarizeQuizForList);
       return res.json({ loaded, quizzes: list });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to reload quizzes";
@@ -396,6 +408,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       sessionCode: session.sessionCode,
       joinUrl: `/join/${session.sessionCode}`,
       questionHeadings: getQuestionHeadings(quiz),
+      questionSummaries: getQuestionSummaries(quiz),
     });
   });
 
@@ -433,6 +446,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         currentQuestionIndex: session.currentQuestionIndex,
         questionCount: quiz.questions.length,
         questionHeadings: getQuestionHeadings(quiz),
+        questionSummaries: getQuestionSummaries(quiz),
       });
     });
   });
@@ -572,16 +586,14 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   app.post(API.SESSION_END, requireInstructorAuth, (req, res) => {
     withSession(req, res, (session) => {
       try {
-        // Allow ending from LEADERBOARD or REVEAL
-        if (session.state === "REVEAL" || session.state === "QUESTION_CLOSED") {
-          // Go to leaderboard first, then end
+        // Allow ending from any live panel state while preserving transition rules.
+        if (session.state === "QUESTION_CLOSED") {
+          transitionState(session, "REVEAL");
+        }
+        if (session.state === "REVEAL") {
           transitionState(session, "LEADERBOARD");
         }
-        if (session.state === "LEADERBOARD") {
-          transitionState(session, "ENDED");
-        } else {
-          transitionState(session, "ENDED");
-        }
+        transitionState(session, "ENDED");
 
         // Persist session data on end
         const quiz = getQuizForSession(session.week);
@@ -732,6 +744,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       state: session.state,
       questionCount: quiz.questions.length,
       questionHeadings: getQuestionHeadings(quiz),
+      questionSummaries: getQuestionSummaries(quiz),
       accessInfo,
     });
   });

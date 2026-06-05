@@ -29,12 +29,12 @@ function QuizHtml({
 }) {
   const containerRef = useRef<HTMLElement | null>(null);
   const lastTriggerSrcRef = useRef<string | null>(null);
-  const shouldRestoreFocusRef = useRef(false);
+  const lastTriggerElementRef = useRef<HTMLImageElement | null>(null);
   const [expandedImage, setExpandedImage] = useState<ExpandedImage | null>(null);
 
   const closeExpandedImage = useCallback(() => {
-    shouldRestoreFocusRef.current = true;
     setExpandedImage(null);
+    window.setTimeout(() => lastTriggerElementRef.current?.focus(), 0);
   }, []);
 
   useEffect(() => {
@@ -50,16 +50,9 @@ function QuizHtml({
       image.setAttribute("aria-label", `Expand ${label}`);
     }
 
-    if (shouldRestoreFocusRef.current) {
-      const targetImage =
-        images.find((image) => (image.currentSrc || image.src) === lastTriggerSrcRef.current)
-        ?? images[0];
-      shouldRestoreFocusRef.current = false;
-      window.setTimeout(() => targetImage?.focus(), 0);
-    }
-
     const openImage = (image: HTMLImageElement) => {
       lastTriggerSrcRef.current = image.currentSrc || image.src;
+      lastTriggerElementRef.current = image;
       setExpandedImage({
         src: image.currentSrc || image.src,
         alt: image.getAttribute("alt") || "",
@@ -91,7 +84,7 @@ function QuizHtml({
       container.removeEventListener("click", onClick);
       container.removeEventListener("keydown", onKeyDown);
     };
-  }, [expandedImage, html]);
+  }, [html]);
 
   const htmlProps = {
     className,

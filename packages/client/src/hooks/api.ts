@@ -1,5 +1,5 @@
 import { API } from "@mdq/shared";
-import type { AccessInfo } from "@mdq/shared";
+import type { AccessInfo, QuestionType } from "@mdq/shared";
 
 const BASE = "";
 
@@ -14,7 +14,16 @@ function apiPath(template: string, params: Record<string, string> = {}): string 
 export interface QuizSummary {
   week: string;
   title: string;
+  /** Total live items, including slides. Kept for progress/restore compatibility. */
   questionCount: number;
+  /** Interactive quiz/poll/open-response items, excluding slides. */
+  liveQuestionCount?: number;
+  slideCount?: number;
+}
+
+export interface QuestionSummary {
+  heading: string;
+  questionType: QuestionType;
 }
 
 export interface CreateSessionResponse {
@@ -22,6 +31,7 @@ export interface CreateSessionResponse {
   sessionCode: string;
   joinUrl: string;
   questionHeadings: string[];
+  questionSummaries: QuestionSummary[];
 }
 
 export interface SessionRestoreResponse {
@@ -32,6 +42,7 @@ export interface SessionRestoreResponse {
   currentQuestionIndex: number;
   questionCount: number;
   questionHeadings: string[];
+  questionSummaries: QuestionSummary[];
 }
 
 export interface PresentationSessionResponse {
@@ -41,6 +52,7 @@ export interface PresentationSessionResponse {
   state: string;
   questionCount: number;
   questionHeadings: string[];
+  questionSummaries: QuestionSummary[];
   accessInfo: AccessInfo;
 }
 
