@@ -278,8 +278,9 @@ npx playwright install chromium
 Options:
 
 - `--out <file>` writes to a specific PDF path. By default, the PDF is created next to the input markdown file.
-- `--foldouts` includes attendee and presenter fold-out notes expanded. This is the default and is useful for instructor packets.
-- `--no-foldouts` hides fold-out notes for a cleaner student handout.
+- `--foldouts` includes attendee fold-out notes expanded. This is the default.
+- `--no-foldouts` hides all fold-out notes for a cleaner handout.
+- `--presenter-notes` includes presenter notes as well when you need a private instructor packet.
 - `--page-size A4|Letter` chooses the print page size. A4 is the default.
 - `--theme dark|light` chooses the PDF color theme. Dark is the default and recommended for SA2026-style submission packets.
 - `--title <title>` overrides the cover title.
@@ -289,6 +290,7 @@ Examples:
 
 ```bash
 npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --no-foldouts
+npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --presenter-notes
 npm run print:pdf -- data/quizzes/week12.md --theme light --page-size Letter --out exports/week12-letter.pdf
 ```
 

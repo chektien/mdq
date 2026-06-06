@@ -12,6 +12,7 @@ interface PrintOptions {
   outputFile: string;
   imagesDir: string;
   includeFoldouts: boolean;
+  includePresenterNotes: boolean;
   pageSize: "A4" | "Letter";
   theme: PrintTheme;
   title?: string;
@@ -48,8 +49,10 @@ function usage(): string {
 Options:
   --out <file>          Output PDF path. Defaults to <quiz>.pdf next to the input file.
   --images-dir <dir>   Image attachment directory. Defaults to data/images.
-  --foldouts           Include attendee and presenter fold-out notes expanded. Default.
-  --no-foldouts        Hide fold-out notes for a clean handout.
+  --foldouts           Include attendee fold-out notes expanded. Default.
+  --no-foldouts        Hide all fold-out notes for a clean handout.
+  --presenter-notes    Include presenter notes as well. Default: hidden.
+  --no-presenter-notes Hide presenter notes. Default.
   --page-size <size>   A4 or Letter. Default: A4.
   --theme <theme>      dark or light. Default: dark.
   --title <title>      Override the PDF cover title.
@@ -59,6 +62,7 @@ Options:
 Examples:
   npm run print:pdf -- data/quizzes/week00.md --theme light --out exports/week00.pdf
   npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --no-foldouts --page-size Letter
+  npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --presenter-notes
 `;
 }
 
@@ -75,6 +79,7 @@ function parseArgs(argv: string[]): CliResult {
   let outputFile = "";
   let imagesDir = path.resolve("data/images");
   let includeFoldouts = true;
+  let includePresenterNotes = false;
   let pageSize: PrintOptions["pageSize"] = "A4";
   let theme: PrintTheme = "dark";
   let title: string | undefined;
@@ -90,6 +95,7 @@ function parseArgs(argv: string[]): CliResult {
           outputFile: "",
           imagesDir,
           includeFoldouts,
+          includePresenterNotes,
           pageSize,
           theme,
         },
@@ -111,6 +117,14 @@ function parseArgs(argv: string[]): CliResult {
     }
     if (arg === "--no-foldouts") {
       includeFoldouts = false;
+      continue;
+    }
+    if (arg === "--presenter-notes") {
+      includePresenterNotes = true;
+      continue;
+    }
+    if (arg === "--no-presenter-notes") {
+      includePresenterNotes = false;
       continue;
     }
     if (arg === "--page-size") {
@@ -168,6 +182,7 @@ function parseArgs(argv: string[]): CliResult {
       outputFile: resolvedOutput,
       imagesDir,
       includeFoldouts,
+      includePresenterNotes,
       pageSize,
       theme,
       title,
@@ -276,13 +291,20 @@ function plural(value: number, label: string): string {
   return `${value} ${label}${value === 1 ? "" : "s"}`;
 }
 
-function renderNotes(question: Question, includeFoldouts: boolean, inputDir: string, imagesDir: string): string {
+function renderNotes(
+  question: Question,
+  includeFoldouts: boolean,
+  includePresenterNotes: boolean,
+  inputDir: string,
+  imagesDir: string,
+): string {
   if (!includeFoldouts) return "";
 
-  const notes = [
-    ...(question.attendeeNotes || []).map((note) => ({ ...note, label: "Attendee note" })),
-    ...(question.presenterNotes || []).map((note) => ({ ...note, label: "Presenter note" })),
-  ];
+  const attendeeNotes = (question.attendeeNotes || []).map((note) => ({ ...note, label: "Attendee note" }));
+  const presenterNotes = includePresenterNotes
+    ? (question.presenterNotes || []).map((note) => ({ ...note, label: "Presenter note" }))
+    : [];
+  const notes = [...attendeeNotes, ...presenterNotes];
 
   if (notes.length === 0) return "";
 
@@ -414,7 +436,7 @@ function renderItem(question: Question, index: number, total: number, options: P
       ${renderOptions(question, inputDir, options.imagesDir)}
       ${renderAnswerBlock(question)}
       ${renderExplanation(question)}
-      ${renderNotes(question, options.includeFoldouts, inputDir, options.imagesDir)}
+      ${renderNotes(question, options.includeFoldouts, options.includePresenterNotes, inputDir, options.imagesDir)}
       ${renderReferences(question, inputDir, options.imagesDir)}
     </article>
   `;
@@ -951,7 +973,7 @@ function buildHtml(quiz: Quiz, options: PrintOptions): string {
         <h1>${escapeHtml(title)}</h1>
         <ul class="cover-meta">
           <li>${escapeHtml(sourceLabel)}</li>
-          <li>${options.includeFoldouts ? "Fold-outs expanded" : "Fold-outs hidden"}</li>
+          <li>${escapeHtml(noteModeLabel(options))}</li>
           <li>${options.theme === "dark" ? "Dark theme" : "Light theme"}</li>
           <li>${escapeHtml(options.pageSize)}</li>
           <li>Generated ${escapeHtml(generatedAt)}</li>
@@ -974,6 +996,11 @@ function buildHtml(quiz: Quiz, options: PrintOptions): string {
 
 function reportParseErrors(errors: QuizParseError[]): string {
   return errors.map((error) => `- ${error.message}`).join("\n");
+}
+
+function noteModeLabel(options: PrintOptions): string {
+  if (!options.includeFoldouts) return "Notes hidden";
+  return options.includePresenterNotes ? "Attendee + presenter notes" : "Attendee notes";
 }
 
 function withPlaywrightInstallHint(error: unknown): Error {
