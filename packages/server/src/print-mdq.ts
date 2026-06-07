@@ -13,6 +13,7 @@ interface PrintOptions {
   imagesDir: string;
   includeFoldouts: boolean;
   includePresenterNotes: boolean;
+  includeAnswers: boolean;
   pageSize: "A4" | "Letter";
   theme: PrintTheme;
   title?: string;
@@ -53,6 +54,8 @@ Options:
   --no-foldouts        Hide all fold-out notes for a clean handout.
   --presenter-notes    Include presenter notes as well. Default: hidden.
   --no-presenter-notes Hide presenter notes. Default.
+  --answers            Include correct-answer highlights and feedback.
+  --no-answers         Hide correct answers and feedback. Default.
   --page-size <size>   A4 or Letter. Default: A4.
   --theme <theme>      dark or light. Default: dark.
   --title <title>      Override the PDF cover title.
@@ -62,7 +65,7 @@ Options:
 Examples:
   npm run print:pdf -- data/quizzes/week00.md --theme light --out exports/week00.pdf
   npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --no-foldouts --page-size Letter
-  npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --presenter-notes
+  npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --answers --presenter-notes
 `;
 }
 
@@ -80,6 +83,7 @@ function parseArgs(argv: string[]): CliResult {
   let imagesDir = path.resolve("data/images");
   let includeFoldouts = true;
   let includePresenterNotes = false;
+  let includeAnswers = false;
   let pageSize: PrintOptions["pageSize"] = "A4";
   let theme: PrintTheme = "dark";
   let title: string | undefined;
@@ -96,6 +100,7 @@ function parseArgs(argv: string[]): CliResult {
           imagesDir,
           includeFoldouts,
           includePresenterNotes,
+          includeAnswers,
           pageSize,
           theme,
         },
@@ -125,6 +130,14 @@ function parseArgs(argv: string[]): CliResult {
     }
     if (arg === "--no-presenter-notes") {
       includePresenterNotes = false;
+      continue;
+    }
+    if (arg === "--answers") {
+      includeAnswers = true;
+      continue;
+    }
+    if (arg === "--no-answers") {
+      includeAnswers = false;
       continue;
     }
     if (arg === "--page-size") {
@@ -183,6 +196,7 @@ function parseArgs(argv: string[]): CliResult {
       imagesDir,
       includeFoldouts,
       includePresenterNotes,
+      includeAnswers,
       pageSize,
       theme,
       title,
@@ -353,13 +367,13 @@ function renderReferences(question: Question, inputDir: string, imagesDir: strin
   `;
 }
 
-function renderOptions(question: Question, inputDir: string, imagesDir: string): string {
+function renderOptions(question: Question, inputDir: string, imagesDir: string, includeAnswers: boolean): string {
   if (question.options.length === 0) return "";
   const correct = new Set(question.correctOptions);
   return `
     <ol class="options" aria-label="Answer options">
       ${question.options.map((option) => {
-        const isCorrect = correct.has(option.label);
+        const isCorrect = includeAnswers && correct.has(option.label);
         const className = isCorrect ? "option option-correct" : "option";
         return `
           <li class="${className}">
@@ -373,7 +387,9 @@ function renderOptions(question: Question, inputDir: string, imagesDir: string):
   `;
 }
 
-function renderAnswerBlock(question: Question): string {
+function renderAnswerBlock(question: Question, includeAnswers: boolean): string {
+  if (!includeAnswers) return "";
+
   const type = questionType(question);
   if (type === "slide") return "";
   if (type === "poll") {
@@ -401,7 +417,8 @@ function renderAnswerBlock(question: Question): string {
   `;
 }
 
-function renderExplanation(question: Question): string {
+function renderExplanation(question: Question, includeAnswers: boolean): string {
+  if (!includeAnswers) return "";
   if (!question.explanation) return "";
   return `
     <section class="explanation">
@@ -433,9 +450,9 @@ function renderItem(question: Question, index: number, total: number, options: P
         <section class="body-copy">${body || "<p class=\"empty-copy\">No body text.</p>"}</section>
         ${renderSlideMedia(question, inputDir, options.imagesDir)}
       </div>
-      ${renderOptions(question, inputDir, options.imagesDir)}
-      ${renderAnswerBlock(question)}
-      ${renderExplanation(question)}
+      ${renderOptions(question, inputDir, options.imagesDir, options.includeAnswers)}
+      ${renderAnswerBlock(question, options.includeAnswers)}
+      ${renderExplanation(question, options.includeAnswers)}
       ${renderNotes(question, options.includeFoldouts, options.includePresenterNotes, inputDir, options.imagesDir)}
       ${renderReferences(question, inputDir, options.imagesDir)}
     </article>
@@ -443,18 +460,28 @@ function renderItem(question: Question, index: number, total: number, options: P
 }
 
 function renderToc(quiz: Quiz): string {
+  const midpoint = Math.ceil(quiz.questions.length / 2);
+  const columns = [
+    { offset: 0, questions: quiz.questions.slice(0, midpoint) },
+    { offset: midpoint, questions: quiz.questions.slice(midpoint) },
+  ];
+
   return `
     <section class="toc" aria-label="Deck contents">
       <h2>Contents</h2>
-      <ol>
-        ${quiz.questions.map((question, index) => `
-          <li>
-            <span>${String(index + 1).padStart(2, "0")}</span>
-            <strong>${escapeHtml(questionHeading(question))}</strong>
-            <em>${questionTypeLabel(question)}</em>
-          </li>
+      <div class="toc-columns">
+        ${columns.map(({ offset, questions }) => `
+          <ol>
+            ${questions.map((question, index) => `
+              <li>
+                <span>${String(offset + index + 1).padStart(2, "0")}</span>
+                <strong>${escapeHtml(questionHeading(question))}</strong>
+                <em>${questionTypeLabel(question)}</em>
+              </li>
+            `).join("")}
+          </ol>
         `).join("")}
-      </ol>
+      </div>
     </section>
   `;
 }
@@ -557,12 +584,12 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
     .cover {
       display: grid;
       min-height: 228mm;
-      align-content: space-between;
+      align-content: start;
+      gap: 8mm;
       padding: 4mm 0 0;
       break-after: page;
     }
 
-    .cover-kicker,
     .item-kicker,
     .note-label,
     .references {
@@ -574,24 +601,13 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
     }
 
     .cover h1 {
-      max-width: 160mm;
-      margin: 10mm 0 6mm;
+      max-width: 170mm;
+      margin: 8mm 0 4mm;
       font-size: 33pt;
       line-height: 0.98;
       letter-spacing: 0;
     }
 
-    .cover-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4mm;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .cover-meta li,
-    .summary-card,
     .item,
     .toc,
     .option,
@@ -603,53 +619,25 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
       background: var(--paper);
     }
 
-    .cover-meta li {
-      padding: 2.8mm 4mm;
-      color: var(--muted);
-      font-size: 9pt;
-    }
-
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 3mm;
-      margin-top: 14mm;
-    }
-
-    .summary-card {
-      padding: 4mm;
-      background: var(--wash);
-    }
-
-    .summary-card strong {
-      display: block;
-      font-size: 20pt;
-      line-height: 1;
-    }
-
-    .summary-card span {
-      display: block;
-      margin-top: 2mm;
-      color: var(--muted);
-      font-size: 7.5pt;
-      font-weight: 800;
-      letter-spacing: 0.09em;
-      text-transform: uppercase;
-    }
-
     .toc {
-      padding: 6mm;
+      padding: 5mm;
       background: var(--wash);
     }
 
     .toc h2 {
-      margin: 0 0 4mm;
-      font-size: 14pt;
+      margin: 0 0 3mm;
+      font-size: 13pt;
+    }
+
+    .toc-columns {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7mm;
     }
 
     .toc ol {
       display: grid;
-      gap: 1.8mm;
+      gap: 1.1mm;
       margin: 0;
       padding: 0;
       list-style: none;
@@ -657,11 +645,12 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
 
     .toc li {
       display: grid;
-      grid-template-columns: 10mm 1fr auto;
-      gap: 3mm;
+      grid-template-columns: 9mm 1fr;
+      gap: 2.2mm;
       align-items: baseline;
-      padding-bottom: 1.8mm;
+      padding-bottom: 1.2mm;
       border-bottom: 1px solid var(--soft-line);
+      break-inside: avoid;
     }
 
     .toc li:last-child {
@@ -669,14 +658,22 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
       padding-bottom: 0;
     }
 
-    .toc span,
-    .toc em {
+    .toc strong {
+      font-size: 8.6pt;
+      line-height: 1.18;
+    }
+
+    .toc span {
       color: var(--muted);
       font-size: 7.5pt;
       font-style: normal;
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
+    }
+
+    .toc em {
+      display: none;
     }
 
     .item {
@@ -949,13 +946,7 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
 }
 
 function buildHtml(quiz: Quiz, options: PrintOptions): string {
-  const stats = buildStats(quiz);
   const title = options.title || quiz.title || path.basename(options.inputFile);
-  const sourceLabel = path.relative(process.cwd(), options.inputFile) || options.inputFile;
-  const generatedAt = new Date().toLocaleString("en-SG", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
 
   return `<!doctype html>
 <html lang="en">
@@ -969,22 +960,7 @@ function buildHtml(quiz: Quiz, options: PrintOptions): string {
   <main>
     <section class="cover">
       <div>
-        <div class="cover-kicker">MDQ print packet</div>
         <h1>${escapeHtml(title)}</h1>
-        <ul class="cover-meta">
-          <li>${escapeHtml(sourceLabel)}</li>
-          <li>${escapeHtml(noteModeLabel(options))}</li>
-          <li>${options.theme === "dark" ? "Dark theme" : "Light theme"}</li>
-          <li>${escapeHtml(options.pageSize)}</li>
-          <li>Generated ${escapeHtml(generatedAt)}</li>
-        </ul>
-        <div class="summary-grid" aria-label="Deck summary">
-          <div class="summary-card"><strong>${stats.total}</strong><span>Total items</span></div>
-          <div class="summary-card"><strong>${stats.scored}</strong><span>Scored</span></div>
-          <div class="summary-card"><strong>${stats.slides}</strong><span>Slides</span></div>
-          <div class="summary-card"><strong>${stats.polls}</strong><span>Polls</span></div>
-          <div class="summary-card"><strong>${stats.openResponses}</strong><span>Open responses</span></div>
-        </div>
       </div>
       ${renderToc(quiz)}
     </section>
@@ -996,11 +972,6 @@ function buildHtml(quiz: Quiz, options: PrintOptions): string {
 
 function reportParseErrors(errors: QuizParseError[]): string {
   return errors.map((error) => `- ${error.message}`).join("\n");
-}
-
-function noteModeLabel(options: PrintOptions): string {
-  if (!options.includeFoldouts) return "Notes hidden";
-  return options.includePresenterNotes ? "Attendee + presenter notes" : "Attendee notes";
 }
 
 function withPlaywrightInstallHint(error: unknown): Error {

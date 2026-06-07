@@ -269,6 +269,10 @@ npm run print:pdf -- data/quizzes/week00.md --out exports/week00.pdf
 
 The exporter builds the shared/server packages, parses the same markdown used by live sessions, renders a print-specific HTML view in Chromium, then writes a mostly vector PDF with crisp text and proportionally scaled images. Dark mode is the default so exported decks keep the original MDQ/HMD-simulator color direction; use `--theme light` when you want a conventional ink-friendly handout.
 
+Printed decks hide correct-answer highlights, answer blocks, and feedback by default so submission/review packets do not become answer keys. Use `--answers` only when you intentionally need an instructor answer-key export.
+
+The cover is submission-clean by default: it prints the deck title and contents, not local filenames, generated timestamps, theme labels, answer/notes settings, or quiz summary counters.
+
 Run this once on a fresh machine if Chromium has not been installed for Playwright yet:
 
 ```bash
@@ -281,6 +285,8 @@ Options:
 - `--foldouts` includes attendee fold-out notes expanded. This is the default.
 - `--no-foldouts` hides all fold-out notes for a cleaner handout.
 - `--presenter-notes` includes presenter notes as well when you need a private instructor packet.
+- `--answers` includes correct-answer highlights, answer blocks, and feedback for an answer-key packet.
+- `--no-answers` hides correct answers and feedback. This is the default.
 - `--page-size A4|Letter` chooses the print page size. A4 is the default.
 - `--theme dark|light` chooses the PDF color theme. Dark is the default and recommended for SA2026-style submission packets.
 - `--title <title>` overrides the cover title.
@@ -290,7 +296,7 @@ Examples:
 
 ```bash
 npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --no-foldouts
-npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --presenter-notes
+npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --answers --presenter-notes
 npm run print:pdf -- data/quizzes/week12.md --theme light --page-size Letter --out exports/week12-letter.pdf
 ```
 
