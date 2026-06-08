@@ -64,8 +64,8 @@ Options:
 
 Examples:
   npm run print:pdf -- data/quizzes/week00.md --theme light --out exports/week00.pdf
-  npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --no-foldouts --page-size Letter
-  npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --answers --presenter-notes
+  npm run print:pdf -- data/quizzes/week12-hmd-simulator-course.md --theme dark --no-foldouts --page-size Letter
+  npm run print:pdf -- data/quizzes/week12-hmd-simulator-course.md --theme dark --answers --presenter-notes
 `;
 }
 

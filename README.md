@@ -284,19 +284,19 @@ Options:
 - `--out <file>` writes to a specific PDF path. By default, the PDF is created next to the input markdown file.
 - `--foldouts` includes attendee fold-out notes expanded. This is the default.
 - `--no-foldouts` hides all fold-out notes for a cleaner handout.
-- `--presenter-notes` includes presenter notes as well when you need a private instructor packet.
+- `--presenter-notes` includes presenter notes as well when you need an instructor-only packet.
 - `--answers` includes correct-answer highlights, answer blocks, and feedback for an answer-key packet.
 - `--no-answers` hides correct answers and feedback. This is the default.
 - `--page-size A4|Letter` chooses the print page size. A4 is the default.
-- `--theme dark|light` chooses the PDF color theme. Dark is the default and recommended for SA2026-style submission packets.
+- `--theme dark|light` chooses the PDF color theme. Dark is the default and recommended for submission packets that should preserve the original deck styling.
 - `--title <title>` overrides the cover title.
 - `--html <file>` also writes the generated print HTML for visual debugging.
 
 Examples:
 
 ```bash
-npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --no-foldouts
-npm run print:pdf -- data/quizzes/week12-sa26-hmd-simulator-course.md --theme dark --answers --presenter-notes
+npm run print:pdf -- data/quizzes/week12-hmd-simulator-course.md --theme dark --no-foldouts
+npm run print:pdf -- data/quizzes/week12-hmd-simulator-course.md --theme dark --answers --presenter-notes
 npm run print:pdf -- data/quizzes/week12.md --theme light --page-size Letter --out exports/week12-letter.pdf
 ```
 
