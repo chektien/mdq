@@ -52,6 +52,34 @@ function summarizeQuizForList(q: Quiz) {
   };
 }
 
+function normalizeDeckTitle(title: string): string {
+  return title.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function hasWeekPrefix(deckId: string): boolean {
+  return /^week\d+(?:-|$)/i.test(deckId);
+}
+
+function compareDecksForList(a: Quiz, b: Quiz): number {
+  const aWeek = a.week.match(/^week(\d+)/i)?.[1];
+  const bWeek = b.week.match(/^week(\d+)/i)?.[1];
+  if (aWeek && bWeek && aWeek !== bWeek) {
+    return Number(aWeek) - Number(bWeek);
+  }
+  if (aWeek && !bWeek) return -1;
+  if (!aWeek && bWeek) return 1;
+  return a.title.localeCompare(b.title, undefined, { numeric: true }) || a.week.localeCompare(b.week, undefined, { numeric: true });
+}
+
+function shouldReplaceDuplicateDeck(existing: Quiz, candidate: Quiz): boolean {
+  const existingHasWeekPrefix = hasWeekPrefix(existing.week);
+  const candidateHasWeekPrefix = hasWeekPrefix(candidate.week);
+  if (existingHasWeekPrefix !== candidateHasWeekPrefix) {
+    return !candidateHasWeekPrefix;
+  }
+  return candidate.week.localeCompare(existing.week, undefined, { numeric: true }) < 0;
+}
+
 export function createApp(quizDirOrOpts?: string | AppOptions) {
   const app = express();
   app.use(cors());
@@ -178,6 +206,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       .filter((f) => f.endsWith(".md") && !f.startsWith("."))
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     const next = new Map<string, Quiz>();
+    const deckIdByTitle = new Map<string, string>();
     const nextValidationErrors: ReturnType<typeof parseQuizMarkdown>["errors"] = [];
 
     for (const file of files) {
@@ -191,7 +220,21 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
           continue;
         }
         if (result.quiz) {
+          const normalizedTitle = normalizeDeckTitle(result.quiz.title);
+          const existingDeckId = normalizedTitle ? deckIdByTitle.get(normalizedTitle) : undefined;
+          if (existingDeckId) {
+            const existing = next.get(existingDeckId);
+            if (existing && shouldReplaceDuplicateDeck(existing, result.quiz)) {
+              next.delete(existingDeckId);
+              next.set(result.quiz.week, result.quiz);
+              deckIdByTitle.set(normalizedTitle, result.quiz.week);
+            }
+            continue;
+          }
           next.set(result.quiz.week, result.quiz);
+          if (normalizedTitle) {
+            deckIdByTitle.set(normalizedTitle, result.quiz.week);
+          }
         }
       } catch (error) {
         const code =
@@ -358,7 +401,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     if (validationMessage) {
       return res.status(409).json({ error: validationMessage });
     }
-    const list = [...quizzes.values()].map(summarizeQuizForList);
+    const list = [...quizzes.values()].sort(compareDecksForList).map(summarizeQuizForList);
     return res.json(list);
   };
 
@@ -372,7 +415,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       if (validationMessage) {
         return res.status(409).json({ error: validationMessage });
       }
-      const list = [...quizzes.values()].map(summarizeQuizForList);
+      const list = [...quizzes.values()].sort(compareDecksForList).map(summarizeQuizForList);
       return res.json({ loaded, quizzes: list });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to reload decks";

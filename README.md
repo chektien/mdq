@@ -181,7 +181,7 @@ Tip for classroom privacy and mobility: present from iPad, add MDQ to your iPad 
 
 ### 2) instructor live surface controls
 
-- The quiz chooser shows each deck summary as separate quiz question and slide counts, for example `(22 questions, 17 slides)`.
+- The deck picker shows each deck summary as separate quiz question and slide counts, for example `(22 questions, 17 slides)`.
 - The live surface uses the HMD-simulator-inspired dark theme by default: deep background, restrained purple accents, rounded controls, and clean dot bullets.
 - `Prev` and `Next` stay pinned together near the top-left of the live surface so their click targets do not drift when other controls appear or disappear.
 - In live mode, `Next` includes the next item's markdown heading inside the button. In review mode, `Next` stays a plain button.

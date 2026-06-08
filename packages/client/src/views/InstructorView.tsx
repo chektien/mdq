@@ -64,14 +64,6 @@ function formatDeckChooserSummary(deck: DeckSummary): string {
   return parts.join(", ");
 }
 
-function formatDeckChooserTitle(deck: DeckSummary): string {
-  const titleWithoutLegacyCount = deck.title.replace(
-    /\s*\(\s*\d+\s+(?:questions?|slides?)(?:\s*\+\s*\d+\s+(?:questions?|slides?))*\s*\)\s*$/i,
-    "",
-  );
-  return `${titleWithoutLegacyCount} (${formatDeckChooserSummary(deck)})`;
-}
-
 function clearInstructorRestore(): void {
   try {
     sessionStorage.removeItem(INSTRUCTOR_RESTORE_KEY);
@@ -92,6 +84,7 @@ export default function InstructorView() {
   // Setup state
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<string>("");
+  const [deckFilter, setDeckFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -293,6 +286,12 @@ export default function InstructorView() {
   }, [sock]);
 
   const sid = sessionInfo?.sessionId ?? "";
+  const selectedDeck = decks.find((deck) => deck.week === selectedWeek);
+  const filteredDecks = decks.filter((deck) => {
+    const query = deckFilter.trim().toLowerCase();
+    if (!query) return true;
+    return `${deck.title} ${deck.week}`.toLowerCase().includes(query);
+  });
 
   // ── Setup Phase ──────────────────────────
   if (phase === "setup") {
@@ -301,7 +300,7 @@ export default function InstructorView() {
         <a href="#/" className="absolute top-6 left-6 text-zinc-500 hover:text-zinc-300 text-sm">
           &larr; Back
         </a>
-        <h1 className="text-3xl font-bold text-white">Start a Quiz Session</h1>
+        <h1 className="text-3xl font-bold text-white">Start a Deck Session</h1>
 
         {errorMsg && (
           <div className="bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-xl max-w-md w-full text-center">
@@ -318,21 +317,55 @@ export default function InstructorView() {
         {decks.length === 0 ? (
           <p className="text-zinc-400">No decks found. Add markdown deck files to the data/decks directory.</p>
         ) : (
-          <div className="w-full max-w-md space-y-6">
-            <div>
-              <label htmlFor="quiz-select" className="block text-zinc-400 text-sm mb-2 font-medium">Select Deck</label>
-              <select
-                id="quiz-select"
-                value={selectedWeek}
-                onChange={(e) => setSelectedWeek(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {decks.map((q) => (
-                  <option key={q.week} value={q.week}>
-                    {formatDeckChooserTitle(q)}
-                  </option>
-                ))}
-              </select>
+          <div className="w-full max-w-2xl space-y-6">
+            <div className="space-y-3">
+              <div className="flex items-end justify-between gap-4">
+                <label htmlFor="deck-filter" className="block text-zinc-400 text-sm font-medium">Select Deck</label>
+                {selectedDeck && (
+                  <span className="text-xs text-zinc-500 font-mono">{selectedDeck.week}</span>
+                )}
+              </div>
+              <input
+                id="deck-filter"
+                value={deckFilter}
+                onChange={(e) => setDeckFilter(e.target.value)}
+                placeholder="Search decks"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-white text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900/70">
+                {filteredDecks.length === 0 ? (
+                  <p className="px-4 py-5 text-sm text-zinc-400">No matching decks.</p>
+                ) : (
+                  filteredDecks.map((deck) => {
+                    const isSelected = deck.week === selectedWeek;
+                    return (
+                      <button
+                        key={deck.week}
+                        type="button"
+                        onClick={() => setSelectedWeek(deck.week)}
+                        className={`w-full border-b border-zinc-800 px-4 py-3 text-left transition-colors last:border-b-0 ${
+                          isSelected
+                            ? "bg-indigo-600/20 text-white"
+                            : "text-zinc-200 hover:bg-zinc-800/80"
+                        }`}
+                        aria-pressed={isSelected}
+                      >
+                        <span className="flex items-start gap-3">
+                          <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${isSelected ? "bg-indigo-300" : "bg-zinc-600"}`} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block break-words text-base font-medium leading-snug">{deck.title}</span>
+                            <span className="mt-1 block text-sm text-zinc-400">
+                              {formatDeckChooserSummary(deck)}
+                              <span className="mx-2 text-zinc-600">/</span>
+                              <span className="font-mono text-xs text-zinc-500">{deck.week}</span>
+                            </span>
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
             <button
               onClick={handleReloadDecks}
@@ -426,7 +459,7 @@ export default function InstructorView() {
           disabled={loading}
           className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white font-semibold py-4 px-12 rounded-xl transition-colors text-xl"
         >
-          {loading ? "Starting..." : "Start Quiz"}
+          {loading ? "Starting..." : "Start Session"}
         </button>
       </div>
     );

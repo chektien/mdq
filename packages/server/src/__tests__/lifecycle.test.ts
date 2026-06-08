@@ -193,9 +193,9 @@ B. The slide
     it("loads week and lab variant decks as distinct keys", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-quiz-variants-"));
       const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week09.md"), fixtureWeek01, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week09-lab.md"), fixtureWeek01, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "dis2026-hmd-simulator.md"), fixtureWeek01, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week09.md"), fixtureWeek01.replace(/^# .+$/m, "# Week 09"), "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week09-lab.md"), fixtureWeek01.replace(/^# .+$/m, "# Week 09 Lab"), "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "dis2026-hmd-simulator.md"), fixtureWeek01.replace(/^# .+$/m, "# DIS 2026 HMD Simulator"), "utf-8");
 
       const variantApp = createApp(tempQuizDir);
 
@@ -214,6 +214,30 @@ B. The slide
 
         const namedDeckRes = await request(variantApp).get("/api/deck/dis2026-hmd-simulator");
         expect(namedDeckRes.status).toBe(200);
+      } finally {
+        fs.rmSync(tempQuizDir, { recursive: true, force: true });
+      }
+    });
+
+    it("collapses duplicate deck titles and prefers descriptive filenames over week-prefixed aliases", async () => {
+      const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-duplicate-decks-"));
+      const fixtureWeek01 = fs
+        .readFileSync(path.join(quizDir, "week01.md"), "utf-8")
+        .replace(/^# .+$/m, "# DIS 2026: The HMD Simulator");
+      fs.writeFileSync(path.join(tempQuizDir, "week13-dis2026-hmd-simulator.md"), fixtureWeek01, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "dis2026-hmd-simulator.md"), fixtureWeek01, "utf-8");
+
+      const duplicateApp = createApp(tempQuizDir);
+
+      try {
+        const listRes = await request(duplicateApp).get("/api/decks");
+        expect(listRes.status).toBe(200);
+        const matchingDecks = listRes.body.filter((q: { title: string }) => q.title === "DIS 2026: The HMD Simulator");
+        expect(matchingDecks).toHaveLength(1);
+        expect(matchingDecks[0].week).toBe("dis2026-hmd-simulator");
+
+        await request(duplicateApp).get("/api/deck/dis2026-hmd-simulator").expect(200);
+        await request(duplicateApp).get("/api/deck/week13-dis2026-hmd-simulator").expect(404);
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
       }
