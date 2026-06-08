@@ -336,6 +336,28 @@ B. No
       expect(result.quiz!.week).toBe("week09-lab");
     });
 
+    it("uses non-week deck keys from filenames", () => {
+      const md = `# Quiz
+
+---
+
+## Topic
+
+**Question?**
+
+A. Yes
+B. No
+
+> Correct Answer: A
+> Overall Feedback: Explanation.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "dis2026-hmd-simulator.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.week).toBe("dis2026-hmd-simulator");
+    });
+
     it("parses code blocks in question text", () => {
       const md = `# Quiz
 
@@ -748,7 +770,7 @@ B. No
     });
   });
 
-  describe("sample quiz files", () => {
+  describe("sample deck files", () => {
     const quizDir = path.join(__dirname, "fixtures/quizzes");
 
     it("parses week01.md", () => {

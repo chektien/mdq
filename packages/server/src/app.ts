@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Request, type Response } from "express";
 import cors from "cors";
 import { API, AccessInfo, Quiz, Session, SessionState } from "@mdq/shared";
 import {
@@ -161,7 +161,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       ? ` There ${extraCount === 1 ? "is 1 more issue" : `are ${extraCount} more issues`} after that.`
       : "";
 
-    return `We couldn't load the quiz because ${location} needs attention. ${describeQuizValidationDetail(firstError.detail)} Fix the markdown file and reload quizzes before starting a session.${extraSuffix}`;
+    return `We couldn't load the deck because ${location} needs attention. ${describeQuizValidationDetail(firstError.detail)} Fix the markdown file and reload decks before starting a session.${extraSuffix}`;
   }
 
   function getQuizValidationMessage(): string | null {
@@ -173,7 +173,10 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       fs.mkdirSync(dirPath, { recursive: true });
       return 0;
     }
-    const files = fs.readdirSync(dirPath).filter((f) => f.match(/^week\d+(?:-[a-z0-9]+)*\.md$/i));
+    const files = fs
+      .readdirSync(dirPath)
+      .filter((f) => f.endsWith(".md") && !f.startsWith("."))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     const next = new Map<string, Quiz>();
     const nextValidationErrors: ReturnType<typeof parseQuizMarkdown>["errors"] = [];
 
@@ -196,7 +199,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
             ? String((error as { code?: unknown }).code || "")
             : "";
         if (code === "ENOENT") {
-          console.warn(`Skipping deleted quiz file during load: ${file}`);
+          console.warn(`Skipping deleted deck file during load: ${file}`);
           continue;
         }
         throw error;
@@ -349,19 +352,19 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     return res.status(204).send();
   });
 
-  // ── Quiz endpoints ────────────────────────
-  app.get(API.QUIZZES, (_req, res) => {
+  // ── Deck endpoints ────────────────────────
+  const listDecksHandler = (_req: Request, res: Response) => {
     const validationMessage = getQuizValidationMessage();
     if (validationMessage) {
       return res.status(409).json({ error: validationMessage });
     }
     const list = [...quizzes.values()].map(summarizeQuizForList);
-    res.json(list);
-  });
+    return res.json(list);
+  };
 
-  app.post(API.QUIZZES_RELOAD, requireInstructorAuth, (_req, res) => {
+  const reloadDecksHandler = (_req: Request, res: Response) => {
     if (!quizDir) {
-      return res.status(400).json({ error: "Quiz directory is not configured" });
+      return res.status(400).json({ error: "Deck directory is not configured" });
     }
     try {
       const loaded = loadQuizzesFromDir(quizDir);
@@ -372,22 +375,30 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       const list = [...quizzes.values()].map(summarizeQuizForList);
       return res.json({ loaded, quizzes: list });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Failed to reload quizzes";
+      const message = e instanceof Error ? e.message : "Failed to reload decks";
       return res.status(500).json({ error: message });
     }
-  });
+  };
 
-  app.get(API.QUIZ, (req, res) => {
+  app.get(API.DECKS, listDecksHandler);
+  app.get(API.QUIZZES, listDecksHandler);
+  app.post(API.DECKS_RELOAD, requireInstructorAuth, reloadDecksHandler);
+  app.post(API.QUIZZES_RELOAD, requireInstructorAuth, reloadDecksHandler);
+
+  const getDeckHandler = (req: Request, res: Response) => {
     const quiz = quizzes.get(req.params.week);
     if (!quiz) {
-      return res.status(404).json({ error: `Quiz not found: ${req.params.week}` });
+      return res.status(404).json({ error: `Deck not found: ${req.params.week}` });
     }
     res.json({
       week: quiz.week,
       title: quiz.title,
       questionCount: quiz.questions.length,
     });
-  });
+  };
+
+  app.get(API.DECK, getDeckHandler);
+  app.get(API.QUIZ, getDeckHandler);
 
   // ── Session lifecycle ─────────────────────
   app.post(API.SESSION_CREATE, requireInstructorAuth, (req, res) => {

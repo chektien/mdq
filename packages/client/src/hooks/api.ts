@@ -11,7 +11,7 @@ function apiPath(template: string, params: Record<string, string> = {}): string 
   return `${BASE}${path}`;
 }
 
-export interface QuizSummary {
+export interface DeckSummary {
   week: string;
   title: string;
   /** Total live items, including slides. Kept for progress/restore compatibility. */
@@ -20,6 +20,8 @@ export interface QuizSummary {
   liveQuestionCount?: number;
   slideCount?: number;
 }
+
+export type QuizSummary = DeckSummary;
 
 export interface QuestionSummary {
   heading: string;
@@ -90,31 +92,37 @@ export async function loginInstructor(password: string): Promise<void> {
   }
 }
 
-export async function fetchQuizzes(): Promise<QuizSummary[]> {
-  const res = await fetch(apiPath(API.QUIZZES));
+export async function fetchDecks(): Promise<DeckSummary[]> {
+  const res = await fetch(apiPath(API.DECKS));
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Failed to fetch quizzes");
+    throw new Error(data.error || "Failed to fetch decks");
   }
   return res.json();
 }
 
-export interface ReloadQuizzesResponse {
+export const fetchQuizzes = fetchDecks;
+
+export interface ReloadDecksResponse {
   loaded: number;
-  quizzes: QuizSummary[];
+  quizzes: DeckSummary[];
 }
 
-export async function reloadQuizzes(): Promise<ReloadQuizzesResponse> {
-  const res = await fetch(apiPath(API.QUIZZES_RELOAD), {
+export type ReloadQuizzesResponse = ReloadDecksResponse;
+
+export async function reloadDecks(): Promise<ReloadDecksResponse> {
+  const res = await fetch(apiPath(API.DECKS_RELOAD), {
     method: "POST",
     credentials: "same-origin",
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Failed to reload quizzes");
+    throw new Error(data.error || "Failed to reload decks");
   }
   return res.json();
 }
+
+export const reloadQuizzes = reloadDecks;
 
 export async function createSession(week: string, mode: string = "open"): Promise<CreateSessionResponse> {
   const res = await fetch(apiPath(API.SESSION_CREATE), {

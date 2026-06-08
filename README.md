@@ -26,10 +26,10 @@ MDQ is an independent project and is not affiliated with, endorsed by, or sponso
 ## Open Source Repo Layout
 
 - `packages/`: app code (safe to commit)
-- `samples/quizzes/`: tracked sample smoke quiz markdown for onboarding
+- `samples/decks/`: tracked sample smoke deck markdown for onboarding
 - `samples/images/`: tracked sample image assets copied into local runtime storage
 - `data/`: local-only runtime and private instance data (gitignored)
-  - `data/quizzes/`: your editable quiz source files
+  - `data/decks/`: your editable deck source files
   - `data/images/`: quiz and slide image attachments referenced from markdown
   - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
   - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
@@ -58,7 +58,7 @@ MDQ is optimized for a narrow classroom usage scenario:
 - one instructor-led live room
 - simple leaderboard and answer distribution
 - markdown files as the source of truth
-- zero-friction quiz updates: edit markdown in `data/quizzes/`, click `Reload Quiz Files`, and run the next session
+- zero-friction deck updates: edit markdown in `data/decks/`, click `Reload Decks`, and run the next session
 - agent-friendly quiz iteration without export/import overhead
 
 Because sessions are short and operationally simple, you do not need a large multi-tenant cloud quiz stack with heavy admin workflows and feature bloat.
@@ -66,13 +66,13 @@ Because sessions are short and operationally simple, you do not need a large mul
 ## Files
 
 - `packages/`: app code (safe to commit)
-- `samples/quizzes/`: tracked sample quiz markdown for onboarding
+- `samples/decks/`: tracked sample deck markdown for onboarding
 - `data/`: local-only runtime and private instance data (gitignored)
-  - `data/quizzes/`: your editable quiz source files (you need to copy sample quizzes here on first setup)
+  - `data/decks/`: your editable deck source files (you need to copy sample decks here on first setup)
   - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
   - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
 
-The `data/` folder is intentionally ignored so local state and access info do not get committed. Again, you need to copy sample quizzes from `samples/quizzes/` to `data/quizzes/` on first setup, but after that you can edit quiz markdown directly in `data/quizzes/` and it becomes your source of truth for quiz content.
+The `data/` folder is intentionally ignored so local state and access info do not get committed. Again, you need to copy sample decks from `samples/decks/` to `data/decks/` on first setup, but after that you can edit deck markdown directly in `data/decks/` and it becomes your source of truth for quiz content.
 
 Server runtime note:
 
@@ -88,7 +88,7 @@ npm install
 npm run setup:local
 ```
 
-This creates local `data/` directories, including `data/images/`, then copies the sample smoke quiz into `data/quizzes/week00.md` and the sample SVG attachment into `data/images/`.
+This creates local `data/` directories, including `data/images/`, then copies the sample smoke deck into `data/decks/week00.md` and the sample SVG attachment into `data/images/`. Deck filenames do not need to start with `week`; MDQ uses the markdown filename stem as the deck ID.
 
 Optional local runtime settings live in `data/config.json` (copy from `data/config.example.json`). The tracked example now includes `theme`, which defaults to `dark` and also accepts `light`. The default live surface uses a deep HMD-simulator-inspired background with restrained purple accents and rounded controls.
 
@@ -264,7 +264,7 @@ Requires `socket.io-client` to be resolvable — run `npm install -D socket.io-c
 Export a full MDQ markdown deck as a clean PDF packet from the CLI:
 
 ```bash
-npm run print:pdf -- data/quizzes/week00.md --out exports/week00.pdf
+npm run print:pdf -- data/decks/week00.md --out exports/week00.pdf
 ```
 
 The exporter builds the shared/server packages, parses the same markdown used by live sessions, renders a print-specific HTML view in Chromium, then writes a mostly vector PDF with crisp text and proportionally scaled images. Dark mode is the default so exported decks keep the original MDQ/HMD-simulator color direction; use `--theme light` when you want a conventional ink-friendly handout.
@@ -295,14 +295,14 @@ Options:
 Examples:
 
 ```bash
-npm run print:pdf -- data/quizzes/week12-hmd-simulator-course.md --theme dark --no-foldouts
-npm run print:pdf -- data/quizzes/week12-hmd-simulator-course.md --theme dark --answers --presenter-notes
-npm run print:pdf -- data/quizzes/week12.md --theme light --page-size Letter --out exports/week12-letter.pdf
+npm run print:pdf -- data/decks/week12-hmd-simulator-course.md --theme dark --no-foldouts
+npm run print:pdf -- data/decks/week12-hmd-simulator-course.md --theme dark --answers --presenter-notes
+npm run print:pdf -- data/decks/week12.md --theme light --page-size Letter --out exports/week12-letter.pdf
 ```
 
 PDF images keep their source aspect ratio. MDQ only scales images down to fit the print layout, so portrait screenshots and wide diagrams are not stretched, cropped, or reframed.
 
-## Quiz Markdown Format
+## Deck Markdown Format
 
 Each interactive question supports the existing `time_limit:` metadata plus optional `multi_select:` and `type:` flags. `question_type:` remains accepted as a backward-compatible alias. Question stems, slide bodies, and option text can also include standard markdown images.
 
@@ -412,7 +412,7 @@ C. The HDMI adapter
 ```
 
 - Store image files in `data/images/`.
-- Reference them from quiz markdown with `![](../images/<filename>)`.
+- Reference them from deck markdown with `![](../images/<filename>)`.
 - MDQ rewrites that quiz-relative path to `/data/images/...` when rendering, so the same markdown works cleanly in the live frontend.
 - In quiz stems and option text, images stay inline with the prompt content. In slide bodies, images move into the slide media layout.
 - MDQ preserves the source image aspect ratio in all quiz and slide surfaces.
@@ -469,8 +469,8 @@ Instructor Browser                 Student Browsers
                      |
           +----------+-----------+
           |                      |
-    Quiz source            Runtime output
-  data/quizzes/*.md      data/sessions/*.json
+    Deck source            Runtime output
+  data/decks/*.md      data/sessions/*.json
                          data/submissions/*.json
                          data/winners/*.json
                          data/access/current.json (local only)

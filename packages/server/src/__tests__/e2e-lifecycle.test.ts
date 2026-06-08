@@ -573,7 +573,7 @@ describe("E2E Lifecycle: Full Quiz Session", () => {
     expect(health.body.status).toBe("ok");
     expect(health.body.uptime).toBeGreaterThanOrEqual(0);
 
-    const quizList = await request(app).get("/api/quizzes").expect(200);
+    const quizList = await request(app).get("/api/decks").expect(200);
     expect(Array.isArray(quizList.body)).toBe(true);
     expect(quizList.body.length).toBeGreaterThanOrEqual(1);
     expect(quizList.body[0]).toHaveProperty("week");

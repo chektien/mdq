@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSocket } from "../hooks/useSocket";
 import type { QuestionState, RevealState } from "../hooks/useSocket";
 import {
-  fetchQuizzes,
-  reloadQuizzes,
+  fetchDecks,
+  reloadDecks,
   createSession,
   startSession,
   nextQuestion,
@@ -14,7 +14,7 @@ import {
   hideLeaderboard,
   fetchSessionAccessInfo,
   fetchSessionStateForRestore,
-  type QuizSummary,
+  type DeckSummary,
   type QuestionSummary,
   type CreateSessionResponse,
 } from "../hooks/api";
@@ -54,9 +54,9 @@ function pluralize(count: number, singular: string, plural = `${singular}s`): st
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function formatQuizChooserSummary(quiz: QuizSummary): string {
-  const slideCount = quiz.slideCount ?? 0;
-  const liveQuestionCount = quiz.liveQuestionCount ?? Math.max(quiz.questionCount - slideCount, 0);
+function formatDeckChooserSummary(deck: DeckSummary): string {
+  const slideCount = deck.slideCount ?? 0;
+  const liveQuestionCount = deck.liveQuestionCount ?? Math.max(deck.questionCount - slideCount, 0);
   const parts = [pluralize(liveQuestionCount, "question")];
   if (slideCount > 0) {
     parts.push(pluralize(slideCount, "slide"));
@@ -64,12 +64,12 @@ function formatQuizChooserSummary(quiz: QuizSummary): string {
   return parts.join(", ");
 }
 
-function formatQuizChooserTitle(quiz: QuizSummary): string {
-  const titleWithoutLegacyCount = quiz.title.replace(
+function formatDeckChooserTitle(deck: DeckSummary): string {
+  const titleWithoutLegacyCount = deck.title.replace(
     /\s*\(\s*\d+\s+(?:questions?|slides?)(?:\s*\+\s*\d+\s+(?:questions?|slides?))*\s*\)\s*$/i,
     "",
   );
-  return `${titleWithoutLegacyCount} (${formatQuizChooserSummary(quiz)})`;
+  return `${titleWithoutLegacyCount} (${formatDeckChooserSummary(deck)})`;
 }
 
 function clearInstructorRestore(): void {
@@ -90,7 +90,7 @@ function saveInstructorRestore(restore: StoredInstructorRestore): void {
 
 export default function InstructorView() {
   // Setup state
-  const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
+  const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -118,12 +118,12 @@ export default function InstructorView() {
     else setPhase("live");
   }, [sock.sessionState]);
 
-  // Load quizzes on mount
+  // Load decks on mount
   useEffect(() => {
-    fetchQuizzes()
-      .then((q) => {
-        setQuizzes(q);
-        if (q.length > 0) setSelectedWeek(q[0].week);
+    fetchDecks()
+      .then((loadedDecks) => {
+        setDecks(loadedDecks);
+        if (loadedDecks.length > 0) setSelectedWeek(loadedDecks[0].week);
       })
       .catch((e) => setErrorMsg(e.message));
   }, []);
@@ -222,11 +222,11 @@ export default function InstructorView() {
     try {
       const info = await createSession(selectedWeek);
       setSessionInfo(info);
-      const quiz = quizzes.find((q) => q.week === selectedWeek);
-      if (quiz) setTotalQuestionsInQuiz(quiz.questionCount);
+      const deck = decks.find((q) => q.week === selectedWeek);
+      if (deck) setTotalQuestionsInQuiz(deck.questionCount);
       setQuestionHeadings(info.questionHeadings || []);
       setQuestionSummaries(info.questionSummaries || []);
-      setQuizLabel(formatQuizLabel(quiz?.week || selectedWeek));
+      setQuizLabel(formatQuizLabel(deck?.week || selectedWeek));
       setRestoreNotice(null);
       setPhase("lobby");
 
@@ -242,19 +242,19 @@ export default function InstructorView() {
     } finally {
       setLoading(false);
     }
-  }, [selectedWeek, quizzes]);
+  }, [selectedWeek, decks]);
 
-  const handleReloadQuizzes = useCallback(async () => {
+  const handleReloadDecks = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const result = await reloadQuizzes();
-      setQuizzes(result.quizzes);
+      const result = await reloadDecks();
+      setDecks(result.quizzes);
       if (!result.quizzes.find((q) => q.week === selectedWeek) && result.quizzes.length > 0) {
         setSelectedWeek(result.quizzes[0].week);
       }
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : "Failed to reload quizzes");
+      setErrorMsg(e instanceof Error ? e.message : "Failed to reload decks");
     } finally {
       setLoading(false);
     }
@@ -315,31 +315,31 @@ export default function InstructorView() {
           </div>
         )}
 
-        {quizzes.length === 0 ? (
-          <p className="text-zinc-400">No quizzes found. Add quiz markdown files to the data/quizzes directory.</p>
+        {decks.length === 0 ? (
+          <p className="text-zinc-400">No decks found. Add markdown deck files to the data/decks directory.</p>
         ) : (
           <div className="w-full max-w-md space-y-6">
             <div>
-              <label htmlFor="quiz-select" className="block text-zinc-400 text-sm mb-2 font-medium">Select Quiz</label>
+              <label htmlFor="quiz-select" className="block text-zinc-400 text-sm mb-2 font-medium">Select Deck</label>
               <select
                 id="quiz-select"
                 value={selectedWeek}
                 onChange={(e) => setSelectedWeek(e.target.value)}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                {quizzes.map((q) => (
+                {decks.map((q) => (
                   <option key={q.week} value={q.week}>
-                    {formatQuizChooserTitle(q)}
+                    {formatDeckChooserTitle(q)}
                   </option>
                 ))}
               </select>
             </div>
             <button
-              onClick={handleReloadQuizzes}
+              onClick={handleReloadDecks}
               disabled={loading}
               className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:bg-zinc-700 disabled:text-zinc-500 border border-zinc-700 text-zinc-200 font-medium py-3 rounded-xl transition-colors"
             >
-              {loading ? "Reloading..." : "Reload Quiz Files"}
+              {loading ? "Reloading..." : "Reload Decks"}
             </button>
             <button
               onClick={handleCreateSession}

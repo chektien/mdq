@@ -63,9 +63,9 @@ Options:
   -h, --help           Show this help.
 
 Examples:
-  npm run print:pdf -- data/quizzes/week00.md --theme light --out exports/week00.pdf
-  npm run print:pdf -- data/quizzes/week12-hmd-simulator-course.md --theme dark --no-foldouts --page-size Letter
-  npm run print:pdf -- data/quizzes/week12-hmd-simulator-course.md --theme dark --answers --presenter-notes
+  npm run print:pdf -- data/decks/week00.md --theme light --out exports/week00.pdf
+  npm run print:pdf -- data/decks/week12-hmd-simulator-course.md --theme dark --no-foldouts --page-size Letter
+  npm run print:pdf -- data/decks/week12-hmd-simulator-course.md --theme dark --answers --presenter-notes
 `;
 }
 

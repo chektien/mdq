@@ -51,10 +51,9 @@ export function parseQuizMarkdown(markdown: string, sourceFile: string): ParseRe
   const titleMatch = markdown.match(/^#\s+(.+)$/m);
   const title = titleMatch ? titleMatch[1].trim() : "";
 
-  // Extract quiz key from filename (e.g., "week01.md" -> "week01", "week09-lab.md" -> "week09-lab")
+  // Extract deck key from filename (e.g., "week01.md" -> "week01", "dis2026-hmd-simulator.md" -> "dis2026-hmd-simulator")
   const sourceStem = sourceFile.replace(/^.*[\\/]/, "").replace(/\.md$/i, "").toLowerCase();
-  const weekMatch = sourceStem.match(/^(week\d+(?:-[a-z0-9]+)*)$/i);
-  const week = weekMatch ? weekMatch[1].toLowerCase() : sourceStem;
+  const week = sourceStem;
 
   // Split into question blocks by horizontal rules (---)
   // First, find where questions start (after title and any preamble)

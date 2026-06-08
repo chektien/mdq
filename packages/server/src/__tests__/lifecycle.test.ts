@@ -133,9 +133,9 @@ describe("REST API", () => {
     });
   });
 
-  describe("GET /api/quizzes", () => {
-    it("lists available quizzes", async () => {
-      const res = await request(app).get("/api/quizzes");
+  describe("GET /api/decks", () => {
+    it("lists available decks", async () => {
+      const res = await request(app).get("/api/decks");
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body.length).toBeGreaterThanOrEqual(2);
@@ -146,7 +146,7 @@ describe("REST API", () => {
       expect(w1.slideCount).toBe(0);
     });
 
-    it("separates quiz questions from slides in quiz summaries", async () => {
+    it("separates quiz questions from slides in deck summaries", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-quiz-summary-"));
       fs.writeFileSync(
         path.join(tempQuizDir, "week99-mixed.md"),
@@ -178,7 +178,7 @@ B. The slide
       const mixedApp = createApp(tempQuizDir);
 
       try {
-        const res = await request(mixedApp).get("/api/quizzes");
+        const res = await request(mixedApp).get("/api/decks");
         expect(res.status).toBe(200);
         const summary = res.body.find((q: { week: string }) => q.week === "week99-mixed");
         expect(summary).toBeDefined();
@@ -190,31 +190,36 @@ B. The slide
       }
     });
 
-    it("loads week and lab variant quizzes as distinct keys", async () => {
+    it("loads week and lab variant decks as distinct keys", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-quiz-variants-"));
       const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
       fs.writeFileSync(path.join(tempQuizDir, "week09.md"), fixtureWeek01, "utf-8");
       fs.writeFileSync(path.join(tempQuizDir, "week09-lab.md"), fixtureWeek01, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "dis2026-hmd-simulator.md"), fixtureWeek01, "utf-8");
 
       const variantApp = createApp(tempQuizDir);
 
       try {
-        const listRes = await request(variantApp).get("/api/quizzes");
+        const listRes = await request(variantApp).get("/api/decks");
         expect(listRes.status).toBe(200);
         expect(listRes.body.find((q: { week: string }) => q.week === "week09")).toBeDefined();
         expect(listRes.body.find((q: { week: string }) => q.week === "week09-lab")).toBeDefined();
+        expect(listRes.body.find((q: { week: string }) => q.week === "dis2026-hmd-simulator")).toBeDefined();
 
-        const weekRes = await request(variantApp).get("/api/quiz/week09");
+        const weekRes = await request(variantApp).get("/api/deck/week09");
         expect(weekRes.status).toBe(200);
 
-        const labRes = await request(variantApp).get("/api/quiz/week09-lab");
+        const labRes = await request(variantApp).get("/api/deck/week09-lab");
         expect(labRes.status).toBe(200);
+
+        const namedDeckRes = await request(variantApp).get("/api/deck/dis2026-hmd-simulator");
+        expect(namedDeckRes.status).toBe(200);
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
       }
     });
 
-    it("blocks instructor setup when any quiz file has format errors", async () => {
+    it("blocks instructor setup when any deck file has format errors", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-invalid-quiz-list-"));
       const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
       const invalidQuiz = `# Broken Quiz
@@ -238,7 +243,7 @@ Name the file to edit.
       const invalidApp = createApp(tempQuizDir);
 
       try {
-        const res = await request(invalidApp).get("/api/quizzes");
+        const res = await request(invalidApp).get("/api/decks");
         expect(res.status).toBe(409);
         expect(res.body.error).toContain("week11-lab.md:6");
         expect(res.body.error).toContain("no answer choices");
@@ -248,9 +253,9 @@ Name the file to edit.
     });
   });
 
-  describe("POST /api/quizzes/reload", () => {
-    it("reloads quiz markdown files without restarting server", async () => {
-      const res = await request(app).post("/api/quizzes/reload");
+  describe("POST /api/decks/reload", () => {
+    it("reloads deck markdown files without restarting server", async () => {
+      const res = await request(app).post("/api/decks/reload");
       expect(res.status).toBe(200);
       expect(res.body.loaded).toBeGreaterThanOrEqual(2);
       expect(Array.isArray(res.body.quizzes)).toBe(true);
@@ -258,7 +263,7 @@ Name the file to edit.
       expect(w1).toBeDefined();
     });
 
-    it("skips a quiz file deleted during reload instead of failing", async () => {
+    it("skips a deck file deleted during reload instead of failing", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-quiz-reload-"));
       const week01Path = path.join(tempQuizDir, "week01.md");
       const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
@@ -271,7 +276,7 @@ Name the file to edit.
       const flakyApp = createApp(tempQuizDir);
 
       try {
-        const res = await request(flakyApp).post("/api/quizzes/reload");
+        const res = await request(flakyApp).post("/api/decks/reload");
         expect(res.status).toBe(200);
         expect(res.body.loaded).toBe(1);
         expect(Array.isArray(res.body.quizzes)).toBe(true);
@@ -282,7 +287,7 @@ Name the file to edit.
       }
     });
 
-    it("returns a lecturer-friendly validation error when reload finds a broken quiz", async () => {
+    it("returns a lecturer-friendly validation error when reload finds a broken deck", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-invalid-quiz-reload-"));
       const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
       const invalidQuiz = `# Broken Quiz
@@ -306,26 +311,26 @@ Name the file to edit.
       const invalidApp = createApp(tempQuizDir);
 
       try {
-        const res = await request(invalidApp).post("/api/quizzes/reload");
+        const res = await request(invalidApp).post("/api/decks/reload");
         expect(res.status).toBe(409);
         expect(res.body.error).toContain("week11-lab.md:6");
-        expect(res.body.error).toContain("Fix the markdown file and reload quizzes");
+        expect(res.body.error).toContain("Fix the markdown file and reload decks");
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
       }
     });
   });
 
-  describe("GET /api/quiz/:week", () => {
+  describe("GET /api/deck/:week", () => {
     it("returns quiz metadata", async () => {
-      const res = await request(app).get("/api/quiz/week01");
+      const res = await request(app).get("/api/deck/week01");
       expect(res.status).toBe(200);
       expect(res.body.week).toBe("week01");
       expect(res.body.questionCount).toBe(3);
     });
 
     it("returns 404 for non-existent week", async () => {
-      const res = await request(app).get("/api/quiz/week99");
+      const res = await request(app).get("/api/deck/week99");
       expect(res.status).toBe(404);
     });
   });

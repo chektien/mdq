@@ -7,6 +7,7 @@ const DEFAULT_PORT_FALLBACKS = 10;
 interface RuntimeConfigFile {
   port?: unknown;
   portFallbacks?: unknown;
+  deckDir?: unknown;
   quizDir?: unknown;
   instanceId?: unknown;
   theme?: unknown;
@@ -100,6 +101,15 @@ function resolveQuizDir(configDir: string, rawQuizDir: string | undefined, fallb
   return path.isAbsolute(rawQuizDir) ? rawQuizDir : path.resolve(configDir, rawQuizDir);
 }
 
+function defaultDeckDir(dataDir: string): string {
+  const deckDir = path.join(dataDir, "decks");
+  const legacyQuizDir = path.join(dataDir, "quizzes");
+  if (!fs.existsSync(deckDir) && fs.existsSync(legacyQuizDir)) {
+    return legacyQuizDir;
+  }
+  return deckDir;
+}
+
 export function loadRuntimeConfig(options: RuntimeConfigLoadOptions = {}): RuntimeConfig {
   const rootDir = options.rootDir || path.resolve(__dirname, "../../../");
   const env = options.env || process.env;
@@ -107,7 +117,12 @@ export function loadRuntimeConfig(options: RuntimeConfigLoadOptions = {}): Runti
   const configPath = path.join(dataDir, "config.json");
   const configDir = path.dirname(configPath);
   const fileConfig = readRuntimeConfigFile(configPath);
-  const defaultQuizDir = path.join(dataDir, "quizzes");
+  const defaultQuizDir = defaultDeckDir(dataDir);
+  const configuredDeckDir =
+    parseString(env.MDQ_DECK_DIR)
+    ?? parseString(env.DECK_DIR)
+    ?? parseString(fileConfig.deckDir);
+  const configuredQuizDir = parseString(env.QUIZ_DIR) ?? parseString(fileConfig.quizDir);
 
   return {
     port: parsePositiveInt(env.PORT) ?? parsePositiveInt(fileConfig.port) ?? DEFAULT_PORT,
@@ -115,7 +130,7 @@ export function loadRuntimeConfig(options: RuntimeConfigLoadOptions = {}): Runti
       parseNonNegativeInt(env.PORT_FALLBACKS)
       ?? parseNonNegativeInt(fileConfig.portFallbacks)
       ?? DEFAULT_PORT_FALLBACKS,
-    quizDir: resolveQuizDir(configDir, parseString(env.QUIZ_DIR) ?? parseString(fileConfig.quizDir), defaultQuizDir),
+    quizDir: resolveQuizDir(configDir, configuredDeckDir ?? configuredQuizDir, defaultQuizDir),
     instanceId: parseString(env.MDQ_INSTANCE_ID) ?? parseString(fileConfig.instanceId) ?? "",
     theme: parseTheme(env.MDQ_THEME) ?? parseTheme(fileConfig.theme) ?? "dark",
     configPath,
