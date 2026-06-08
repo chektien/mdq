@@ -53,7 +53,12 @@ function summarizeQuizForList(q: Quiz) {
 }
 
 function normalizeDeckTitle(title: string): string {
-  return title.trim().replace(/\s+/g, " ").toLowerCase();
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function hasWeekPrefix(deckId: string): boolean {

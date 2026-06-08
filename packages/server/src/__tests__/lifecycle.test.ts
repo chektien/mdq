@@ -221,20 +221,25 @@ B. The slide
 
     it("collapses duplicate deck titles and prefers descriptive filenames over week-prefixed aliases", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-duplicate-decks-"));
-      const fixtureWeek01 = fs
+      const descriptiveDeck = fs
         .readFileSync(path.join(quizDir, "week01.md"), "utf-8")
-        .replace(/^# .+$/m, "# DIS 2026: The HMD Simulator");
-      fs.writeFileSync(path.join(tempQuizDir, "week13-dis2026-hmd-simulator.md"), fixtureWeek01, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "dis2026-hmd-simulator.md"), fixtureWeek01, "utf-8");
+        .replace(/^# .+$/m, "# DIS 2026: The HMD Simulator (10 min MDQ)");
+      const weekAliasDeck = descriptiveDeck.replace(
+        /^# .+$/m,
+        "# DIS 2026: The HMD Simulator (10 min, MDQ)",
+      );
+      fs.writeFileSync(path.join(tempQuizDir, "week13-dis2026-hmd-simulator.md"), weekAliasDeck, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "dis2026-hmd-simulator.md"), descriptiveDeck, "utf-8");
 
       const duplicateApp = createApp(tempQuizDir);
 
       try {
         const listRes = await request(duplicateApp).get("/api/decks");
         expect(listRes.status).toBe(200);
-        const matchingDecks = listRes.body.filter((q: { title: string }) => q.title === "DIS 2026: The HMD Simulator");
+        const matchingDecks = listRes.body.filter((q: { title: string }) => q.title.includes("DIS 2026: The HMD Simulator"));
         expect(matchingDecks).toHaveLength(1);
         expect(matchingDecks[0].week).toBe("dis2026-hmd-simulator");
+        expect(matchingDecks[0].title).toBe("DIS 2026: The HMD Simulator (10 min MDQ)");
 
         await request(duplicateApp).get("/api/deck/dis2026-hmd-simulator").expect(200);
         await request(duplicateApp).get("/api/deck/week13-dis2026-hmd-simulator").expect(404);
