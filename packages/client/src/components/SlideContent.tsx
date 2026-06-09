@@ -68,7 +68,7 @@ export function SlideContentBody({
         {hasMedia && (
           <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
             {slideMedia.map((media, index) => {
-              const caption = media.title || media.alt;
+              const caption = media.title;
               return (
                 <figure className="slide-media-figure" key={`${media.src}-${index}`}>
                   <ExpandableImage

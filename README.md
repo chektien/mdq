@@ -304,6 +304,16 @@ PDF images keep their source aspect ratio. MDQ only scales images down to fit th
 
 ## Deck Markdown Format
 
+Decks can start with an optional preamble title before the first `---`. This title is used in the instructor deck picker and PDF cover, while the `## ...` headings remain the individual live items.
+
+```markdown
+title: DIS 2026 HMD Simulator
+
+---
+```
+
+If the preamble title is omitted, MDQ falls back to the first `# ...` heading for backward compatibility.
+
 Each interactive question supports the existing `time_limit:` metadata plus optional `multi_select:` and `type:` flags. `question_type:` remains accepted as a backward-compatible alias. Question stems, slide bodies, and option text can also include standard markdown images.
 
 ```markdown

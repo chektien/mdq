@@ -358,6 +358,25 @@ B. No
       expect(result.quiz!.week).toBe("dis2026-hmd-simulator");
     });
 
+    it("uses a preamble title when the deck has no H1", () => {
+      const md = `title: "DIS 2026 HMD Simulator"
+
+---
+
+## Opening Slide
+
+type: slide
+
+Welcome to the session.
+
+---`;
+      const result = parseQuizMarkdown(md, "dis2026-hmd-simulator.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.title).toBe("DIS 2026 HMD Simulator");
+      expect(result.quiz!.week).toBe("dis2026-hmd-simulator");
+      expect(result.quiz!.questions).toHaveLength(1);
+    });
+
     it("parses code blocks in question text", () => {
       const md = `# Quiz
 

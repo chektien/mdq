@@ -47,9 +47,7 @@ interface QuestionBlock {
 export function parseQuizMarkdown(markdown: string, sourceFile: string): ParseResult {
   const errors: QuizParseError[] = [];
 
-  // Extract title from H1 heading
-  const titleMatch = markdown.match(/^#\s+(.+)$/m);
-  const title = titleMatch ? titleMatch[1].trim() : "";
+  const title = extractDeckTitle(markdown);
 
   // Extract deck key from filename (e.g., "week01.md" -> "week01", "dis2026-hmd-simulator.md" -> "dis2026-hmd-simulator")
   const sourceStem = sourceFile.replace(/^.*[\\/]/, "").replace(/\.md$/i, "").toLowerCase();
@@ -124,6 +122,27 @@ function splitQuestionBlocks(markdown: string): QuestionBlock[] {
 
   pushCurrentBlock();
   return blocks;
+}
+
+function extractDeckTitle(markdown: string): string {
+  const preamble = markdown.split(/^---+\s*$/m, 1)[0] || markdown;
+  const metadataTitleMatch = preamble.match(/^title:\s*(.+)$/im);
+  if (metadataTitleMatch) {
+    return stripOptionalQuotes(metadataTitleMatch[1].trim());
+  }
+
+  const titleMatch = markdown.match(/^#\s+(.+)$/m);
+  return titleMatch ? titleMatch[1].trim() : "";
+}
+
+function stripOptionalQuotes(value: string): string {
+  const trimmed = value.trim();
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
 }
 
 /**

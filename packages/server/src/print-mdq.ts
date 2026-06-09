@@ -434,6 +434,11 @@ function renderItem(question: Question, index: number, total: number, options: P
   const isSlide = type === "slide";
   const heading = questionHeading(question);
   const body = renderTrustedHtml(question.textHtml, inputDir, options.imagesDir);
+  const hasBody = body.trim().length > 0;
+  const hasSlideMedia = isSlide && (question.slideMedia?.length ?? 0) > 0;
+  const bodySection = hasBody || !hasSlideMedia
+    ? `<section class="body-copy">${hasBody ? body : "<p class=\"empty-copy\">No body text.</p>"}</section>`
+    : "";
 
   return `
     <article class="item item-${type}">
@@ -447,7 +452,7 @@ function renderItem(question: Question, index: number, total: number, options: P
         <h2>${escapeHtml(heading)}</h2>
       </header>
       <div class="${isSlide ? "slide-layout" : "question-layout"}">
-        <section class="body-copy">${body || "<p class=\"empty-copy\">No body text.</p>"}</section>
+        ${bodySection}
         ${renderSlideMedia(question, inputDir, options.imagesDir)}
       </div>
       ${renderOptions(question, inputDir, options.imagesDir, options.includeAnswers)}
