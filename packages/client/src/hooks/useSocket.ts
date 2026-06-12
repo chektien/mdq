@@ -17,6 +17,7 @@ import type {
   FoldoutNote,
   AnswerSubmitPayload,
   SlideMedia,
+  SlideLiveEmbed,
   SlideReference,
 } from "@mdq/shared";
 import { SocketEvents } from "@mdq/shared";
@@ -75,6 +76,7 @@ export interface QuestionState {
   questionType: QuestionType;
   attendeeNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
+  slideLiveEmbed?: SlideLiveEmbed;
   slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
@@ -233,20 +235,23 @@ export function useSocket(
     // ── Question lifecycle ─────────────────
     socket.on(SocketEvents.QUESTION_OPEN, (data: QuestionOpenPayload) => {
       const questionType = data.questionType ?? (data.isPoll ? "poll" : "multiple_choice");
-      setCurrentQuestion({
+      const nextQuestion = {
         questionIndex: data.questionIndex,
         topic: data.topic,
         text: data.text,
         questionType,
         attendeeNotes: data.attendeeNotes,
         slideMedia: data.slideMedia,
+        slideLiveEmbed: data.slideLiveEmbed,
         slideReferences: data.slideReferences,
         options: data.options,
         allowsMultiple: data.allowsMultiple,
         isPoll: data.isPoll ?? false,
         timeLimitSec: data.timeLimitSec,
         startedAt: data.startedAt,
-      });
+      };
+      currentQuestionRef.current = nextQuestion;
+      setCurrentQuestion(nextQuestion);
       setSessionState("QUESTION_OPEN");
       setReveal(null);
       setDistribution(null);
@@ -317,6 +322,10 @@ export function useSocket(
     });
 
     socket.on(SocketEvents.RESULTS_REVEAL, (data: ResultsRevealPayload) => {
+      if (currentQuestionRef.current?.questionIndex !== data.questionIndex) {
+        return;
+      }
+
       setReveal({
         questionIndex: data.questionIndex,
         questionType: data.questionType ?? (data.isPoll ? "poll" : "multiple_choice"),

@@ -289,6 +289,37 @@ type: slide
       ]);
     });
 
+    it("extracts live slide embed metadata without rendering it as body text", () => {
+      const md = `# Quiz
+
+---
+
+## Live Demo
+
+type: slide
+live_url: https://example.com/demo
+live_title_overlay: true
+live_interactive: true
+
+Use the live artifact as the slide.
+
+> Attendee Note: Tan, C. T. 2026. The HMD Simulator. In *DIS '26*. https://doi.org/10.1145/example
+
+---`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.slideLiveEmbed).toEqual({
+        url: "https://example.com/demo",
+        titleOverlay: true,
+        interactive: true,
+      });
+      expect(q.textMd).toBe("Use the live artifact as the slide.");
+      expect(q.textHtml).not.toContain("live_url");
+      expect(q.slideMedia).toBeUndefined();
+      expect(q.attendeeNotes?.[0].bodyMd).toContain("The HMD Simulator");
+    });
+
     it("extracts slide references into footer-ready inline html", () => {
       const md = `# Quiz
 

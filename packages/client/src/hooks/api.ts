@@ -1,5 +1,5 @@
 import { API } from "@mdq/shared";
-import type { AccessInfo, QuestionType } from "@mdq/shared";
+import type { AccessInfo, QuestionOpenPayload, QuestionType, ResultsRevealPayload } from "@mdq/shared";
 
 const BASE = "";
 
@@ -45,6 +45,8 @@ export interface SessionRestoreResponse {
   questionCount: number;
   questionHeadings: string[];
   questionSummaries: QuestionSummary[];
+  reviewQuestions?: QuestionOpenPayload[];
+  reviewReveals?: ResultsRevealPayload[];
 }
 
 export interface PresentationSessionResponse {
@@ -154,6 +156,10 @@ async function sessionAction(sessionId: string, action: string): Promise<Record<
 
 export async function startSession(sessionId: string) {
   return sessionAction(sessionId, "START");
+}
+
+export async function prevQuestion(sessionId: string) {
+  return sessionAction(sessionId, "PREV");
 }
 
 export async function nextQuestion(sessionId: string) {

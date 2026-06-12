@@ -10,6 +10,8 @@ import {
   StateTransitionError,
   computeLeaderboard,
   getActiveSessions,
+  getDistribution,
+  getOpenResponses,
 } from "./session";
 import { parseQuizMarkdown } from "./parser";
 import {
@@ -17,7 +19,7 @@ import {
   computeCumulativeLeaderboard,
   persistSessionProgressOnReveal,
 } from "./persistence";
-import { buildScoredCorrectAnswersMap, getQuestionType, getScoredQuestionCount } from "./scoring";
+import { buildScoredCorrectAnswersMap, getQuestionType, getScoredQuestionCount, isOpenResponseQuestion } from "./scoring";
 import { getCachedAccessInfo, generateQrDataUrl, generateShortUrl, type ShortUrlProvider } from "./access-info";
 import {
   INSTRUCTOR_SESSION_COOKIE,
@@ -66,6 +68,9 @@ function hasWeekPrefix(deckId: string): boolean {
 }
 
 function compareDecksForList(a: Quiz, b: Quiz): number {
+  if (a.week === "dis2026-hmd-simulator" && b.week !== "dis2026-hmd-simulator") return -1;
+  if (b.week === "dis2026-hmd-simulator" && a.week !== "dis2026-hmd-simulator") return 1;
+
   const aWeek = a.week.match(/^week(\d+)/i)?.[1];
   const bWeek = b.week.match(/^week(\d+)/i)?.[1];
   if (aWeek && bWeek && aWeek !== bWeek) {
@@ -155,6 +160,75 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       heading: getQuestionHeading(question),
       questionType: getQuestionType(question),
     }));
+  }
+
+  function getReviewQuestions(session: Session, quiz: Quiz) {
+    if (session.currentQuestionIndex < 0) {
+      return [];
+    }
+
+    return quiz.questions.slice(0, session.currentQuestionIndex + 1).map((question, questionIndex) => ({
+      questionIndex,
+      topic: question.topic,
+      text: question.textHtml,
+      questionType: getQuestionType(question),
+      attendeeNotes: question.attendeeNotes && question.attendeeNotes.length > 0
+        ? question.attendeeNotes
+        : undefined,
+      slideMedia: question.slideMedia,
+      slideLiveEmbed: question.slideLiveEmbed,
+      slideReferences: question.slideReferences,
+      options: question.options.map((option) => ({ label: option.label, text: option.textHtml })),
+      allowsMultiple: question.allowsMultiple,
+      isPoll: question.isPoll === true,
+      timeLimitSec: question.timeLimitSec,
+      startedAt: questionIndex === session.currentQuestionIndex
+        ? session.questionStartedAt || Date.now()
+        : session.questionStartedAt || session.createdAt,
+    }));
+  }
+
+  function getReviewReveals(session: Session, quiz: Quiz) {
+    if (session.currentQuestionIndex < 0) {
+      return [];
+    }
+
+    const revealedThroughIndex =
+      session.state === "QUESTION_OPEN" || session.state === "QUESTION_CLOSED"
+        ? session.currentQuestionIndex - 1
+        : session.currentQuestionIndex;
+
+    if (revealedThroughIndex < 0) {
+      return [];
+    }
+
+    return quiz.questions
+      .slice(0, revealedThroughIndex + 1)
+      .map((question, questionIndex) => ({ question, questionIndex }))
+      .filter(({ question }) => getQuestionType(question) !== "slide")
+      .map(({ question, questionIndex }) => ({
+        questionIndex,
+        questionType: getQuestionType(question),
+        correctOptions: question.correctOptions,
+        explanation: question.explanation,
+        distribution: getDistribution(session, questionIndex),
+        isPoll: question.isPoll === true,
+        openResponses: isOpenResponseQuestion(question) ? getOpenResponses(session, questionIndex) : undefined,
+      }));
+  }
+
+  function markQuestionReviewed(session: Session, questionIndex: number): void {
+    if (questionIndex < 0) {
+      return;
+    }
+    if (!session.revealedQuestionIndexes) {
+      session.revealedQuestionIndexes = new Set<number>();
+    }
+    session.revealedQuestionIndexes.add(questionIndex);
+  }
+
+  function isQuestionReviewed(session: Session, questionIndex: number): boolean {
+    return session.revealedQuestionIndexes?.has(questionIndex) === true;
   }
 
   function describeQuizValidationDetail(detail: string): string {
@@ -509,6 +583,8 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         questionCount: quiz.questions.length,
         questionHeadings: getQuestionHeadings(quiz),
         questionSummaries: getQuestionSummaries(quiz),
+        reviewQuestions: getReviewQuestions(session, quiz),
+        reviewReveals: getReviewReveals(session, quiz),
       });
     });
   });
@@ -545,6 +621,36 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     });
   });
 
+  app.post(API.SESSION_PREV, requireInstructorAuth, (req, res) => {
+    withSession(req, res, (session) => {
+      const quiz = getQuizForSession(session.week);
+      if (!quiz) {
+        return res.status(500).json({ error: "Quiz data not found" });
+      }
+      const prevIndex = session.currentQuestionIndex - 1;
+      if (session.state === "LOBBY") {
+        return res.status(400).json({ error: "Start the session before going back." });
+      }
+      if (prevIndex < 0) {
+        return res.status(400).json({ error: "Already at the first item" });
+      }
+
+      const previousQuestion = quiz.questions[prevIndex];
+      const previousQuestionType = getQuestionType(previousQuestion);
+
+      session.state = previousQuestionType === "slide" ? "QUESTION_OPEN" : "REVEAL";
+      session.currentQuestionIndex = prevIndex;
+      if (session.state === "QUESTION_OPEN") {
+        session.questionStartedAt = Date.now();
+      } else {
+        markQuestionReviewed(session, prevIndex);
+      }
+      notifyStateChange(session, req.params.id, quiz);
+      logActivity(`instructor prev session=${req.params.id} q=${prevIndex} state=${session.state}`);
+      res.json({ state: session.state, questionIndex: prevIndex });
+    });
+  });
+
   app.post(API.SESSION_NEXT, requireInstructorAuth, (req, res) => {
     withSession(req, res, (session) => {
       const quiz = getQuizForSession(session.week);
@@ -567,8 +673,17 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         } else {
           transitionState(session, "QUESTION_OPEN");
         }
+
+        const nextQuestion = quiz.questions[nextIndex];
+        const nextQuestionType = getQuestionType(nextQuestion);
+        if (nextQuestionType !== "slide" && isQuestionReviewed(session, nextIndex)) {
+          session.state = "REVEAL";
+        }
+
         session.currentQuestionIndex = nextIndex;
-        session.questionStartedAt = Date.now();
+        if (session.state === "QUESTION_OPEN") {
+          session.questionStartedAt = Date.now();
+        }
         notifyStateChange(session, req.params.id, quiz);
         logActivity(`instructor next session=${req.params.id} q=${nextIndex} state=${session.state}`);
         res.json({ state: session.state, questionIndex: nextIndex });
@@ -611,6 +726,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
           return res.status(400).json({ error: "Slides do not reveal answers; advance to the next item." });
         }
         transitionState(session, "REVEAL");
+        markQuestionReviewed(session, session.currentQuestionIndex);
 
         if (quiz) {
           try {

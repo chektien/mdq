@@ -40,6 +40,7 @@ export function createSession(week: string, mode: SessionMode): Session {
     mode,
     state: "LOBBY",
     currentQuestionIndex: -1,
+    revealedQuestionIndexes: new Set<number>(),
     participants: new Map<string, Participant>(),
     submissions: [],
     createdAt: Date.now(),

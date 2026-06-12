@@ -100,6 +100,12 @@ export interface SlideReference {
   html: string;
 }
 
+export interface SlideLiveEmbed {
+  url: string;
+  titleOverlay?: boolean;
+  interactive?: boolean;
+}
+
 export interface OpenResponseEntry {
   studentId: string;
   displayName?: string;
@@ -114,6 +120,7 @@ export interface QuestionOpenPayload {
   questionType?: QuestionType;
   attendeeNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
+  slideLiveEmbed?: SlideLiveEmbed;
   slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
@@ -204,6 +211,7 @@ export const API = {
   QUIZ: "/api/quiz/:week",
   SESSION_CREATE: "/api/session",
   SESSION_START: "/api/session/:id/start",
+  SESSION_PREV: "/api/session/:id/prev",
   SESSION_NEXT: "/api/session/:id/next",
   SESSION_CLOSE: "/api/session/:id/close",
   SESSION_REVEAL: "/api/session/:id/reveal",
@@ -238,6 +246,7 @@ export interface Question {
   attendeeNotes?: FoldoutNote[];
   presenterNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
+  slideLiveEmbed?: SlideLiveEmbed;
   slideReferences?: SlideReference[];
   options: QuestionOption[];
   correctOptions: string[];
@@ -283,6 +292,7 @@ export interface Session {
   state: SessionState;
   currentQuestionIndex: number;
   questionStartedAt?: number;
+  revealedQuestionIndexes?: Set<number>;
   participants: Map<string, Participant>;
   submissions: Submission[];
   createdAt: number;

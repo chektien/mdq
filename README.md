@@ -343,6 +343,7 @@ Rules:
 - Use `type: open_response` for a written, non-scored response prompt.
 - Use `type: slide` for non-interactive slide content. Slides have no timer, answer choices, correct answers, submissions, or leaderboard weight.
 - Add standard markdown images to slide bodies when you want MDQ to arrange media beside the text. Images are scaled proportionately and never cropped or stretched.
+- Use `live_url: https://...` on a slide when you want the instructor/projector surface to embed a live website as the slide itself. Add `live_title_overlay: true` to keep the slide title and body text over the live surface, and keep a normal markdown image in the slide as the static fallback for PDF exports and non-live surfaces.
 - Add slide references with blockquote labels such as `> Reference:` or `> Image Source:`. References render as small, grey, right-aligned footer text and links.
 - Do not combine `multi_select: false` with multiple correct answers.
 - The instructor live `Next` button preview uses the existing `## ...` item heading, including both sides of `Topic: Subtopic` when present.
@@ -355,6 +356,9 @@ Slide example:
 ## Retrieval Practice With Evidence
 
 type: slide
+live_url: https://example.edu/live-demo
+live_title_overlay: true
+live_interactive: true
 
 - Start with a low-stakes recall prompt.
   > Attendee Note: Retrieval before explanation is the key idea.

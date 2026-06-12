@@ -316,7 +316,46 @@ describe("E2E Lifecycle: Full Quiz Session", () => {
       waitFor<ResultsRevealPayload>(s.socket, SocketEvents.RESULTS_REVEAL),
     );
     await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
-    await Promise.all(reveal2Promises);
+    const q2Reveals = await Promise.all(reveal2Promises);
+    for (const reveal of q2Reveals) {
+      expect(reveal.questionIndex).toBe(1);
+      expect(reveal.correctOptions).toContain("B");
+      expect(reveal.distribution.B).toBe(3);
+    }
+
+    const lbAfterQ2 = await request(app)
+      .get(`/api/session/${sessionId}/leaderboard`)
+      .expect(200);
+    expect(lbAfterQ2.body.entries.find((e: { studentId: string; correctCount: number }) => e.studentId === "STU001")!.correctCount).toBe(2);
+    expect(lbAfterQ2.body.entries.find((e: { studentId: string; correctCount: number }) => e.studentId === "STU002")!.correctCount).toBe(1);
+    expect(lbAfterQ2.body.entries.find((e: { studentId: string; correctCount: number }) => e.studentId === "STU003")!.correctCount).toBe(2);
+
+    const prevRevealPromises = students.map((s) =>
+      waitFor<ResultsRevealPayload>(s.socket, SocketEvents.RESULTS_REVEAL),
+    );
+    const prevRes = await request(app).post(`/api/session/${sessionId}/prev`).expect(200);
+    expect(prevRes.body).toMatchObject({ state: "REVEAL", questionIndex: 0 });
+    const prevReveals = await Promise.all(prevRevealPromises);
+    for (const reveal of prevReveals) {
+      expect(reveal.questionIndex).toBe(0);
+    }
+
+    const nextReviewRevealPromises = students.map((s) =>
+      waitFor<ResultsRevealPayload>(s.socket, SocketEvents.RESULTS_REVEAL),
+    );
+    const nextReviewRes = await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+    expect(nextReviewRes.body).toMatchObject({ state: "REVEAL", questionIndex: 1 });
+    const nextReviewReveals = await Promise.all(nextReviewRevealPromises);
+    for (const reveal of nextReviewReveals) {
+      expect(reveal.questionIndex).toBe(1);
+      expect(reveal.correctOptions).toContain("B");
+      expect(reveal.distribution.B).toBe(3);
+    }
+
+    const lbAfterReviewNavigation = await request(app)
+      .get(`/api/session/${sessionId}/leaderboard`)
+      .expect(200);
+    expect(lbAfterReviewNavigation.body.entries).toEqual(lbAfterQ2.body.entries);
 
     // ── Step 8: Advance to question 3 ──
     // Register listeners BEFORE the POST

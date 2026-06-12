@@ -6,6 +6,7 @@ import {
   QuestionType,
   FoldoutNote,
   SlideMedia,
+  SlideLiveEmbed,
   SlideReference,
 } from "@mdq/shared";
 import { marked } from "marked";
@@ -338,6 +339,10 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
   textLines = textLines.filter((l) => !/^time_limit:\s*\d+/i.test(l.trim()));
   textLines = textLines.filter((l) => !/^(?:type|question_type):\s*[a-z_]+$/i.test(l.trim()));
   textLines = textLines.filter((l) => !/^multi_select:\s*(true|false|yes|no|1|0)$/i.test(l.trim()));
+  const liveEmbedExtraction = isSlide
+    ? extractSlideLiveEmbed(textLines)
+    : { contentLines: textLines, liveEmbed: undefined };
+  textLines = liveEmbedExtraction.contentLines;
   const referenceExtraction = isSlide
     ? extractSlideReferences(textLines)
     : { contentLines: textLines, references: [] as SlideReference[] };
@@ -370,6 +375,7 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     attendeeNotes: noteExtraction.notes.filter((note) => note.audience === "attendee"),
     presenterNotes: noteExtraction.notes.filter((note) => note.audience === "presenter"),
     slideMedia: mediaExtraction.media.length > 0 ? mediaExtraction.media : undefined,
+    slideLiveEmbed: liveEmbedExtraction.liveEmbed,
     slideReferences: referenceExtraction.references.length > 0 ? referenceExtraction.references : undefined,
     options,
     correctOptions,
@@ -422,6 +428,45 @@ function resolveMarkdownImageHref(href: string): string {
   }
 
   return `${QUIZ_IMAGE_PUBLIC_PREFIX}${segments.join("/")}`;
+}
+
+function extractSlideLiveEmbed(lines: string[]): { contentLines: string[]; liveEmbed?: SlideLiveEmbed } {
+  const contentLines: string[] = [];
+  let url = "";
+  let titleOverlay: boolean | undefined;
+  let interactive: boolean | undefined;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(/^(live_url|live_title_overlay|live_interactive):\s*(.+)$/i);
+    if (!match) {
+      contentLines.push(line);
+      continue;
+    }
+
+    const key = match[1].toLowerCase();
+    const value = match[2].trim();
+    if (key === "live_url") {
+      url = stripOptionalQuotes(value);
+    } else if (key === "live_title_overlay") {
+      titleOverlay = parseBooleanField(value);
+    } else if (key === "live_interactive") {
+      interactive = parseBooleanField(value);
+    }
+  }
+
+  if (!url) {
+    return { contentLines };
+  }
+
+  return {
+    contentLines,
+    liveEmbed: {
+      url,
+      ...(titleOverlay !== undefined ? { titleOverlay } : {}),
+      ...(interactive !== undefined ? { interactive } : {}),
+    },
+  };
 }
 
 function extractSlideMedia(lines: string[]): { contentLines: string[]; media: SlideMedia[] } {

@@ -202,6 +202,7 @@ B. The slide
       try {
         const listRes = await request(variantApp).get("/api/decks");
         expect(listRes.status).toBe(200);
+        expect(listRes.body[0].week).toBe("dis2026-hmd-simulator");
         expect(listRes.body.find((q: { week: string }) => q.week === "week09")).toBeDefined();
         expect(listRes.body.find((q: { week: string }) => q.week === "week09-lab")).toBeDefined();
         expect(listRes.body.find((q: { week: string }) => q.week === "dis2026-hmd-simulator")).toBeDefined();
@@ -513,6 +514,43 @@ Name the file to edit.
       expect(res.body.state).toBe("ENDED");
     });
 
+    it("goes back to the previous revealed quiz in review mode", async () => {
+      await request(app).post(`/api/session/${sessionId}/start`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+
+      const res = await request(app)
+        .post(`/api/session/${sessionId}/prev`)
+        .expect(200);
+
+      expect(res.body.state).toBe("REVEAL");
+      expect(res.body.questionIndex).toBe(0);
+    });
+
+    it("keeps completed quiz questions in review mode when navigating back and forward", async () => {
+      await request(app).post(`/api/session/${sessionId}/start`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+
+      let res = await request(app)
+        .post(`/api/session/${sessionId}/prev`)
+        .expect(200);
+
+      expect(res.body.state).toBe("REVEAL");
+      expect(res.body.questionIndex).toBe(0);
+
+      res = await request(app)
+        .post(`/api/session/${sessionId}/next`)
+        .expect(200);
+
+      expect(res.body.state).toBe("REVEAL");
+      expect(res.body.questionIndex).toBe(1);
+    });
+
     it("allows ending directly from a closed question", async () => {
       await request(app).post(`/api/session/${sessionId}/start`).expect(200);
       await request(app).post(`/api/session/${sessionId}/close`).expect(200);
@@ -713,6 +751,35 @@ Name the file to edit.
         { heading: "Intro: Defaults", questionType: "multiple_choice" },
         { heading: "Intro: Multi-select", questionType: "multiple_choice" },
       ]);
+      expect(res.body.reviewQuestions).toHaveLength(1);
+      expect(res.body.reviewQuestions[0]).toMatchObject({
+        questionIndex: 0,
+        topic: "Intro",
+        questionType: "multiple_choice",
+      });
+      expect(res.body.reviewReveals).toEqual([]);
+    });
+
+    it("returns visited question and reveal history for resumed instructor review", async () => {
+      await request(app).post(`/api/session/${sessionId}/start`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+
+      const res = await request(app)
+        .get(`/api/session/${sessionId}/state`)
+        .expect(200);
+
+      expect(res.body.state).toBe("QUESTION_OPEN");
+      expect(res.body.currentQuestionIndex).toBe(1);
+      expect(res.body.reviewQuestions).toHaveLength(2);
+      expect(res.body.reviewQuestions.map((question: { questionIndex: number }) => question.questionIndex)).toEqual([0, 1]);
+      expect(res.body.reviewReveals).toHaveLength(1);
+      expect(res.body.reviewReveals[0]).toMatchObject({
+        questionIndex: 0,
+        questionType: "multiple_choice",
+        correctOptions: ["B"],
+      });
     });
 
     it("returns 410 for restore request on ended session", async () => {

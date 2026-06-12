@@ -6,6 +6,7 @@ import type { SessionState } from "@mdq/shared";
 import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
 import DistributionChart from "../components/DistributionChart";
+import InlineMarkdownText from "../components/InlineMarkdownText";
 import QuizHtml from "../components/QuizHtml";
 import SlideContent from "../components/SlideContent";
 import { getQuestionModeText } from "../questionMode";
@@ -771,7 +772,7 @@ function RevealView({
           <h3 className="text-zinc-400 text-xs uppercase tracking-wide font-medium mb-2">
             Explanation
           </h3>
-          <p className="text-zinc-200 text-sm leading-relaxed">{reveal.explanation}</p>
+          <InlineMarkdownText text={reveal.explanation} className="text-zinc-200 text-sm leading-relaxed" />
         </div>
       )}
     </div>

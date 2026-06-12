@@ -7,8 +7,11 @@ import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
 import OpenResponseList from "../components/OpenResponseList";
 import QRPanel from "../components/QRPanel";
+import SessionCodeCard from "../components/SessionCodeCard";
+import InlineMarkdownText from "../components/InlineMarkdownText";
 import QuizHtml from "../components/QuizHtml";
 import LiveSurface from "../components/LiveSurface";
+import ResponsiveQuizSurface from "../components/ResponsiveQuizSurface";
 import SlideContent, { SlideContentBody } from "../components/SlideContent";
 import { getQuestionModeText } from "../questionMode";
 
@@ -79,6 +82,10 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
   const totalQuestions = meta?.questionCount || 0;
   const currentQuestion = sock.currentQuestion as QuestionState | null;
   const reveal = sock.reveal as RevealState | null;
+  const currentReveal =
+    reveal && currentQuestion && reveal.questionIndex === currentQuestion.questionIndex
+      ? reveal
+      : null;
   const liveOpenResponses = currentQuestion?.questionType === "open_response"
     ? sock.answerCount?.openResponses ?? []
     : [];
@@ -92,17 +99,18 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
     if (!currentQuestion) return questionHeadings[0] || null;
     return questionHeadings[currentQuestion.questionIndex + 1] || null;
   }, [currentQuestion, questionHeadings]);
-  const isSlideDisplay = currentQuestion?.questionType === "slide" && !reveal && (state === "QUESTION_OPEN" || state === "QUESTION_CLOSED");
+  const isSlideDisplay = currentQuestion?.questionType === "slide" && !currentReveal && (state === "QUESTION_OPEN" || state === "QUESTION_CLOSED");
   const isQuizSurfaceDisplay = !!currentQuestion && currentQuestion.questionType !== "slide" && state !== "LEADERBOARD";
   const isLeaderboardDisplay = state === "LEADERBOARD";
   const isLiveSurfaceDisplay = isSlideDisplay || isQuizSurfaceDisplay || isLeaderboardDisplay;
+  const isLiveEmbedSlideDisplay = isSlideDisplay && !!currentQuestion?.slideLiveEmbed;
   const participantCount = sock.participants?.count ?? 0;
   const positionLabel = currentQuestion
     ? formatPositionLabel(currentQuestion.questionIndex, totalQuestions)
     : undefined;
   const quizStatusLabel = (() => {
     if (!currentQuestion || currentQuestion.questionType === "slide") return null;
-    if (reveal) return reveal.isPoll ? "Results open" : "Answer revealed";
+    if (currentReveal) return currentReveal.isPoll ? "Results open" : "Answer revealed";
     if (state === "QUESTION_CLOSED") return "Time's up";
     if (sock.answerCount && state === "QUESTION_OPEN") {
       return `${sock.answerCount.submitted}/${sock.answerCount.total} answered`;
@@ -216,20 +224,21 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
             html={currentQuestion.text}
             attendeeNotes={currentQuestion.attendeeNotes}
             slideMedia={currentQuestion.slideMedia}
+            slideLiveEmbed={currentQuestion.slideLiveEmbed}
             slideReferences={currentQuestion.slideReferences}
           />
         );
       }
 
       return (
-        <div className="quiz-surface-content">
+        <ResponsiveQuizSurface>
           {state === "QUESTION_OPEN" && (
             <Timer remainingSec={sock.remainingSec} totalSec={currentQuestion.timeLimitSec} size={140} />
           )}
           {state === "QUESTION_CLOSED" && <div className="text-2xl font-bold text-amber-400">Time&apos;s up</div>}
 
           <QuizHtml
-            className="quiz-html max-w-3xl text-center text-2xl leading-relaxed text-white lg:text-3xl"
+            className="quiz-html max-w-5xl text-center text-2xl leading-relaxed text-white lg:text-3xl"
             html={currentQuestion.text}
           />
 
@@ -247,7 +256,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
             const totalResponses = sock.answerCount?.submitted ?? 0;
             const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
             return (
-              <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 gap-3 sm:grid-cols-2"}`}>
+              <div className={`w-full max-w-4xl ${dist ? "space-y-3" : "grid grid-cols-1 gap-3 sm:grid-cols-2"}`}>
                 {currentQuestion.options.map((option) => {
                   const count = dist?.[option.label] ?? 0;
                   const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
@@ -277,48 +286,48 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
               </div>
             );
           })()}
-        </div>
+        </ResponsiveQuizSurface>
       );
     }
 
-    if (reveal && currentQuestion && state === "REVEAL") {
+    if (currentReveal && currentQuestion && state === "REVEAL") {
       return (
-        <div className="quiz-surface-content quiz-surface-content-reveal">
+        <ResponsiveQuizSurface reveal>
           <QuizHtml
-            className="quiz-html max-w-3xl text-center text-xl leading-relaxed text-zinc-300 lg:text-2xl"
+            className="quiz-html max-w-5xl text-center text-xl leading-relaxed text-zinc-300 lg:text-2xl"
             html={currentQuestion.text}
           />
 
           {currentQuestion.questionType === "open_response" ? (
-            <OpenResponseList responses={reveal.openResponses} title="Responses" emptyLabel="No responses were submitted." />
+            <OpenResponseList responses={currentReveal.openResponses} title="Responses" emptyLabel="No responses were submitted." />
           ) : (() => {
-            const dist = reveal.distribution;
+            const dist = currentReveal.distribution;
             const maxCount = Math.max(1, ...Object.values(dist));
             const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);
             return (
-              <div className="w-full max-w-2xl space-y-2">
+              <div className="w-full max-w-4xl space-y-2">
                 {currentQuestion.options.map((option) => {
-                  const isCorrect = reveal.correctOptions.includes(option.label);
+                  const isCorrect = currentReveal.correctOptions.includes(option.label);
                   const count = dist[option.label] ?? 0;
                   const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
                   const pctOfTotal = totalSelections > 0 ? Math.round((count / totalSelections) * 100) : 0;
 
-                  const borderClass = reveal.isPoll
+                  const borderClass = currentReveal.isPoll
                     ? "border-zinc-800"
                     : isCorrect
                       ? "border-emerald-500/60"
                       : "border-zinc-800";
-                  const barColor = reveal.isPoll
+                  const barColor = currentReveal.isPoll
                     ? "bg-indigo-500/30"
                     : isCorrect
                       ? "bg-emerald-500/25"
                       : "bg-zinc-600/25";
-                  const markerClass = reveal.isPoll
+                  const markerClass = currentReveal.isPoll
                     ? "bg-zinc-700 text-zinc-300"
                     : isCorrect
                       ? "bg-emerald-600 text-white"
                       : "bg-zinc-700 text-zinc-300";
-                  const textClass = reveal.isPoll
+                  const textClass = currentReveal.isPoll
                     ? "text-zinc-200"
                     : isCorrect
                       ? "text-emerald-100"
@@ -339,7 +348,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                         </span>
                         <QuizHtml className={`quiz-html text-left pt-0.5 flex-1 ${textClass}`} html={option.text} as="span" />
                         {count > 0 && (
-                          <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !reveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
+                          <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !currentReveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
                             {count} ({pctOfTotal}%)
                           </span>
                         )}
@@ -351,21 +360,21 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
             );
           })()}
 
-          {reveal.explanation && (
-            <div className="w-full max-w-2xl rounded-xl border border-emerald-700/50 bg-emerald-900/30 p-6">
+          {currentReveal.explanation && (
+            <div className="w-full max-w-4xl rounded-xl border border-emerald-700/50 bg-emerald-900/30 p-6">
               <h3 className="mb-2 font-semibold text-emerald-400">Explanation</h3>
-              <p className="text-lg leading-relaxed text-emerald-100">{reveal.explanation}</p>
+              <InlineMarkdownText text={currentReveal.explanation} className="text-lg leading-relaxed text-emerald-100" />
             </div>
           )}
-        </div>
+        </ResponsiveQuizSurface>
       );
     }
 
     if (isLeaderboardDisplay) {
       return (
-        <div className="quiz-surface-content quiz-surface-content-leaderboard">
+        <ResponsiveQuizSurface leaderboard>
           <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions ?? totalQuestions} maxRows={10} />
-        </div>
+        </ResponsiveQuizSurface>
       );
     }
 
@@ -377,11 +386,14 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
       <div className="slide-live-shell">
         <div className="slide-live-main">
           <LiveSurface
-            surfaceClassName={isSlideDisplay ? undefined : "quiz-surface"}
+            surfaceClassName={isLiveEmbedSlideDisplay ? "slide-surface-live-embed" : isSlideDisplay ? undefined : "quiz-surface"}
             nextLabel={isLeaderboardDisplay ? null : nextHeading}
             qrDataUrl={accessInfo?.qrCodeDataUrl}
             sessionCode={meta.sessionCode}
             participantCount={participantCount}
+            joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
+            shortUrl={accessInfo?.shortUrl}
+            joinCardDefaultExpanded={true}
             positionLabel={isLeaderboardDisplay ? undefined : positionLabel}
             statusLabel={liveSurfaceStatusLabel}
           >
@@ -421,7 +433,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
       </div>
       )}
 
-      <div className={isLiveSurfaceDisplay ? "slide-live-main" : "mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center gap-8"}>
+      <div className={isLiveSurfaceDisplay ? "slide-live-main" : "mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-8"}>
         {nextHeading && !isLiveSurfaceDisplay && (
           <div className="w-full max-w-3xl rounded-2xl border border-sky-500/30 bg-sky-500/10 px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">Next up</p>
@@ -437,12 +449,16 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                 html={currentQuestion.text}
                 attendeeNotes={currentQuestion.attendeeNotes}
                 slideMedia={currentQuestion.slideMedia}
+                slideLiveEmbed={currentQuestion.slideLiveEmbed}
                 slideReferences={currentQuestion.slideReferences}
                 positionLabel={positionLabel}
                 nextLabel={nextHeading}
                 qrDataUrl={accessInfo?.qrCodeDataUrl}
                 sessionCode={meta.sessionCode}
                 participantCount={participantCount}
+                joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
+                shortUrl={accessInfo?.shortUrl}
+                joinCardDefaultExpanded={true}
               />
             ) : (
               <LiveSurface
@@ -451,17 +467,20 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                 qrDataUrl={accessInfo?.qrCodeDataUrl}
                 sessionCode={meta.sessionCode}
                 participantCount={participantCount}
+                joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
+                shortUrl={accessInfo?.shortUrl}
+                joinCardDefaultExpanded={true}
                 positionLabel={positionLabel}
                 statusLabel={quizStatusLabel}
               >
-                <div className="quiz-surface-content">
+                <ResponsiveQuizSurface>
                   {state === "QUESTION_OPEN" && (
                     <Timer remainingSec={sock.remainingSec} totalSec={currentQuestion.timeLimitSec} size={140} />
                   )}
                   {state === "QUESTION_CLOSED" && <div className="text-2xl font-bold text-amber-400">Time&apos;s up</div>}
 
                   <QuizHtml
-                    className="quiz-html max-w-3xl text-center text-2xl leading-relaxed text-white lg:text-3xl"
+                    className="quiz-html max-w-5xl text-center text-2xl leading-relaxed text-white lg:text-3xl"
                     html={currentQuestion.text}
                   />
 
@@ -479,7 +498,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                     const totalResponses = sock.answerCount?.submitted ?? 0;
                     const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
                     return (
-                      <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 gap-3 sm:grid-cols-2"}`}>
+                      <div className={`w-full max-w-4xl ${dist ? "space-y-3" : "grid grid-cols-1 gap-3 sm:grid-cols-2"}`}>
                         {currentQuestion.options.map((option) => {
                           const count = dist?.[option.label] ?? 0;
                           const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
@@ -509,58 +528,61 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                       </div>
                     );
                   })()}
-                </div>
+                </ResponsiveQuizSurface>
               </LiveSurface>
             )}
           </>
         )}
 
-        {reveal && currentQuestion && state === "REVEAL" && (
+        {currentReveal && currentQuestion && state === "REVEAL" && (
           <LiveSurface
             surfaceClassName="quiz-surface"
             nextLabel={nextHeading}
             qrDataUrl={accessInfo?.qrCodeDataUrl}
             sessionCode={meta.sessionCode}
             participantCount={participantCount}
+            joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
+            shortUrl={accessInfo?.shortUrl}
+            joinCardDefaultExpanded={true}
             positionLabel={positionLabel}
             statusLabel={quizStatusLabel}
           >
-            <div className="quiz-surface-content quiz-surface-content-reveal">
+            <ResponsiveQuizSurface reveal>
               <QuizHtml
-                className="quiz-html max-w-3xl text-center text-xl leading-relaxed text-zinc-300 lg:text-2xl"
+                className="quiz-html max-w-5xl text-center text-xl leading-relaxed text-zinc-300 lg:text-2xl"
                 html={currentQuestion.text}
               />
 
               {currentQuestion.questionType === "open_response" ? (
-                <OpenResponseList responses={reveal.openResponses} title="Responses" emptyLabel="No responses were submitted." />
+                <OpenResponseList responses={currentReveal.openResponses} title="Responses" emptyLabel="No responses were submitted." />
               ) : (() => {
-                const dist = reveal.distribution;
+                const dist = currentReveal.distribution;
                 const maxCount = Math.max(1, ...Object.values(dist));
                 const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);
                 return (
-                  <div className="w-full max-w-2xl space-y-2">
+                  <div className="w-full max-w-4xl space-y-2">
                     {currentQuestion.options.map((option) => {
-                      const isCorrect = reveal.correctOptions.includes(option.label);
+                      const isCorrect = currentReveal.correctOptions.includes(option.label);
                       const count = dist[option.label] ?? 0;
                       const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
                       const pctOfTotal = totalSelections > 0 ? Math.round((count / totalSelections) * 100) : 0;
 
-                      const borderClass = reveal.isPoll
+                      const borderClass = currentReveal.isPoll
                         ? "border-zinc-800"
                         : isCorrect
                           ? "border-emerald-500/60"
                           : "border-zinc-800";
-                      const barColor = reveal.isPoll
+                      const barColor = currentReveal.isPoll
                         ? "bg-indigo-500/30"
                         : isCorrect
                           ? "bg-emerald-500/25"
                           : "bg-zinc-600/25";
-                      const markerClass = reveal.isPoll
+                      const markerClass = currentReveal.isPoll
                         ? "bg-zinc-700 text-zinc-300"
                         : isCorrect
                           ? "bg-emerald-600 text-white"
                           : "bg-zinc-700 text-zinc-300";
-                      const textClass = reveal.isPoll
+                      const textClass = currentReveal.isPoll
                         ? "text-zinc-200"
                         : isCorrect
                           ? "text-emerald-100"
@@ -581,7 +603,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                             </span>
                             <QuizHtml className={`quiz-html text-left pt-0.5 flex-1 ${textClass}`} html={option.text} as="span" />
                             {count > 0 && (
-                              <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !reveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
+                              <span className={`text-sm font-semibold tabular-nums shrink-0 ${isCorrect && !currentReveal.isPoll ? "text-emerald-300" : "text-zinc-300"}`}>
                                 {count} ({pctOfTotal}%)
                               </span>
                             )}
@@ -593,13 +615,13 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                 );
               })()}
 
-              {reveal.explanation && (
-                <div className="w-full max-w-2xl rounded-xl border border-emerald-700/50 bg-emerald-900/30 p-6">
+              {currentReveal.explanation && (
+                <div className="w-full max-w-4xl rounded-xl border border-emerald-700/50 bg-emerald-900/30 p-6">
                   <h3 className="mb-2 font-semibold text-emerald-400">Explanation</h3>
-                  <p className="text-lg leading-relaxed text-emerald-100">{reveal.explanation}</p>
+                  <InlineMarkdownText text={currentReveal.explanation} className="text-lg leading-relaxed text-emerald-100" />
                 </div>
               )}
-            </div>
+            </ResponsiveQuizSurface>
           </LiveSurface>
         )}
 
@@ -612,12 +634,15 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
       )}
 
       {accessInfo && meta.sessionCode && !isLiveSurfaceDisplay && (
-        <div className="fixed right-4 top-4 z-20 w-40 rounded-xl border border-zinc-200 bg-white p-3 text-zinc-900 shadow-xl">
-          {accessInfo.qrCodeDataUrl && <img src={accessInfo.qrCodeDataUrl} alt="Join QR" className="h-auto w-full rounded-lg" />}
-          <p className="mt-2 text-[11px] uppercase tracking-wide text-zinc-500">Session Code</p>
-          <p className="font-mono text-xl font-bold tracking-[0.12em]">{meta.sessionCode}</p>
-          <p className="mt-1 text-[11px] text-zinc-500">{sock.participants?.count ?? 0} online</p>
-        </div>
+        <SessionCodeCard
+          className="fixed-session-code-card"
+          qrDataUrl={accessInfo.qrCodeDataUrl}
+          sessionCode={meta.sessionCode}
+          participantCount={sock.participants?.count ?? 0}
+          joinUrl={accessInfo.shortUrl || accessInfo.fullUrl}
+          shortUrl={accessInfo.shortUrl}
+          defaultExpanded={true}
+        />
       )}
     </div>
   );
