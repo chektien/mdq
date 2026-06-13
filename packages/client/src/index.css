@@ -1094,6 +1094,19 @@ html[data-theme="light"] .slide-surface::after {
   background: rgba(18, 18, 17, 0.72);
 }
 
+.slide-media-figure:has(img[src*="finding1-quote-"]),
+.slide-media-figure:has(img[src*="finding2-quote-"]) {
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+}
+
+.slide-media-figure:has(img[src*="finding1-quote-"]) img,
+.slide-media-figure:has(img[src*="finding2-quote-"]) img {
+  border-radius: 0;
+  background: transparent;
+}
+
 .slide-media-expand-button img {
   transition:
     border-color 160ms ease,
