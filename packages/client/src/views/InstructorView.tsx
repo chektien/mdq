@@ -1089,7 +1089,7 @@ function LiveView({
           })()}
 
           {displayReveal.explanation && (
-            <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-4xl w-full">
+            <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-4xl w-full text-left">
               <h3 className="text-emerald-400 font-semibold mb-2">Explanation</h3>
               <InlineMarkdownText text={displayReveal.explanation} className="text-emerald-100 text-lg leading-relaxed" />
             </div>
@@ -1398,7 +1398,7 @@ function LiveView({
               })()}
 
               {displayReveal.explanation && (
-                <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-4xl w-full">
+                <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-4xl w-full text-left">
                   <h3 className="text-emerald-400 font-semibold mb-2">Explanation</h3>
                   <InlineMarkdownText text={displayReveal.explanation} className="text-emerald-100 text-lg leading-relaxed" />
                 </div>

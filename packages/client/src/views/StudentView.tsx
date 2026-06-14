@@ -388,6 +388,7 @@ export default function StudentView({
         submitted={sock.submitted}
         submittedOptions={sock.submittedOptions}
         submittedResponseText={sock.submittedResponseText}
+        totalQuestions={sock.totalQuestions}
         onSubmit={sock.submitAnswer}
       />
     );
@@ -453,6 +454,7 @@ function QuestionView({
   submitted,
   submittedOptions,
   submittedResponseText,
+  totalQuestions,
   onSubmit,
 }: {
   question: QuestionState | null;
@@ -461,6 +463,7 @@ function QuestionView({
   submitted: boolean;
   submittedOptions: string[];
   submittedResponseText: string | null;
+  totalQuestions: number;
   onSubmit: (payload: { questionIndex: number; selectedOptions?: string[]; responseText?: string }) => void;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
@@ -532,6 +535,9 @@ function QuestionView({
   const submittedLabel = question.questionType === "open_response"
     ? "Response submitted"
     : question.isPoll ? "Vote submitted" : "Answer submitted";
+  const positionLabel = totalQuestions > 0
+    ? `${question.questionIndex + 1}/${totalQuestions}`
+    : `${question.questionIndex + 1}`;
 
   if (question.questionType === "slide") {
     const hasStudentVisibleSlideContent = [
@@ -565,7 +571,7 @@ function QuestionView({
           slideMedia={question.slideMedia}
           slideLiveEmbed={question.slideLiveEmbed}
           slideReferences={question.slideReferences}
-          positionLabel={`${question.questionIndex + 1}`}
+          positionLabel={positionLabel}
           mode="student"
           statusLabel="The instructor will advance shortly"
         />
@@ -579,7 +585,7 @@ function QuestionView({
       {/* Header: timer + question number */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-zinc-400 text-sm font-medium">
-          Q{question.questionIndex + 1}
+          Q{positionLabel}
         </span>
         {!isClosed && (
           <Timer remainingSec={remainingSec} totalSec={question.timeLimitSec} size={56} />
@@ -841,7 +847,7 @@ function RevealView({
 
       {/* Explanation */}
       {reveal.explanation && (
-        <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl p-4">
+        <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl p-4 text-left">
           <h3 className="text-zinc-400 text-xs uppercase tracking-wide font-medium mb-2">
             Explanation
           </h3>

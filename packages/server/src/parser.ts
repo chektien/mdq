@@ -318,9 +318,9 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     );
   }
 
-  // 5. Extract explanation from blockquote
-  const feedbackMatch = block.match(/^>\s*Overall\s+Feedback:\s*(.+)$/m);
-  const explanation = feedbackMatch ? feedbackMatch[1].trim() : "";
+  // 5. Extract explanation from blockquote. Continuation blockquote lines belong
+  // to the same feedback until another MDQ metadata block starts.
+  const explanation = extractOverallFeedback(lines);
 
   // 6. Extract question text (between H2/time_limit and first option)
   const h2LineIdx = lines.findIndex((l) => /^##\s+/.test(l));
@@ -589,6 +589,36 @@ function extractFoldoutNotes(lines: string[]): { contentLines: string[]; notes: 
 
 function parseBooleanField(value: string): boolean {
   return /^(true|yes|1)$/i.test(value.trim());
+}
+
+function extractOverallFeedback(lines: string[]): string {
+  const feedbackStart = lines.findIndex((line) => /^>\s*Overall\s+Feedback:\s*/i.test(line));
+  if (feedbackStart < 0) return "";
+
+  const firstLine = lines[feedbackStart].replace(/^>\s*Overall\s+Feedback:\s*/i, "");
+  const feedbackLines = [firstLine.trimEnd()];
+
+  for (let i = feedbackStart + 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    const metadataMatch = line.match(/^>\s*([A-Za-z][A-Za-z\s]+):\s*/);
+    if (metadataMatch) {
+      const label = metadataMatch[1].replace(/\s+/g, " ").trim().toLowerCase();
+      if (
+        label === "correct answer" ||
+        label === "correct answers" ||
+        label === "overall feedback" ||
+        label === "presenter note" ||
+        label === "attendee note"
+      ) {
+        break;
+      }
+    }
+
+    if (!/^>\s?/.test(line)) break;
+    feedbackLines.push(line.replace(/^>\s?/, "").trimEnd());
+  }
+
+  return feedbackLines.join("\n").trim();
 }
 
 /** Render markdown to HTML using marked (synchronous) */

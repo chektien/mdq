@@ -375,7 +375,7 @@ export default function PresentationView({
           })()}
 
           {currentReveal.explanation && (
-            <div className="w-full max-w-4xl rounded-xl border border-emerald-700/50 bg-emerald-900/30 p-6">
+            <div className="w-full max-w-4xl rounded-xl border border-emerald-700/50 bg-emerald-900/30 p-6 text-left">
               <h3 className="mb-2 font-semibold text-emerald-400">Explanation</h3>
               <InlineMarkdownText text={currentReveal.explanation} className="text-lg leading-relaxed text-emerald-100" />
             </div>
@@ -636,7 +636,7 @@ export default function PresentationView({
               })()}
 
               {currentReveal.explanation && (
-                <div className="w-full max-w-4xl rounded-xl border border-emerald-700/50 bg-emerald-900/30 p-6">
+                <div className="w-full max-w-4xl rounded-xl border border-emerald-700/50 bg-emerald-900/30 p-6 text-left">
                   <h3 className="mb-2 font-semibold text-emerald-400">Explanation</h3>
                   <InlineMarkdownText text={currentReveal.explanation} className="text-lg leading-relaxed text-emerald-100" />
                 </div>

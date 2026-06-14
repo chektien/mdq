@@ -66,6 +66,36 @@ B. No
       expect(result.quiz!.questions[0].timeLimitSec).toBe(45);
     });
 
+    it("parses multiline overall feedback blockquotes until the next metadata block", () => {
+      const md = `# Quiz
+
+---
+
+## Topic
+
+**Question?**
+
+A. Yes
+B. No
+
+> Correct Answer: A
+> Overall Feedback: First line.
+>
+> **Learning Objective:** Explain the idea.
+>
+> **Gap:** Keep this in the explanation.
+> Presenter Note:
+> - Do not include this in feedback.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week03.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.questions[0].explanation).toBe(
+        "First line.\n\n**Learning Objective:** Explain the idea.\n\n**Gap:** Keep this in the explanation.",
+      );
+    });
+
     it("defaults time_limit to 35 when not specified", () => {
       const md = `# Quiz
 
