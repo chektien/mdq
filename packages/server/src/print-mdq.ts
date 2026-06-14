@@ -272,8 +272,19 @@ function rewriteImageSources(html: string, inputDir: string, imagesDir: string):
   ));
 }
 
+function appendVisibleLinkTargets(html: string): string {
+  return html.replace(
+    /(<a\b[^>]*\bhref=["'](https?:\/\/[^"']+)["'][^>]*>)([\s\S]*?)(<\/a>)/gi,
+    (match: string, openTag: string, href: string, body: string, closeTag: string) => {
+      const bodyText = body.replace(/<[^>]+>/g, "").trim();
+      if (bodyText.includes(href)) return match;
+      return `${openTag}${body}${closeTag}<span class="print-url"> (${escapeHtml(href)})</span>`;
+    },
+  );
+}
+
 function renderTrustedHtml(html: string, inputDir: string, imagesDir: string): string {
-  return rewriteImageSources(html, inputDir, imagesDir);
+  return appendVisibleLinkTargets(rewriteImageSources(html, inputDir, imagesDir));
 }
 
 function questionHeading(question: Question): string {
@@ -577,6 +588,13 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
     a {
       color: var(--accent);
       text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    .print-url {
+      color: var(--muted);
+      font-size: 0.92em;
+      font-weight: 500;
       overflow-wrap: anywhere;
     }
 
