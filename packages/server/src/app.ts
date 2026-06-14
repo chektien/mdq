@@ -38,6 +38,7 @@ export interface AppOptions {
   dataDir?: string;
   instanceId?: string;
   theme?: "dark" | "light";
+  autoGenerateStudentIds?: boolean;
   shortUrlProviders?: ShortUrlProvider[];
   /** Called after a successful REST-driven state transition */
   onStateChange?: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => void;
@@ -114,6 +115,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   let dataDir: string | undefined;
   let instanceId: string | undefined;
   let theme: "dark" | "light" = "dark";
+  let autoGenerateStudentIds = false;
   let shortUrlProviders: ShortUrlProvider[] | undefined;
   let onStateChange: AppOptions["onStateChange"];
   if (typeof quizDirOrOpts === "string") {
@@ -123,6 +125,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     dataDir = quizDirOrOpts.dataDir;
     instanceId = quizDirOrOpts.instanceId;
     theme = quizDirOrOpts.theme || "dark";
+    autoGenerateStudentIds = quizDirOrOpts.autoGenerateStudentIds || false;
     shortUrlProviders = quizDirOrOpts.shortUrlProviders;
     onStateChange = quizDirOrOpts.onStateChange;
   }
@@ -428,7 +431,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   });
 
   app.get("/api/runtime-config", (_req, res) => {
-    res.json({ theme });
+    res.json({ theme, autoGenerateStudentIds });
   });
 
   app.get(API.INSTRUCTOR_SESSION, (req, res) => {

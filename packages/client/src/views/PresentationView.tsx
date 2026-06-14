@@ -32,7 +32,15 @@ function isInstructorLoginRequired(message: string | null): boolean {
   return (message || "").toLowerCase().includes("login required");
 }
 
-export default function PresentationView({ sessionId, loginHref }: { sessionId: string; loginHref: string }) {
+export default function PresentationView({
+  sessionId,
+  loginHref,
+  autoGenerateStudentIds = false,
+}: {
+  sessionId: string;
+  loginHref: string;
+  autoGenerateStudentIds?: boolean;
+}) {
   const [meta, setMeta] = useState<PresentationSessionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -207,7 +215,12 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
           <p className="text-sm uppercase tracking-[0.22em] text-zinc-500">Presentation Mode</p>
           <h1 className="mt-2 text-3xl font-bold text-white">Session Ended</h1>
         </div>
-        <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions ?? totalQuestions} maxRows={15} />
+        <Leaderboard
+          entries={sock.leaderboard}
+          totalQuestions={sock.totalQuestions ?? totalQuestions}
+          maxRows={15}
+          showStudentIds={!autoGenerateStudentIds}
+        />
       </div>
     );
   }
@@ -250,6 +263,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
             <OpenResponseList
               responses={liveOpenResponses}
               title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
+              showStudentIds={!autoGenerateStudentIds}
             />
           ) : (() => {
             const dist = state === "QUESTION_CLOSED" ? sock.distribution?.distribution : null;
@@ -299,7 +313,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
           />
 
           {currentQuestion.questionType === "open_response" ? (
-            <OpenResponseList responses={currentReveal.openResponses} title="Responses" emptyLabel="No responses were submitted." />
+            <OpenResponseList responses={currentReveal.openResponses} title="Responses" emptyLabel="No responses were submitted." showStudentIds={!autoGenerateStudentIds} />
           ) : (() => {
             const dist = currentReveal.distribution;
             const maxCount = Math.max(1, ...Object.values(dist));
@@ -373,7 +387,12 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
     if (isLeaderboardDisplay) {
       return (
         <ResponsiveQuizSurface leaderboard>
-          <Leaderboard entries={sock.leaderboard} totalQuestions={sock.totalQuestions ?? totalQuestions} maxRows={10} />
+          <Leaderboard
+            entries={sock.leaderboard}
+            totalQuestions={sock.totalQuestions ?? totalQuestions}
+            maxRows={10}
+            showStudentIds={!autoGenerateStudentIds}
+          />
         </ResponsiveQuizSurface>
       );
     }
@@ -393,7 +412,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
             participantCount={participantCount}
             joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
             shortUrl={accessInfo?.shortUrl}
-            joinCardDefaultExpanded={true}
+            joinCardDefaultExpanded={isLiveEmbedSlideDisplay && currentQuestion?.questionIndex === 0}
             positionLabel={isLeaderboardDisplay ? undefined : positionLabel}
             statusLabel={liveSurfaceStatusLabel}
           >
@@ -492,6 +511,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                     <OpenResponseList
                       responses={liveOpenResponses}
                       title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
+                      showStudentIds={!autoGenerateStudentIds}
                     />
                   ) : (() => {
                     const dist = state === "QUESTION_CLOSED" ? sock.distribution?.distribution : null;
@@ -554,7 +574,7 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
               />
 
               {currentQuestion.questionType === "open_response" ? (
-                <OpenResponseList responses={currentReveal.openResponses} title="Responses" emptyLabel="No responses were submitted." />
+                <OpenResponseList responses={currentReveal.openResponses} title="Responses" emptyLabel="No responses were submitted." showStudentIds={!autoGenerateStudentIds} />
               ) : (() => {
                 const dist = currentReveal.distribution;
                 const maxCount = Math.max(1, ...Object.values(dist));

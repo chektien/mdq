@@ -18,6 +18,7 @@ Supported keys:
 - `quizDir`: legacy alias for `deckDir`
 - `instanceId`: stable label for this machine or classroom instance
 - `theme`: UI theme, `dark` by default, or set `light` to reuse the optional light palette
+- `autoGenerateStudentIds`: set `true` to ask students only for their name and generate a hidden student ID automatically
 
 Example:
 
@@ -27,7 +28,8 @@ Example:
   "portFallbacks": 3,
   "deckDir": "./decks",
   "instanceId": "seminar-room-a",
-  "theme": "dark"
+  "theme": "dark",
+  "autoGenerateStudentIds": false
 }
 ```
 
@@ -37,3 +39,4 @@ Practical extra customizations you can keep in the same file:
 - reduce `portFallbacks` if you want mdq to fail fast instead of scanning many ports
 - set a memorable `instanceId` so logs and access checks are easier to read on shared teaching machines
 - switch to `theme: "light"` when you want the alternate light presentation for a room or event
+- set `autoGenerateStudentIds: true` when you want a name-only student join form

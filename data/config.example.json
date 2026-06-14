@@ -3,5 +3,6 @@
   "portFallbacks": 10,
   "deckDir": "./decks",
   "instanceId": "classroom-imac",
-  "theme": "dark"
+  "theme": "dark",
+  "autoGenerateStudentIds": false
 }

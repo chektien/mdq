@@ -67,6 +67,7 @@ export interface InstructorSessionStatus {
 
 export interface RuntimeClientConfig {
   theme?: "dark" | "light";
+  autoGenerateStudentIds?: boolean;
 }
 
 export async function fetchRuntimeClientConfig(): Promise<RuntimeClientConfig> {

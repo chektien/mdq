@@ -139,6 +139,8 @@ export function useSocket(
   const answeredQuestionsRef = useRef<number[]>([]);
   const currentQuestionRef = useRef<QuestionState | null>(null);
   const studentIdRef = useRef<string | null>(null);
+  const submittedOptionsRef = useRef<string[]>([]);
+  const submittedResponseTextRef = useRef<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -170,6 +172,14 @@ export function useSocket(
     studentIdRef.current = studentIdState;
   }, [studentIdState]);
 
+  useEffect(() => {
+    submittedOptionsRef.current = submittedOptions;
+  }, [submittedOptions]);
+
+  useEffect(() => {
+    submittedResponseTextRef.current = submittedResponseText;
+  }, [submittedResponseText]);
+
   // Connect socket when sessionId is available
   useEffect(() => {
     if (!sessionId) return;
@@ -178,6 +188,7 @@ export function useSocket(
       auth: { sessionId, role },
       query: { sessionId },
       transports: ["websocket", "polling"],
+      autoConnect: false,
     });
 
     socketRef.current = socket;
@@ -235,6 +246,8 @@ export function useSocket(
     // ── Question lifecycle ─────────────────
     socket.on(SocketEvents.QUESTION_OPEN, (data: QuestionOpenPayload) => {
       const questionType = data.questionType ?? (data.isPoll ? "poll" : "multiple_choice");
+      const previousQuestion = currentQuestionRef.current;
+      const isSameQuestion = previousQuestion?.questionIndex === data.questionIndex;
       const nextQuestion = {
         questionIndex: data.questionIndex,
         topic: data.topic,
@@ -255,11 +268,13 @@ export function useSocket(
       setSessionState("QUESTION_OPEN");
       setReveal(null);
       setDistribution(null);
-      // Preserve submitted=true if this question was already answered (reconnect case)
+      // Reveal/reconnect snapshots replay question context before reveal details.
+      // Preserve the local answer when that replay is for the same question.
       const alreadyAnswered = answeredQuestionsRef.current.includes(data.questionIndex);
-      setSubmitted(questionType === "open_response" ? false : alreadyAnswered);
-      setSubmittedOptions([]);
-      setSubmittedResponseText(null);
+      const shouldPreserveSubmission = isSameQuestion && alreadyAnswered;
+      setSubmitted(alreadyAnswered);
+      setSubmittedOptions(shouldPreserveSubmission ? submittedOptionsRef.current : []);
+      setSubmittedResponseText(shouldPreserveSubmission ? submittedResponseTextRef.current : null);
       setRemainingSec(data.timeLimitSec);
     });
 
@@ -355,6 +370,8 @@ export function useSocket(
       setParticipants(data);
     });
 
+    socket.connect();
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
@@ -381,8 +398,12 @@ export function useSocket(
     (payload: AnswerSubmitPayload) => {
       if (!socketRef.current) return;
       socketRef.current.emit(SocketEvents.ANSWER_SUBMIT, payload);
-      setSubmittedOptions(payload.selectedOptions ?? []);
-      setSubmittedResponseText(payload.responseText?.trim() || null);
+      const nextSubmittedOptions = payload.selectedOptions ?? [];
+      const nextSubmittedResponseText = payload.responseText?.trim() || null;
+      submittedOptionsRef.current = nextSubmittedOptions;
+      submittedResponseTextRef.current = nextSubmittedResponseText;
+      setSubmittedOptions(nextSubmittedOptions);
+      setSubmittedResponseText(nextSubmittedResponseText);
     },
     [],
   );

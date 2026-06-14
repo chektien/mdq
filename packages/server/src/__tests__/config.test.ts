@@ -21,6 +21,7 @@ describe("loadRuntimeConfig", () => {
     expect(config.quizDir).toBe(path.join(root, "data", "decks"));
     expect(config.instanceId).toBe("");
     expect(config.theme).toBe("dark");
+    expect(config.autoGenerateStudentIds).toBe(false);
   });
 
   it("loads runtime overrides from data/config.json", () => {
@@ -33,6 +34,7 @@ describe("loadRuntimeConfig", () => {
         deckDir: "./alt-decks",
         instanceId: "room-a",
         theme: "light",
+        autoGenerateStudentIds: true,
       }),
     );
 
@@ -44,6 +46,7 @@ describe("loadRuntimeConfig", () => {
     expect(config.quizDir).toBe(path.join(root, "data", "alt-decks"));
     expect(config.instanceId).toBe("room-a");
     expect(config.theme).toBe("light");
+    expect(config.autoGenerateStudentIds).toBe(true);
   });
 
   it("lets environment variables override file config", () => {
@@ -61,6 +64,7 @@ describe("loadRuntimeConfig", () => {
         MDQ_DECK_DIR: path.join(root, "custom-decks"),
         MDQ_INSTANCE_ID: "room-b",
         MDQ_THEME: "dark",
+        MDQ_AUTO_GENERATE_STUDENT_IDS: "false",
       },
     });
 
@@ -69,6 +73,7 @@ describe("loadRuntimeConfig", () => {
     expect(config.quizDir).toBe(path.join(root, "custom-decks"));
     expect(config.instanceId).toBe("room-b");
     expect(config.theme).toBe("dark");
+    expect(config.autoGenerateStudentIds).toBe(false);
   });
 
   it("falls back to an existing legacy data/quizzes directory", () => {

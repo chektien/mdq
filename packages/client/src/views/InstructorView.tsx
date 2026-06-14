@@ -115,7 +115,7 @@ function saveInstructorRestore(restore: StoredInstructorRestore): void {
   }
 }
 
-export default function InstructorView() {
+export default function InstructorView({ autoGenerateStudentIds = false }: { autoGenerateStudentIds?: boolean }) {
   // Setup state
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<string>("");
@@ -532,6 +532,7 @@ export default function InstructorView() {
           entries={sock.leaderboard}
           totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
           maxRows={15}
+          showStudentIds={!autoGenerateStudentIds}
         />
         <a
           href="#/"
@@ -559,6 +560,7 @@ export default function InstructorView() {
       loading={loading}
       errorMsg={errorMsg}
       restoreNotice={restoreNotice}
+      autoGenerateStudentIds={autoGenerateStudentIds}
       onAction={handleAction}
     />
   );
@@ -580,6 +582,7 @@ function LiveView({
   loading,
   errorMsg,
   restoreNotice,
+  autoGenerateStudentIds,
   onAction,
 }: {
   sock: ReturnType<typeof useSocket>;
@@ -595,6 +598,7 @@ function LiveView({
   loading: boolean;
   errorMsg: string | null;
   restoreNotice: string | null;
+  autoGenerateStudentIds: boolean;
   onAction: (action: () => Promise<unknown>, label: string) => void;
 }) {
   const state = sock.sessionState as SessionState;
@@ -971,6 +975,7 @@ function LiveView({
             <OpenResponseList
               responses={liveOpenResponses}
               title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
+              showStudentIds={!autoGenerateStudentIds}
             />
           ) : (
             (() => {
@@ -1022,7 +1027,7 @@ function LiveView({
           />
 
           {displayQuestion.questionType === "open_response" ? (
-            <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." />
+            <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." showStudentIds={!autoGenerateStudentIds} />
           ) : showDetailedRevealChoices && (() => {
             const dist = displayReveal.distribution;
             const maxCount = Math.max(1, ...Object.values(dist));
@@ -1100,6 +1105,7 @@ function LiveView({
             entries={sock.leaderboard}
             totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
             maxRows={10}
+            showStudentIds={!autoGenerateStudentIds}
           />
         </ResponsiveQuizSurface>
       );
@@ -1122,7 +1128,7 @@ function LiveView({
             presentationUrl={accessInfo?.presentationUrl}
             joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
             shortUrl={accessInfo?.shortUrl}
-            joinCardDefaultExpanded={false}
+            joinCardDefaultExpanded={isLiveEmbedSlideDisplay && displayQuestion?.questionIndex === 0}
             positionLabel={isLeaderboardDisplay ? undefined : displayPositionLabel}
             statusLabel={liveSurfaceStatusLabel}
             statusTone={liveStatusTone}
@@ -1260,6 +1266,7 @@ function LiveView({
                     <OpenResponseList
                       responses={liveOpenResponses}
                       title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
+                      showStudentIds={!autoGenerateStudentIds}
                     />
                   ) : (
                     (() => {
@@ -1329,7 +1336,7 @@ function LiveView({
               />
 
               {displayQuestion.questionType === "open_response" ? (
-                <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." />
+                <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." showStudentIds={!autoGenerateStudentIds} />
               ) : showDetailedRevealChoices && (() => {
                 const dist = displayReveal.distribution;
                 const maxCount = Math.max(1, ...Object.values(dist));
@@ -1419,6 +1426,7 @@ function LiveView({
                 entries={sock.leaderboard}
                 totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
                 maxRows={10}
+                showStudentIds={!autoGenerateStudentIds}
               />
             </ResponsiveQuizSurface>
           </LiveSurface>

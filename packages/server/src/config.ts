@@ -11,6 +11,7 @@ interface RuntimeConfigFile {
   quizDir?: unknown;
   instanceId?: unknown;
   theme?: unknown;
+  autoGenerateStudentIds?: unknown;
 }
 
 export type RuntimeTheme = "dark" | "light";
@@ -21,6 +22,7 @@ export interface RuntimeConfig {
   quizDir: string;
   instanceId: string;
   theme: RuntimeTheme;
+  autoGenerateStudentIds: boolean;
   configPath: string;
   loadedFromFile: boolean;
 }
@@ -74,6 +76,16 @@ function parseTheme(value: unknown): RuntimeTheme | undefined {
   const normalized = parseString(value)?.toLowerCase();
   if (normalized === "dark" || normalized === "light") {
     return normalized;
+  }
+  return undefined;
+}
+
+function parseBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
   }
   return undefined;
 }
@@ -133,6 +145,10 @@ export function loadRuntimeConfig(options: RuntimeConfigLoadOptions = {}): Runti
     quizDir: resolveQuizDir(configDir, configuredDeckDir ?? configuredQuizDir, defaultQuizDir),
     instanceId: parseString(env.MDQ_INSTANCE_ID) ?? parseString(fileConfig.instanceId) ?? "",
     theme: parseTheme(env.MDQ_THEME) ?? parseTheme(fileConfig.theme) ?? "dark",
+    autoGenerateStudentIds:
+      parseBoolean(env.MDQ_AUTO_GENERATE_STUDENT_IDS)
+      ?? parseBoolean(fileConfig.autoGenerateStudentIds)
+      ?? false,
     configPath,
     loadedFromFile: fs.existsSync(configPath),
   };
