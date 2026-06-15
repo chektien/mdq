@@ -692,6 +692,31 @@ B. Unsure
       expect(result.errors[0].detail).toContain("must not define correct answers");
     });
 
+    it("rejects multi-answer syntax on a singular correct-answer line", () => {
+      const md = `# Quiz
+
+---
+
+## Invalid Config
+
+multi_select: true
+
+**Select all that apply.**
+
+A. First
+B. Second
+C. Third
+
+> Correct Answer: A, C
+> Overall Feedback: A and C are correct.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "test.md");
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].detail).toContain("Correct Answers");
+    });
+
     it("rejects multi_select false when multiple correct answers are declared", () => {
       const md = `# Quiz
 

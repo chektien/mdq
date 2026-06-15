@@ -241,8 +241,19 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
   }
 
   // 4. Extract correct answer(s) from blockquote
-  const correctSingleMatch = block.match(/^>\s*Correct\s+Answer:\s*([A-Z])[.\s]*/m);
+  const correctSingleLineMatch = block.match(/^>\s*Correct\s+Answer:\s*(.+)$/m);
+  const correctSingleMatch = block.match(/^>\s*Correct\s+Answer:\s*([A-Z])(?:[.\s]|$)/m);
   const correctMultiMatch = block.match(/^>\s*Correct\s+Answers:\s*(.+)$/m);
+
+  const correctSinglePayload = correctSingleLineMatch?.[1].trim() || "";
+  if (/^[A-Z]\s*,\s*[A-Z](?:\s*,\s*[A-Z])*(?:\s|$|[.])/.test(correctSinglePayload)) {
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      "Use '> Correct Answers: X, Y' when a question has multiple correct options",
+      findLineNumber(lines, blockStartLine, (line) => /^>\s*Correct\s+Answer/i.test(line)),
+    );
+  }
 
   let correctOptions: string[];
   if (isSlide) {
