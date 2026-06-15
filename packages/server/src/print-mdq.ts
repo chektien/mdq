@@ -356,10 +356,11 @@ function renderSlideMedia(question: Question, inputDir: string, imagesDir: strin
         const src = escapeHtml(toImageUrl(item.src, inputDir, imagesDir));
         const alt = escapeHtml(item.alt || "Slide image");
         const title = item.title ? escapeHtml(item.title) : "";
+        const caption = escapeHtml(item.title || item.alt || "");
         return `
           <figure class="media-figure">
             <img src="${src}" alt="${alt}"${title ? ` title="${title}"` : ""}>
-            ${title ? `<figcaption>${title}</figcaption>` : ""}
+            ${caption ? `<figcaption>${caption}</figcaption>` : ""}
           </figure>
         `;
       }).join("")}
@@ -809,6 +810,8 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
       font-size: 7.7pt;
       line-height: 1.3;
       text-align: center;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .quiz-embedded-image {
