@@ -372,7 +372,53 @@ export function useSocket(
 
     socket.connect();
 
+    let foregroundReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    const reconnectAfterForeground = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+
+      if (foregroundReconnectTimer) {
+        clearTimeout(foregroundReconnectTimer);
+      }
+
+      foregroundReconnectTimer = setTimeout(() => {
+        const currentSocket = socketRef.current;
+        if (!currentSocket || currentSocket !== socket) {
+          return;
+        }
+
+        // iOS Safari can leave Socket.IO thinking it is connected after a
+        // background/foreground cycle. Reconnecting asks the server to replay
+        // the authoritative session snapshot before the next instructor action.
+        currentSocket.disconnect();
+        currentSocket.connect();
+      }, 100);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        reconnectAfterForeground();
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("pageshow", reconnectAfterForeground);
+    }
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+
     return () => {
+      if (foregroundReconnectTimer) {
+        clearTimeout(foregroundReconnectTimer);
+      }
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pageshow", reconnectAfterForeground);
+      }
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
       socket.disconnect();
       socketRef.current = null;
     };
