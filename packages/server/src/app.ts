@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Request, type Response } from "express";
 import cors from "cors";
 import { API, AccessInfo, Quiz, Session, SessionState } from "@mdq/shared";
 import {
@@ -10,6 +10,8 @@ import {
   StateTransitionError,
   computeLeaderboard,
   getActiveSessions,
+  getDistribution,
+  getOpenResponses,
 } from "./session";
 import { parseQuizMarkdown } from "./parser";
 import {
@@ -17,7 +19,7 @@ import {
   computeCumulativeLeaderboard,
   persistSessionProgressOnReveal,
 } from "./persistence";
-import { buildScoredCorrectAnswersMap, getQuestionType, getScoredQuestionCount } from "./scoring";
+import { buildScoredCorrectAnswersMap, getQuestionType, getScoredQuestionCount, isOpenResponseQuestion } from "./scoring";
 import { getCachedAccessInfo, generateQrDataUrl, generateShortUrl, type ShortUrlProvider } from "./access-info";
 import {
   INSTRUCTOR_SESSION_COOKIE,
@@ -36,6 +38,7 @@ export interface AppOptions {
   dataDir?: string;
   instanceId?: string;
   theme?: "dark" | "light";
+  autoGenerateStudentIds?: boolean;
   shortUrlProviders?: ShortUrlProvider[];
   /** Called after a successful REST-driven state transition */
   onStateChange?: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => void;
@@ -50,6 +53,42 @@ function summarizeQuizForList(q: Quiz) {
     liveQuestionCount: q.questions.length - slideCount,
     slideCount,
   };
+}
+
+function normalizeDeckTitle(title: string): string {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasWeekPrefix(deckId: string): boolean {
+  return /^week\d+(?:-|$)/i.test(deckId);
+}
+
+function compareDecksForList(a: Quiz, b: Quiz): number {
+  if (a.week === "dis2026-hmd-simulator" && b.week !== "dis2026-hmd-simulator") return -1;
+  if (b.week === "dis2026-hmd-simulator" && a.week !== "dis2026-hmd-simulator") return 1;
+
+  const aWeek = a.week.match(/^week(\d+)/i)?.[1];
+  const bWeek = b.week.match(/^week(\d+)/i)?.[1];
+  if (aWeek && bWeek && aWeek !== bWeek) {
+    return Number(aWeek) - Number(bWeek);
+  }
+  if (aWeek && !bWeek) return -1;
+  if (!aWeek && bWeek) return 1;
+  return a.title.localeCompare(b.title, undefined, { numeric: true }) || a.week.localeCompare(b.week, undefined, { numeric: true });
+}
+
+function shouldReplaceDuplicateDeck(existing: Quiz, candidate: Quiz): boolean {
+  const existingHasWeekPrefix = hasWeekPrefix(existing.week);
+  const candidateHasWeekPrefix = hasWeekPrefix(candidate.week);
+  if (existingHasWeekPrefix !== candidateHasWeekPrefix) {
+    return !candidateHasWeekPrefix;
+  }
+  return candidate.week.localeCompare(existing.week, undefined, { numeric: true }) < 0;
 }
 
 export function createApp(quizDirOrOpts?: string | AppOptions) {
@@ -76,6 +115,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   let dataDir: string | undefined;
   let instanceId: string | undefined;
   let theme: "dark" | "light" = "dark";
+  let autoGenerateStudentIds = false;
   let shortUrlProviders: ShortUrlProvider[] | undefined;
   let onStateChange: AppOptions["onStateChange"];
   if (typeof quizDirOrOpts === "string") {
@@ -85,6 +125,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     dataDir = quizDirOrOpts.dataDir;
     instanceId = quizDirOrOpts.instanceId;
     theme = quizDirOrOpts.theme || "dark";
+    autoGenerateStudentIds = quizDirOrOpts.autoGenerateStudentIds || false;
     shortUrlProviders = quizDirOrOpts.shortUrlProviders;
     onStateChange = quizDirOrOpts.onStateChange;
   }
@@ -124,6 +165,75 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     }));
   }
 
+  function getReviewQuestions(session: Session, quiz: Quiz) {
+    if (session.currentQuestionIndex < 0) {
+      return [];
+    }
+
+    return quiz.questions.slice(0, session.currentQuestionIndex + 1).map((question, questionIndex) => ({
+      questionIndex,
+      topic: question.topic,
+      text: question.textHtml,
+      questionType: getQuestionType(question),
+      attendeeNotes: question.attendeeNotes && question.attendeeNotes.length > 0
+        ? question.attendeeNotes
+        : undefined,
+      slideMedia: question.slideMedia,
+      slideLiveEmbed: question.slideLiveEmbed,
+      slideReferences: question.slideReferences,
+      options: question.options.map((option) => ({ label: option.label, text: option.textHtml })),
+      allowsMultiple: question.allowsMultiple,
+      isPoll: question.isPoll === true,
+      timeLimitSec: question.timeLimitSec,
+      startedAt: questionIndex === session.currentQuestionIndex
+        ? session.questionStartedAt || Date.now()
+        : session.questionStartedAt || session.createdAt,
+    }));
+  }
+
+  function getReviewReveals(session: Session, quiz: Quiz) {
+    if (session.currentQuestionIndex < 0) {
+      return [];
+    }
+
+    const revealedThroughIndex =
+      session.state === "QUESTION_OPEN" || session.state === "QUESTION_CLOSED"
+        ? session.currentQuestionIndex - 1
+        : session.currentQuestionIndex;
+
+    if (revealedThroughIndex < 0) {
+      return [];
+    }
+
+    return quiz.questions
+      .slice(0, revealedThroughIndex + 1)
+      .map((question, questionIndex) => ({ question, questionIndex }))
+      .filter(({ question }) => getQuestionType(question) !== "slide")
+      .map(({ question, questionIndex }) => ({
+        questionIndex,
+        questionType: getQuestionType(question),
+        correctOptions: question.correctOptions,
+        explanation: question.explanation,
+        distribution: getDistribution(session, questionIndex),
+        isPoll: question.isPoll === true,
+        openResponses: isOpenResponseQuestion(question) ? getOpenResponses(session, questionIndex) : undefined,
+      }));
+  }
+
+  function markQuestionReviewed(session: Session, questionIndex: number): void {
+    if (questionIndex < 0) {
+      return;
+    }
+    if (!session.revealedQuestionIndexes) {
+      session.revealedQuestionIndexes = new Set<number>();
+    }
+    session.revealedQuestionIndexes.add(questionIndex);
+  }
+
+  function isQuestionReviewed(session: Session, questionIndex: number): boolean {
+    return session.revealedQuestionIndexes?.has(questionIndex) === true;
+  }
+
   function describeQuizValidationDetail(detail: string): string {
     if (detail.startsWith("No answer options found")) {
       return "This question has no answer choices, so MDQ cannot run it safely as a quiz question.";
@@ -161,7 +271,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       ? ` There ${extraCount === 1 ? "is 1 more issue" : `are ${extraCount} more issues`} after that.`
       : "";
 
-    return `We couldn't load the quiz because ${location} needs attention. ${describeQuizValidationDetail(firstError.detail)} Fix the markdown file and reload quizzes before starting a session.${extraSuffix}`;
+    return `We couldn't load the deck because ${location} needs attention. ${describeQuizValidationDetail(firstError.detail)} Fix the markdown file and reload decks before starting a session.${extraSuffix}`;
   }
 
   function getQuizValidationMessage(): string | null {
@@ -173,8 +283,12 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       fs.mkdirSync(dirPath, { recursive: true });
       return 0;
     }
-    const files = fs.readdirSync(dirPath).filter((f) => f.match(/^week\d+(?:-[a-z0-9]+)*\.md$/i));
+    const files = fs
+      .readdirSync(dirPath)
+      .filter((f) => f.endsWith(".md") && !f.startsWith("."))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     const next = new Map<string, Quiz>();
+    const deckIdByTitle = new Map<string, string>();
     const nextValidationErrors: ReturnType<typeof parseQuizMarkdown>["errors"] = [];
 
     for (const file of files) {
@@ -188,7 +302,21 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
           continue;
         }
         if (result.quiz) {
+          const normalizedTitle = normalizeDeckTitle(result.quiz.title);
+          const existingDeckId = normalizedTitle ? deckIdByTitle.get(normalizedTitle) : undefined;
+          if (existingDeckId) {
+            const existing = next.get(existingDeckId);
+            if (existing && shouldReplaceDuplicateDeck(existing, result.quiz)) {
+              next.delete(existingDeckId);
+              next.set(result.quiz.week, result.quiz);
+              deckIdByTitle.set(normalizedTitle, result.quiz.week);
+            }
+            continue;
+          }
           next.set(result.quiz.week, result.quiz);
+          if (normalizedTitle) {
+            deckIdByTitle.set(normalizedTitle, result.quiz.week);
+          }
         }
       } catch (error) {
         const code =
@@ -196,7 +324,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
             ? String((error as { code?: unknown }).code || "")
             : "";
         if (code === "ENOENT") {
-          console.warn(`Skipping deleted quiz file during load: ${file}`);
+          console.warn(`Skipping deleted deck file during load: ${file}`);
           continue;
         }
         throw error;
@@ -303,7 +431,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   });
 
   app.get("/api/runtime-config", (_req, res) => {
-    res.json({ theme });
+    res.json({ theme, autoGenerateStudentIds });
   });
 
   app.get(API.INSTRUCTOR_SESSION, (req, res) => {
@@ -349,19 +477,19 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     return res.status(204).send();
   });
 
-  // ── Quiz endpoints ────────────────────────
-  app.get(API.QUIZZES, (_req, res) => {
+  // ── Deck endpoints ────────────────────────
+  const listDecksHandler = (_req: Request, res: Response) => {
     const validationMessage = getQuizValidationMessage();
     if (validationMessage) {
       return res.status(409).json({ error: validationMessage });
     }
-    const list = [...quizzes.values()].map(summarizeQuizForList);
-    res.json(list);
-  });
+    const list = [...quizzes.values()].sort(compareDecksForList).map(summarizeQuizForList);
+    return res.json(list);
+  };
 
-  app.post(API.QUIZZES_RELOAD, requireInstructorAuth, (_req, res) => {
+  const reloadDecksHandler = (_req: Request, res: Response) => {
     if (!quizDir) {
-      return res.status(400).json({ error: "Quiz directory is not configured" });
+      return res.status(400).json({ error: "Deck directory is not configured" });
     }
     try {
       const loaded = loadQuizzesFromDir(quizDir);
@@ -369,25 +497,33 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       if (validationMessage) {
         return res.status(409).json({ error: validationMessage });
       }
-      const list = [...quizzes.values()].map(summarizeQuizForList);
+      const list = [...quizzes.values()].sort(compareDecksForList).map(summarizeQuizForList);
       return res.json({ loaded, quizzes: list });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Failed to reload quizzes";
+      const message = e instanceof Error ? e.message : "Failed to reload decks";
       return res.status(500).json({ error: message });
     }
-  });
+  };
 
-  app.get(API.QUIZ, (req, res) => {
+  app.get(API.DECKS, listDecksHandler);
+  app.get(API.QUIZZES, listDecksHandler);
+  app.post(API.DECKS_RELOAD, requireInstructorAuth, reloadDecksHandler);
+  app.post(API.QUIZZES_RELOAD, requireInstructorAuth, reloadDecksHandler);
+
+  const getDeckHandler = (req: Request, res: Response) => {
     const quiz = quizzes.get(req.params.week);
     if (!quiz) {
-      return res.status(404).json({ error: `Quiz not found: ${req.params.week}` });
+      return res.status(404).json({ error: `Deck not found: ${req.params.week}` });
     }
     res.json({
       week: quiz.week,
       title: quiz.title,
       questionCount: quiz.questions.length,
     });
-  });
+  };
+
+  app.get(API.DECK, getDeckHandler);
+  app.get(API.QUIZ, getDeckHandler);
 
   // ── Session lifecycle ─────────────────────
   app.post(API.SESSION_CREATE, requireInstructorAuth, (req, res) => {
@@ -450,6 +586,8 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         questionCount: quiz.questions.length,
         questionHeadings: getQuestionHeadings(quiz),
         questionSummaries: getQuestionSummaries(quiz),
+        reviewQuestions: getReviewQuestions(session, quiz),
+        reviewReveals: getReviewReveals(session, quiz),
       });
     });
   });
@@ -486,6 +624,36 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     });
   });
 
+  app.post(API.SESSION_PREV, requireInstructorAuth, (req, res) => {
+    withSession(req, res, (session) => {
+      const quiz = getQuizForSession(session.week);
+      if (!quiz) {
+        return res.status(500).json({ error: "Quiz data not found" });
+      }
+      const prevIndex = session.currentQuestionIndex - 1;
+      if (session.state === "LOBBY") {
+        return res.status(400).json({ error: "Start the session before going back." });
+      }
+      if (prevIndex < 0) {
+        return res.status(400).json({ error: "Already at the first item" });
+      }
+
+      const previousQuestion = quiz.questions[prevIndex];
+      const previousQuestionType = getQuestionType(previousQuestion);
+
+      session.state = previousQuestionType === "slide" ? "QUESTION_OPEN" : "REVEAL";
+      session.currentQuestionIndex = prevIndex;
+      if (session.state === "QUESTION_OPEN") {
+        session.questionStartedAt = Date.now();
+      } else {
+        markQuestionReviewed(session, prevIndex);
+      }
+      notifyStateChange(session, req.params.id, quiz);
+      logActivity(`instructor prev session=${req.params.id} q=${prevIndex} state=${session.state}`);
+      res.json({ state: session.state, questionIndex: prevIndex });
+    });
+  });
+
   app.post(API.SESSION_NEXT, requireInstructorAuth, (req, res) => {
     withSession(req, res, (session) => {
       const quiz = getQuizForSession(session.week);
@@ -508,8 +676,17 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         } else {
           transitionState(session, "QUESTION_OPEN");
         }
+
+        const nextQuestion = quiz.questions[nextIndex];
+        const nextQuestionType = getQuestionType(nextQuestion);
+        if (nextQuestionType !== "slide" && isQuestionReviewed(session, nextIndex)) {
+          session.state = "REVEAL";
+        }
+
         session.currentQuestionIndex = nextIndex;
-        session.questionStartedAt = Date.now();
+        if (session.state === "QUESTION_OPEN") {
+          session.questionStartedAt = Date.now();
+        }
         notifyStateChange(session, req.params.id, quiz);
         logActivity(`instructor next session=${req.params.id} q=${nextIndex} state=${session.state}`);
         res.json({ state: session.state, questionIndex: nextIndex });
@@ -552,6 +729,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
           return res.status(400).json({ error: "Slides do not reveal answers; advance to the next item." });
         }
         transitionState(session, "REVEAL");
+        markQuestionReviewed(session, session.currentQuestionIndex);
 
         if (quiz) {
           try {

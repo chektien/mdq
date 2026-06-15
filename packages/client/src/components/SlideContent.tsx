@@ -1,6 +1,7 @@
 import type {
   FoldoutNote as FoldoutNoteModel,
   SlideMedia,
+  SlideLiveEmbed,
   SlideReference,
 } from "@mdq/shared";
 import FoldoutNote from "./FoldoutNote";
@@ -14,6 +15,7 @@ interface SlideContentBodyProps {
   attendeeNotes?: FoldoutNoteModel[];
   presenterNotes?: FoldoutNoteModel[];
   slideMedia?: SlideMedia[];
+  slideLiveEmbed?: SlideLiveEmbed;
   slideReferences?: SlideReference[];
   chromeLabel?: string | null;
 }
@@ -26,6 +28,9 @@ interface SlideContentProps extends SlideContentBodyProps {
   sessionCode?: string;
   participantCount?: number;
   presentationUrl?: string;
+  joinUrl?: string;
+  shortUrl?: string;
+  joinCardDefaultExpanded?: boolean;
   showFullscreenButton?: boolean;
   statusLabel?: string | null;
   statusTone?: "neutral" | "success" | "warning";
@@ -39,17 +44,73 @@ export function SlideContentBody({
   attendeeNotes = [],
   presenterNotes = [],
   slideMedia = [],
+  slideLiveEmbed,
   slideReferences = [],
   chromeLabel = null,
 }: SlideContentBodyProps) {
   const hasAttendeeNotes = attendeeNotes.length > 0;
   const hasPresenterNotes = presenterNotes.length > 0;
+  const hasNotes = hasAttendeeNotes || hasPresenterNotes;
   const hasMedia = slideMedia.length > 0;
   const hasReferences = slideReferences.length > 0;
   const hasBody = html.trim().length > 0;
   const mediaCountClass = slideMedia.length > 3
     ? "slide-media-grid-count-many"
     : `slide-media-grid-count-${slideMedia.length}`;
+
+  if (slideLiveEmbed) {
+    const showOverlay = slideLiveEmbed.titleOverlay !== false;
+    return (
+      <div className="slide-live-embed">
+        <iframe
+          className="slide-live-embed-frame"
+          src={slideLiveEmbed.url}
+          title={title}
+          allow="fullscreen; xr-spatial-tracking"
+          loading="eager"
+        />
+        {showOverlay && (
+          <div className="slide-live-embed-overlay">
+            <header className="slide-header slide-live-embed-header">
+              {chromeLabel && <p className="slide-eyebrow">{chromeLabel}</p>}
+              <h1 className="slide-title">{title}</h1>
+            </header>
+            {hasBody && <QuizHtml className="quiz-html slide-body slide-live-embed-copy" html={html} />}
+            {hasMedia && (
+              <div className="slide-live-embed-logos" aria-label="Slide logos">
+                {slideMedia.map((media, index) => (
+                  <img
+                    key={`${media.src}-${index}`}
+                    src={media.src}
+                    alt={media.alt}
+                    title={media.title}
+                  />
+                ))}
+              </div>
+            )}
+            {hasNotes && (
+              <div className="slide-notes slide-live-embed-notes">
+                {hasAttendeeNotes && (
+                  <div className="slide-note-group slide-note-group-attendee">
+                    {attendeeNotes.map((note) => (
+                      <FoldoutNote key={note.id} note={note} />
+                    ))}
+                  </div>
+                )}
+                {hasPresenterNotes && (
+                  <div className="slide-note-group slide-note-group-presenter">
+                    {presenterNotes.map((note) => (
+                      <FoldoutNote key={note.id} note={note} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -125,6 +186,7 @@ export default function SlideContent({
   attendeeNotes = [],
   presenterNotes = [],
   slideMedia = [],
+  slideLiveEmbed,
   slideReferences = [],
   positionLabel,
   mode = "projector",
@@ -133,6 +195,9 @@ export default function SlideContent({
   sessionCode,
   participantCount,
   presentationUrl,
+  joinUrl,
+  shortUrl,
+  joinCardDefaultExpanded,
   showFullscreenButton = true,
   statusLabel,
   statusTone,
@@ -140,14 +205,20 @@ export default function SlideContent({
   navActions = [],
   actions = [],
 }: SlideContentProps) {
+  const surfaceClassName = slideLiveEmbed ? "slide-surface-live-embed" : undefined;
+
   return (
     <LiveSurface
       mode={mode}
+      surfaceClassName={surfaceClassName}
       nextLabel={nextLabel}
       qrDataUrl={qrDataUrl}
       sessionCode={sessionCode}
       participantCount={participantCount}
       presentationUrl={presentationUrl}
+      joinUrl={joinUrl}
+      shortUrl={shortUrl}
+      joinCardDefaultExpanded={joinCardDefaultExpanded}
       positionLabel={positionLabel}
       showFullscreenButton={showFullscreenButton}
       statusLabel={statusLabel}
@@ -161,6 +232,7 @@ export default function SlideContent({
         attendeeNotes={attendeeNotes}
         presenterNotes={presenterNotes}
         slideMedia={slideMedia}
+        slideLiveEmbed={slideLiveEmbed}
         slideReferences={slideReferences}
         chromeLabel={chromeLabel}
       />

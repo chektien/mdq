@@ -28,7 +28,7 @@ function waitFor<T>(socket: ClientSocket, event: string, timeout = 5000): Promis
 }
 
 describe("week00 smoke multi-select", () => {
-  const quizDir = path.resolve(__dirname, "../../../../samples/quizzes");
+  const quizDir = path.resolve(__dirname, "../../../../samples/decks");
   let httpServer: HttpServer;
   let ioServer: IOServer;
   let app: ReturnType<typeof createApp>;

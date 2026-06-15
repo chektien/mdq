@@ -6,6 +6,7 @@ import type { SessionState } from "@mdq/shared";
 import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
 import DistributionChart from "../components/DistributionChart";
+import InlineMarkdownText from "../components/InlineMarkdownText";
 import QuizHtml from "../components/QuizHtml";
 import SlideContent from "../components/SlideContent";
 import { getQuestionModeText } from "../questionMode";
@@ -26,12 +27,35 @@ function clearSessionArtifacts(): void {
   }
 }
 
+function createGeneratedStudentId(): string {
+  const randomPart =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `anon-${randomPart}`;
+}
+
+function getGeneratedStudentId(): string {
+  const storageKey = "mdquiz_generated_student_id";
+  try {
+    const existing = localStorage.getItem(storageKey);
+    if (existing && existing.trim()) return existing;
+    const generated = createGeneratedStudentId();
+    localStorage.setItem(storageKey, generated);
+    return generated;
+  } catch {
+    return createGeneratedStudentId();
+  }
+}
+
 export default function StudentView({
   initialSessionCode,
   initialSessionId,
+  autoGenerateStudentIds = false,
 }: {
   initialSessionCode?: string;
   initialSessionId?: string;
+  autoGenerateStudentIds?: boolean;
 }) {
   const normalizeSessionCode = useCallback(
     (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6),
@@ -118,8 +142,15 @@ export default function StudentView({
 
   // Handle join: first resolve session code to sessionId, then connect socket
   const handleJoin = useCallback(async () => {
-    if (!studentId.trim()) {
+    const trimmedStudentId = autoGenerateStudentIds ? getGeneratedStudentId() : studentId.trim();
+    const trimmedDisplayName = displayName.trim();
+
+    if (!trimmedStudentId) {
       setJoinError("Student ID is required");
+      return;
+    }
+    if (autoGenerateStudentIds && !trimmedDisplayName) {
+      setJoinError("Please enter your name to join.");
       return;
     }
 
@@ -148,14 +179,14 @@ export default function StudentView({
       // Store pending join info and session for the socket handler
       localStorage.setItem(
         "mdquiz_pending_join",
-        JSON.stringify({ studentId: studentId.trim(), displayName: displayName.trim() || undefined }),
+        JSON.stringify({ studentId: trimmedStudentId, displayName: trimmedDisplayName || undefined }),
       );
       // Also update the session store so page refreshes restore the session
       localStorage.setItem(
         "mdquiz_session",
         JSON.stringify({
           sessionId: data.sessionId,
-          studentId: studentId.trim(),
+          studentId: trimmedStudentId,
           sessionWeek: data.week,
           sessionToken:
             (() => {
@@ -166,7 +197,7 @@ export default function StudentView({
                 if (
                   existing
                   && existing.sessionId === data.sessionId
-                  && existing.studentId === studentId.trim()
+                  && existing.studentId === trimmedStudentId
                   && typeof existing.sessionToken === "string"
                 ) {
                   return existing.sessionToken;
@@ -186,7 +217,7 @@ export default function StudentView({
       setJoinError(e instanceof Error ? e.message : "Failed to join");
       setJoining(false);
     }
-  }, [code, studentId, displayName, normalizeSessionCode]);
+  }, [autoGenerateStudentIds, code, studentId, displayName, normalizeSessionCode]);
 
   // When socket connects and we have pending join, emit student:join
   useEffect(() => {
@@ -233,6 +264,8 @@ export default function StudentView({
 
   // ── Not yet connected: show join form ──
   if (!sock.sessionToken) {
+    const showNameRequiredTip = autoGenerateStudentIds && joinError === "Please enter your name to join.";
+
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-6 p-6">
         {!initialSessionCode && (
@@ -268,25 +301,32 @@ export default function StudentView({
             />
           </div>
 
-          <div>
-            <label htmlFor="join-student-id" className="block text-zinc-400 text-xs mb-1 font-medium">
-              Student ID <span className="text-red-400">*</span>
-            </label>
-            <input
-              id="join-student-id"
-              name="studentId"
-              type="text"
-              value={studentId}
-              onChange={(e) => handleStudentIdChange(e.target.value)}
-              placeholder="e.g. 2301234"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              autoComplete="off"
-            />
-          </div>
+          {!autoGenerateStudentIds && (
+            <div>
+              <label htmlFor="join-student-id" className="block text-zinc-400 text-xs mb-1 font-medium">
+                Student ID <span className="text-red-400">*</span>
+              </label>
+              <input
+                id="join-student-id"
+                name="studentId"
+                type="text"
+                value={studentId}
+                onChange={(e) => handleStudentIdChange(e.target.value)}
+                placeholder="e.g. 2301234"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                autoComplete="off"
+              />
+            </div>
+          )}
 
           <div>
             <label htmlFor="join-display-name" className="block text-zinc-400 text-xs mb-1 font-medium">
-              Display Name <span className="text-zinc-600">(optional)</span>
+              {autoGenerateStudentIds ? "Name" : "Display Name"}{" "}
+              {autoGenerateStudentIds ? (
+                <span className="text-red-400">*</span>
+              ) : (
+                <span className="text-zinc-600">(optional)</span>
+              )}
             </label>
             <input
               id="join-display-name"
@@ -295,14 +335,25 @@ export default function StudentView({
               value={displayName}
               onChange={(e) => handleDisplayNameChange(e.target.value)}
               placeholder="Your name"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-invalid={showNameRequiredTip ? true : undefined}
+              aria-describedby={showNameRequiredTip ? "join-display-name-tip" : undefined}
+              className={`w-full bg-zinc-800 border rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 ${
+                showNameRequiredTip
+                  ? "border-red-500 focus:ring-red-500"
+                  : "border-zinc-700 focus:ring-indigo-500"
+              }`}
               autoComplete="off"
             />
+            {showNameRequiredTip && (
+              <p id="join-display-name-tip" className="mt-2 text-sm text-red-300">
+                Fill in your name before joining.
+              </p>
+            )}
           </div>
 
           <button
             onClick={handleJoin}
-            disabled={joining || !code.trim() || !studentId.trim()}
+            disabled={joining || !code.trim() || (!autoGenerateStudentIds && !studentId.trim())}
             className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-semibold py-4 rounded-xl transition-colors text-lg"
           >
             {joining ? "Joining..." : "Join"}
@@ -337,6 +388,7 @@ export default function StudentView({
         submitted={sock.submitted}
         submittedOptions={sock.submittedOptions}
         submittedResponseText={sock.submittedResponseText}
+        totalQuestions={sock.totalQuestions}
         onSubmit={sock.submitAnswer}
       />
     );
@@ -370,6 +422,7 @@ export default function StudentView({
           totalQuestions={sock.totalQuestions}
           highlightStudentId={sock.studentId ?? undefined}
           maxRows={15}
+          showStudentIds={!autoGenerateStudentIds}
         />
         {state === "ENDED" && (
           <button
@@ -401,6 +454,7 @@ function QuestionView({
   submitted,
   submittedOptions,
   submittedResponseText,
+  totalQuestions,
   onSubmit,
 }: {
   question: QuestionState | null;
@@ -409,6 +463,7 @@ function QuestionView({
   submitted: boolean;
   submittedOptions: string[];
   submittedResponseText: string | null;
+  totalQuestions: number;
   onSubmit: (payload: { questionIndex: number; selectedOptions?: string[]; responseText?: string }) => void;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
@@ -480,8 +535,32 @@ function QuestionView({
   const submittedLabel = question.questionType === "open_response"
     ? "Response submitted"
     : question.isPoll ? "Vote submitted" : "Answer submitted";
+  const positionLabel = totalQuestions > 0
+    ? `${question.questionIndex + 1}/${totalQuestions}`
+    : `${question.questionIndex + 1}`;
 
   if (question.questionType === "slide") {
+    const hasStudentVisibleSlideContent = [
+      question.topic,
+      question.text,
+    ].some((value) => value.trim().length > 0)
+      || (question.attendeeNotes?.length ?? 0) > 0
+      || (question.slideMedia?.length ?? 0) > 0
+      || !!question.slideLiveEmbed
+      || (question.slideReferences?.length ?? 0) > 0;
+
+    if (!hasStudentVisibleSlideContent) {
+      return (
+        <div className="slide-live-shell">
+          <div className="slide-live-main">
+            <div className="slide-student-empty">
+              <p>Please view the presentation screen.</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="slide-live-shell">
         <div className="slide-live-main">
@@ -490,8 +569,9 @@ function QuestionView({
           html={question.text}
           attendeeNotes={question.attendeeNotes}
           slideMedia={question.slideMedia}
+          slideLiveEmbed={question.slideLiveEmbed}
           slideReferences={question.slideReferences}
-          positionLabel={`${question.questionIndex + 1}`}
+          positionLabel={positionLabel}
           mode="student"
           statusLabel="The instructor will advance shortly"
         />
@@ -505,7 +585,7 @@ function QuestionView({
       {/* Header: timer + question number */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-zinc-400 text-sm font-medium">
-          Q{question.questionIndex + 1}
+          Q{positionLabel}
         </span>
         {!isClosed && (
           <Timer remainingSec={remainingSec} totalSec={question.timeLimitSec} size={56} />
@@ -767,11 +847,11 @@ function RevealView({
 
       {/* Explanation */}
       {reveal.explanation && (
-        <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl p-4">
+        <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl p-4 text-left">
           <h3 className="text-zinc-400 text-xs uppercase tracking-wide font-medium mb-2">
             Explanation
           </h3>
-          <p className="text-zinc-200 text-sm leading-relaxed">{reveal.explanation}</p>
+          <InlineMarkdownText text={reveal.explanation} className="text-zinc-200 text-sm leading-relaxed" />
         </div>
       )}
     </div>

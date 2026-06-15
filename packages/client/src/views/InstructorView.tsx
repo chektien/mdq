@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSocket } from "../hooks/useSocket";
 import type { QuestionState, RevealState } from "../hooks/useSocket";
 import {
-  fetchQuizzes,
-  reloadQuizzes,
+  fetchDecks,
+  reloadDecks,
   createSession,
   startSession,
+  prevQuestion,
   nextQuestion,
   closeQuestion,
   revealAnswer,
@@ -14,17 +15,21 @@ import {
   hideLeaderboard,
   fetchSessionAccessInfo,
   fetchSessionStateForRestore,
-  type QuizSummary,
+  type DeckSummary,
   type QuestionSummary,
   type CreateSessionResponse,
+  type SessionRestoreResponse,
 } from "../hooks/api";
 import type { AccessInfo, QuestionType, SessionState } from "@mdq/shared";
 import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
 import OpenResponseList from "../components/OpenResponseList";
 import QRPanel from "../components/QRPanel";
+import SessionCodeCard from "../components/SessionCodeCard";
+import InlineMarkdownText from "../components/InlineMarkdownText";
 import QuizHtml from "../components/QuizHtml";
 import LiveSurface, { type LiveSurfaceAction } from "../components/LiveSurface";
+import ResponsiveQuizSurface from "../components/ResponsiveQuizSurface";
 import SlideContent, { SlideContentBody } from "../components/SlideContent";
 import { getQuestionModeText, getRevealActionLabel } from "../questionMode";
 
@@ -54,9 +59,9 @@ function pluralize(count: number, singular: string, plural = `${singular}s`): st
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function formatQuizChooserSummary(quiz: QuizSummary): string {
-  const slideCount = quiz.slideCount ?? 0;
-  const liveQuestionCount = quiz.liveQuestionCount ?? Math.max(quiz.questionCount - slideCount, 0);
+function formatDeckChooserSummary(deck: DeckSummary): string {
+  const slideCount = deck.slideCount ?? 0;
+  const liveQuestionCount = deck.liveQuestionCount ?? Math.max(deck.questionCount - slideCount, 0);
   const parts = [pluralize(liveQuestionCount, "question")];
   if (slideCount > 0) {
     parts.push(pluralize(slideCount, "slide"));
@@ -64,12 +69,34 @@ function formatQuizChooserSummary(quiz: QuizSummary): string {
   return parts.join(", ");
 }
 
-function formatQuizChooserTitle(quiz: QuizSummary): string {
-  const titleWithoutLegacyCount = quiz.title.replace(
-    /\s*\(\s*\d+\s+(?:questions?|slides?)(?:\s*\+\s*\d+\s+(?:questions?|slides?))*\s*\)\s*$/i,
-    "",
-  );
-  return `${titleWithoutLegacyCount} (${formatQuizChooserSummary(quiz)})`;
+function questionStateFromRestore(data: NonNullable<SessionRestoreResponse["reviewQuestions"]>[number]): QuestionState {
+  return {
+    questionIndex: data.questionIndex,
+    topic: data.topic,
+    text: data.text,
+    questionType: data.questionType ?? (data.isPoll ? "poll" : "multiple_choice"),
+    attendeeNotes: data.attendeeNotes,
+    slideMedia: data.slideMedia,
+    slideLiveEmbed: data.slideLiveEmbed,
+    slideReferences: data.slideReferences,
+    options: data.options,
+    allowsMultiple: data.allowsMultiple,
+    isPoll: data.isPoll ?? false,
+    timeLimitSec: data.timeLimitSec,
+    startedAt: data.startedAt,
+  };
+}
+
+function revealStateFromRestore(data: NonNullable<SessionRestoreResponse["reviewReveals"]>[number]): RevealState {
+  return {
+    questionIndex: data.questionIndex,
+    questionType: data.questionType ?? (data.isPoll ? "poll" : "multiple_choice"),
+    correctOptions: data.correctOptions,
+    explanation: data.explanation,
+    distribution: data.distribution,
+    isPoll: data.isPoll ?? false,
+    openResponses: data.openResponses ?? [],
+  };
 }
 
 function clearInstructorRestore(): void {
@@ -88,10 +115,11 @@ function saveInstructorRestore(restore: StoredInstructorRestore): void {
   }
 }
 
-export default function InstructorView() {
+export default function InstructorView({ autoGenerateStudentIds = false }: { autoGenerateStudentIds?: boolean }) {
   // Setup state
-  const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
+  const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<string>("");
+  const [deckFilter, setDeckFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -104,6 +132,8 @@ export default function InstructorView() {
   const [questionSummaries, setQuestionSummaries] = useState<QuestionSummary[]>([]);
   const [quizLabel, setQuizLabel] = useState("");
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
+  const [restoredQuestionCache, setRestoredQuestionCache] = useState<Record<number, QuestionState>>({});
+  const [restoredRevealCache, setRestoredRevealCache] = useState<Record<number, RevealState>>({});
   const restoreAttemptedRef = useRef(false);
 
   // Socket connection (instructor role)
@@ -118,12 +148,12 @@ export default function InstructorView() {
     else setPhase("live");
   }, [sock.sessionState]);
 
-  // Load quizzes on mount
+  // Load decks on mount
   useEffect(() => {
-    fetchQuizzes()
-      .then((q) => {
-        setQuizzes(q);
-        if (q.length > 0) setSelectedWeek(q[0].week);
+    fetchDecks()
+      .then((loadedDecks) => {
+        setDecks(loadedDecks);
+        if (loadedDecks.length > 0) setSelectedWeek(loadedDecks[0].week);
       })
       .catch((e) => setErrorMsg(e.message));
   }, []);
@@ -166,6 +196,22 @@ export default function InstructorView() {
         setQuestionHeadings(snapshot.questionHeadings || []);
         setQuestionSummaries(snapshot.questionSummaries || []);
         setQuizLabel(formatQuizLabel(snapshot.week));
+        setRestoredQuestionCache(
+          Object.fromEntries(
+            (snapshot.reviewQuestions || []).map((question) => {
+              const restored = questionStateFromRestore(question);
+              return [restored.questionIndex, restored];
+            }),
+          ),
+        );
+        setRestoredRevealCache(
+          Object.fromEntries(
+            (snapshot.reviewReveals || []).map((reveal) => {
+              const restored = revealStateFromRestore(reveal);
+              return [restored.questionIndex, restored];
+            }),
+          ),
+        );
 
         if (snapshot.state === "LOBBY") {
           setPhase("lobby");
@@ -222,11 +268,11 @@ export default function InstructorView() {
     try {
       const info = await createSession(selectedWeek);
       setSessionInfo(info);
-      const quiz = quizzes.find((q) => q.week === selectedWeek);
-      if (quiz) setTotalQuestionsInQuiz(quiz.questionCount);
+      const deck = decks.find((q) => q.week === selectedWeek);
+      if (deck) setTotalQuestionsInQuiz(deck.questionCount);
       setQuestionHeadings(info.questionHeadings || []);
       setQuestionSummaries(info.questionSummaries || []);
-      setQuizLabel(formatQuizLabel(quiz?.week || selectedWeek));
+      setQuizLabel(formatQuizLabel(deck?.week || selectedWeek));
       setRestoreNotice(null);
       setPhase("lobby");
 
@@ -242,19 +288,19 @@ export default function InstructorView() {
     } finally {
       setLoading(false);
     }
-  }, [selectedWeek, quizzes]);
+  }, [selectedWeek, decks]);
 
-  const handleReloadQuizzes = useCallback(async () => {
+  const handleReloadDecks = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const result = await reloadQuizzes();
-      setQuizzes(result.quizzes);
+      const result = await reloadDecks();
+      setDecks(result.quizzes);
       if (!result.quizzes.find((q) => q.week === selectedWeek) && result.quizzes.length > 0) {
         setSelectedWeek(result.quizzes[0].week);
       }
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : "Failed to reload quizzes");
+      setErrorMsg(e instanceof Error ? e.message : "Failed to reload decks");
     } finally {
       setLoading(false);
     }
@@ -293,6 +339,12 @@ export default function InstructorView() {
   }, [sock]);
 
   const sid = sessionInfo?.sessionId ?? "";
+  const selectedDeck = decks.find((deck) => deck.week === selectedWeek);
+  const filteredDecks = decks.filter((deck) => {
+    const query = deckFilter.trim().toLowerCase();
+    if (!query) return true;
+    return `${deck.title} ${deck.week}`.toLowerCase().includes(query);
+  });
 
   // ── Setup Phase ──────────────────────────
   if (phase === "setup") {
@@ -301,7 +353,7 @@ export default function InstructorView() {
         <a href="#/" className="absolute top-6 left-6 text-zinc-500 hover:text-zinc-300 text-sm">
           &larr; Back
         </a>
-        <h1 className="text-3xl font-bold text-white">Start a Quiz Session</h1>
+        <h1 className="text-3xl font-bold text-white">Start a Deck Session</h1>
 
         {errorMsg && (
           <div className="bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-xl max-w-md w-full text-center">
@@ -315,31 +367,65 @@ export default function InstructorView() {
           </div>
         )}
 
-        {quizzes.length === 0 ? (
-          <p className="text-zinc-400">No quizzes found. Add quiz markdown files to the data/quizzes directory.</p>
+        {decks.length === 0 ? (
+          <p className="text-zinc-400">No decks found. Add markdown deck files to the data/decks directory.</p>
         ) : (
-          <div className="w-full max-w-md space-y-6">
-            <div>
-              <label htmlFor="quiz-select" className="block text-zinc-400 text-sm mb-2 font-medium">Select Quiz</label>
-              <select
-                id="quiz-select"
-                value={selectedWeek}
-                onChange={(e) => setSelectedWeek(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {quizzes.map((q) => (
-                  <option key={q.week} value={q.week}>
-                    {formatQuizChooserTitle(q)}
-                  </option>
-                ))}
-              </select>
+          <div className="w-full max-w-2xl space-y-6">
+            <div className="space-y-3">
+              <div className="flex items-end justify-between gap-4">
+                <label htmlFor="deck-filter" className="block text-zinc-400 text-sm font-medium">Select Deck</label>
+                {selectedDeck && (
+                  <span className="text-xs text-zinc-500 font-mono">{selectedDeck.week}</span>
+                )}
+              </div>
+              <input
+                id="deck-filter"
+                value={deckFilter}
+                onChange={(e) => setDeckFilter(e.target.value)}
+                placeholder="Search decks"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-white text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900/70">
+                {filteredDecks.length === 0 ? (
+                  <p className="px-4 py-5 text-sm text-zinc-400">No matching decks.</p>
+                ) : (
+                  filteredDecks.map((deck) => {
+                    const isSelected = deck.week === selectedWeek;
+                    return (
+                      <button
+                        key={deck.week}
+                        type="button"
+                        onClick={() => setSelectedWeek(deck.week)}
+                        className={`w-full border-b border-zinc-800 px-4 py-3 text-left transition-colors last:border-b-0 ${
+                          isSelected
+                            ? "bg-indigo-600/20 text-white"
+                            : "text-zinc-200 hover:bg-zinc-800/80"
+                        }`}
+                        aria-pressed={isSelected}
+                      >
+                        <span className="flex items-start gap-3">
+                          <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${isSelected ? "bg-indigo-300" : "bg-zinc-600"}`} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block break-words text-base font-medium leading-snug">{deck.title}</span>
+                            <span className="mt-1 block text-sm text-zinc-400">
+                              {formatDeckChooserSummary(deck)}
+                              <span className="mx-2 text-zinc-600">/</span>
+                              <span className="font-mono text-xs text-zinc-500">{deck.week}</span>
+                            </span>
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
             <button
-              onClick={handleReloadQuizzes}
+              onClick={handleReloadDecks}
               disabled={loading}
               className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:bg-zinc-700 disabled:text-zinc-500 border border-zinc-700 text-zinc-200 font-medium py-3 rounded-xl transition-colors"
             >
-              {loading ? "Reloading..." : "Reload Quiz Files"}
+              {loading ? "Reloading..." : "Reload Decks"}
             </button>
             <button
               onClick={handleCreateSession}
@@ -426,7 +512,7 @@ export default function InstructorView() {
           disabled={loading}
           className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white font-semibold py-4 px-12 rounded-xl transition-colors text-xl"
         >
-          {loading ? "Starting..." : "Start Quiz"}
+          {loading ? "Starting..." : "Start Session"}
         </button>
       </div>
     );
@@ -446,6 +532,7 @@ export default function InstructorView() {
           entries={sock.leaderboard}
           totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
           maxRows={15}
+          showStudentIds={!autoGenerateStudentIds}
         />
         <a
           href="#/"
@@ -468,9 +555,12 @@ export default function InstructorView() {
       questionHeadings={questionHeadings}
       questionSummaries={questionSummaries}
       quizLabel={quizLabel}
+      restoredQuestionCache={restoredQuestionCache}
+      restoredRevealCache={restoredRevealCache}
       loading={loading}
       errorMsg={errorMsg}
       restoreNotice={restoreNotice}
+      autoGenerateStudentIds={autoGenerateStudentIds}
       onAction={handleAction}
     />
   );
@@ -487,9 +577,12 @@ function LiveView({
   questionHeadings,
   questionSummaries,
   quizLabel,
+  restoredQuestionCache,
+  restoredRevealCache,
   loading,
   errorMsg,
   restoreNotice,
+  autoGenerateStudentIds,
   onAction,
 }: {
   sock: ReturnType<typeof useSocket>;
@@ -500,9 +593,12 @@ function LiveView({
   questionHeadings: string[];
   questionSummaries: QuestionSummary[];
   quizLabel: string;
+  restoredQuestionCache: Record<number, QuestionState>;
+  restoredRevealCache: Record<number, RevealState>;
   loading: boolean;
   errorMsg: string | null;
   restoreNotice: string | null;
+  autoGenerateStudentIds: boolean;
   onAction: (action: () => Promise<unknown>, label: string) => void;
 }) {
   const state = sock.sessionState as SessionState;
@@ -513,6 +609,14 @@ function LiveView({
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [questionCache, setQuestionCache] = useState<Record<number, QuestionState>>({});
   const [revealCache, setRevealCache] = useState<Record<number, RevealState>>({});
+
+  useEffect(() => {
+    setQuestionCache((prev) => ({ ...restoredQuestionCache, ...prev }));
+  }, [restoredQuestionCache]);
+
+  useEffect(() => {
+    setRevealCache((prev) => ({ ...restoredRevealCache, ...prev }));
+  }, [restoredRevealCache]);
 
   useEffect(() => {
     if (!q) return;
@@ -533,14 +637,15 @@ function LiveView({
   const availableReviewIndices = availableQuestionIndices.filter((idx) => (
     liveQuestionIndex >= 0 ? idx <= liveQuestionIndex : true
   ));
-  const latestPriorReview = availableReviewIndices.filter((idx) => idx < liveQuestionIndex).pop();
 
   const displayQuestion = isReviewing && reviewQuestionIndex !== null
     ? questionCache[reviewQuestionIndex] ?? null
     : q;
   const displayReveal = isReviewing && reviewQuestionIndex !== null
     ? revealCache[reviewQuestionIndex] ?? null
-    : rev;
+    : rev && q && rev.questionIndex === q.questionIndex
+      ? rev
+      : null;
   const showDetailedRevealChoices = !!displayReveal && !!displayQuestion;
   const getQuestionHeading = useCallback((questionIndex: number | null | undefined): string | null => {
     if (questionIndex === null || questionIndex === undefined || questionIndex < 0) {
@@ -561,6 +666,7 @@ function LiveView({
     (state === "REVEAL" || (state === "QUESTION_OPEN" && liveIsSlide)) &&
     q &&
     q.questionIndex < totalQuestionsInQuiz - 1;
+  const canPrev = !isReviewing && state !== "LOBBY" && state !== "ENDED" && liveQuestionIndex > 0;
   const canShowLeaderboard = state === "REVEAL" && !liveIsSlide;
   const isFinalQuestion = liveQuestionIndex >= totalQuestionsInQuiz - 1;
   const displayQuestionModeText = displayQuestion
@@ -578,6 +684,7 @@ function LiveView({
   const isLeaderboardDisplay = state === "LEADERBOARD" && !isReviewing;
   const isReviewSurfaceDisplay = isReviewing && !!displayQuestion;
   const isLiveSurfaceDisplay = isSlideDisplay || isQuizSurfaceDisplay || isLeaderboardDisplay || isReviewSurfaceDisplay;
+  const isLiveEmbedSlideDisplay = isSlideDisplay && !!displayQuestion?.slideLiveEmbed;
   const participantCount = sock.participants?.count ?? 0;
   const liveRestoreNoticeLabel = restoreNotice && isLiveSurfaceDisplay
     ? restoreNotice === INSTRUCTOR_RESTORE_SUCCESS_NOTICE
@@ -680,12 +787,8 @@ function LiveView({
     return [
       {
         label: "Prev",
-        onClick: () => {
-          if (latestPriorReview !== undefined) {
-            setReviewQuestionIndex(latestPriorReview);
-          }
-        },
-        disabled: latestPriorReview === undefined,
+        onClick: () => onAction(() => prevQuestion(sessionId), "previous"),
+        disabled: !canPrev || loading,
       },
       {
         label: "Next",
@@ -837,13 +940,14 @@ function LiveView({
             html={displayQuestion.text}
             attendeeNotes={displayQuestion.attendeeNotes}
             slideMedia={displayQuestion.slideMedia}
+            slideLiveEmbed={displayQuestion.slideLiveEmbed}
             slideReferences={displayQuestion.slideReferences}
           />
         );
       }
 
       return (
-        <div className="quiz-surface-content">
+        <ResponsiveQuizSurface>
           {state === "QUESTION_OPEN" && !isReviewing && (
             <Timer
               remainingSec={sock.remainingSec}
@@ -859,7 +963,7 @@ function LiveView({
           )}
 
           <QuizHtml
-            className="quiz-html text-2xl lg:text-3xl text-white text-center leading-relaxed max-w-3xl"
+            className="quiz-html text-2xl lg:text-3xl text-white text-center leading-relaxed max-w-5xl"
             html={displayQuestion.text}
           />
 
@@ -871,6 +975,7 @@ function LiveView({
             <OpenResponseList
               responses={liveOpenResponses}
               title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
+              showStudentIds={!autoGenerateStudentIds}
             />
           ) : (
             (() => {
@@ -878,7 +983,7 @@ function LiveView({
               const totalResponses = sock.answerCount?.submitted ?? 0;
               const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
               return (
-                <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}`}>
+                <div className={`w-full max-w-4xl ${dist ? "space-y-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}`}>
                   {displayQuestion.options.map((opt) => {
                     const count = dist?.[opt.label] ?? 0;
                     const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
@@ -909,26 +1014,26 @@ function LiveView({
               );
             })()
           )}
-        </div>
+        </ResponsiveQuizSurface>
       );
     }
 
     if (displayReveal && displayQuestion && (((state === "REVEAL") && !isReviewing) || isReviewing)) {
       return (
-        <div className="quiz-surface-content quiz-surface-content-reveal">
+        <ResponsiveQuizSurface reveal>
           <QuizHtml
-            className={`quiz-html text-center leading-relaxed max-w-3xl ${isReviewing ? "text-2xl lg:text-3xl text-white" : "text-xl lg:text-2xl text-zinc-300"}`}
+            className={`quiz-html text-center leading-relaxed max-w-5xl ${isReviewing ? "text-2xl lg:text-3xl text-white" : "text-xl lg:text-2xl text-zinc-300"}`}
             html={displayQuestion.text}
           />
 
           {displayQuestion.questionType === "open_response" ? (
-            <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." />
+            <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." showStudentIds={!autoGenerateStudentIds} />
           ) : showDetailedRevealChoices && (() => {
             const dist = displayReveal.distribution;
             const maxCount = Math.max(1, ...Object.values(dist));
             const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);
             return (
-              <div className="w-full max-w-2xl space-y-2">
+              <div className="w-full max-w-4xl space-y-2">
                 {displayQuestion.options.map((opt) => {
                   const isCorrect = displayReveal.correctOptions.includes(opt.label);
                   const count = dist[opt.label] ?? 0;
@@ -984,24 +1089,25 @@ function LiveView({
           })()}
 
           {displayReveal.explanation && (
-            <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-2xl w-full">
+            <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-4xl w-full text-left">
               <h3 className="text-emerald-400 font-semibold mb-2">Explanation</h3>
-              <p className="text-emerald-100 text-lg leading-relaxed">{displayReveal.explanation}</p>
+              <InlineMarkdownText text={displayReveal.explanation} className="text-emerald-100 text-lg leading-relaxed" />
             </div>
           )}
-        </div>
+        </ResponsiveQuizSurface>
       );
     }
 
     if (isLeaderboardDisplay) {
       return (
-        <div className="quiz-surface-content quiz-surface-content-leaderboard">
+        <ResponsiveQuizSurface leaderboard>
           <Leaderboard
             entries={sock.leaderboard}
             totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
             maxRows={10}
+            showStudentIds={!autoGenerateStudentIds}
           />
-        </div>
+        </ResponsiveQuizSurface>
       );
     }
 
@@ -1014,12 +1120,15 @@ function LiveView({
         <div className="slide-live-main">
           <LiveSurface
             mode={isReviewing ? "review" : "projector"}
-            surfaceClassName={isSlideDisplay ? undefined : "quiz-surface"}
+            surfaceClassName={isLiveEmbedSlideDisplay ? "slide-surface-live-embed" : isSlideDisplay ? undefined : "quiz-surface"}
             nextLabel={null}
             qrDataUrl={accessInfo?.qrCodeDataUrl}
             sessionCode={sessionCode}
             participantCount={participantCount}
             presentationUrl={accessInfo?.presentationUrl}
+            joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
+            shortUrl={accessInfo?.shortUrl}
+            joinCardDefaultExpanded={isLiveEmbedSlideDisplay && displayQuestion?.questionIndex === 0}
             positionLabel={isLeaderboardDisplay ? undefined : displayPositionLabel}
             statusLabel={liveSurfaceStatusLabel}
             statusTone={liveStatusTone}
@@ -1077,7 +1186,7 @@ function LiveView({
       )}
 
       {/* Main content */}
-      <div className={isLiveSurfaceDisplay ? "slide-live-main" : "flex-1 flex flex-col items-center justify-center gap-8 mx-auto w-full max-w-4xl"}>
+      <div className={isLiveSurfaceDisplay ? "slide-live-main" : "flex-1 flex flex-col items-center justify-center gap-8 mx-auto w-full max-w-3xl"}>
         {nextQuestionHeading && !isLiveSurfaceDisplay && (
           <div className="w-full max-w-3xl rounded-2xl border border-sky-500/30 bg-sky-500/10 px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">Next up</p>
@@ -1094,6 +1203,7 @@ function LiveView({
                 html={displayQuestion.text}
                 attendeeNotes={displayQuestion.attendeeNotes}
                 slideMedia={displayQuestion.slideMedia}
+                slideLiveEmbed={displayQuestion.slideLiveEmbed}
                 slideReferences={displayQuestion.slideReferences}
                 positionLabel={displayPositionLabel}
                 nextLabel={null}
@@ -1101,6 +1211,9 @@ function LiveView({
                 sessionCode={sessionCode}
                 participantCount={participantCount}
                 presentationUrl={accessInfo?.presentationUrl}
+                joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
+                shortUrl={accessInfo?.shortUrl}
+                joinCardDefaultExpanded={false}
                 statusLabel={slideStatusLabel}
                 statusTone={liveStatusTone}
                 navActions={liveSurfaceNavActions}
@@ -1114,13 +1227,16 @@ function LiveView({
                 sessionCode={sessionCode}
                 participantCount={participantCount}
                 presentationUrl={accessInfo?.presentationUrl}
+                joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
+                shortUrl={accessInfo?.shortUrl}
+                joinCardDefaultExpanded={false}
                 positionLabel={displayPositionLabel}
                 statusLabel={quizStatusLabel}
                 statusTone={liveStatusTone}
                 navActions={liveSurfaceNavActions}
                 actions={liveSurfaceActions}
               >
-                <div className="quiz-surface-content">
+                <ResponsiveQuizSurface>
                   {/* Timer */}
                   {state === "QUESTION_OPEN" && !isReviewing && (
                     <Timer
@@ -1138,7 +1254,7 @@ function LiveView({
 
                   {/* Question text */}
                   <QuizHtml
-                    className="quiz-html text-2xl lg:text-3xl text-white text-center leading-relaxed max-w-3xl"
+                    className="quiz-html text-2xl lg:text-3xl text-white text-center leading-relaxed max-w-5xl"
                     html={displayQuestion.text}
                   />
 
@@ -1150,6 +1266,7 @@ function LiveView({
                     <OpenResponseList
                       responses={liveOpenResponses}
                       title={state === "QUESTION_CLOSED" ? "Submitted Responses" : "Live Responses"}
+                      showStudentIds={!autoGenerateStudentIds}
                     />
                   ) : (
                     (() => {
@@ -1157,7 +1274,7 @@ function LiveView({
                       const totalResponses = sock.answerCount?.submitted ?? 0;
                       const maxCount = dist ? Math.max(1, ...Object.values(dist)) : 0;
                       return (
-                        <div className={`w-full max-w-2xl ${dist ? "space-y-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}`}>
+                        <div className={`w-full max-w-4xl ${dist ? "space-y-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}`}>
                           {displayQuestion.options.map((opt) => {
                             const count = dist?.[opt.label] ?? 0;
                             const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
@@ -1188,7 +1305,7 @@ function LiveView({
                       );
                     })()
                   )}
-                </div>
+                </ResponsiveQuizSurface>
               </LiveSurface>
             )}
           </>
@@ -1203,26 +1320,29 @@ function LiveView({
             sessionCode={sessionCode}
             participantCount={participantCount}
             presentationUrl={accessInfo?.presentationUrl}
+            joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
+            shortUrl={accessInfo?.shortUrl}
+            joinCardDefaultExpanded={false}
             positionLabel={displayPositionLabel}
             statusLabel={quizStatusLabel}
             statusTone={liveStatusTone}
             navActions={liveSurfaceNavActions}
             actions={liveSurfaceActions}
           >
-            <div className="quiz-surface-content quiz-surface-content-reveal">
+            <ResponsiveQuizSurface reveal>
               <QuizHtml
-                className={`quiz-html text-center leading-relaxed max-w-3xl ${isReviewing ? "text-2xl lg:text-3xl text-white" : "text-xl lg:text-2xl text-zinc-300"}`}
+                className={`quiz-html text-center leading-relaxed max-w-5xl ${isReviewing ? "text-2xl lg:text-3xl text-white" : "text-xl lg:text-2xl text-zinc-300"}`}
                 html={displayQuestion.text}
               />
 
               {displayQuestion.questionType === "open_response" ? (
-                <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." />
+                <OpenResponseList responses={revealOpenResponses} title="Responses" emptyLabel="No responses were submitted." showStudentIds={!autoGenerateStudentIds} />
               ) : showDetailedRevealChoices && (() => {
                 const dist = displayReveal.distribution;
                 const maxCount = Math.max(1, ...Object.values(dist));
                 const totalSelections = Object.values(dist).reduce((sum, c) => sum + c, 0);
                 return (
-                  <div className="w-full max-w-2xl space-y-2">
+                  <div className="w-full max-w-4xl space-y-2">
                     {displayQuestion.options.map((opt) => {
                       const isCorrect = displayReveal.correctOptions.includes(opt.label);
                       const count = dist[opt.label] ?? 0;
@@ -1278,12 +1398,12 @@ function LiveView({
               })()}
 
               {displayReveal.explanation && (
-                <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-2xl w-full">
+                <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-6 max-w-4xl w-full text-left">
                   <h3 className="text-emerald-400 font-semibold mb-2">Explanation</h3>
-                  <p className="text-emerald-100 text-lg leading-relaxed">{displayReveal.explanation}</p>
+                  <InlineMarkdownText text={displayReveal.explanation} className="text-emerald-100 text-lg leading-relaxed" />
                 </div>
               )}
-            </div>
+            </ResponsiveQuizSurface>
           </LiveSurface>
         )}
 
@@ -1294,17 +1414,21 @@ function LiveView({
             sessionCode={sessionCode}
             participantCount={participantCount}
             presentationUrl={accessInfo?.presentationUrl}
+            joinUrl={accessInfo?.shortUrl || accessInfo?.fullUrl}
+            shortUrl={accessInfo?.shortUrl}
+            joinCardDefaultExpanded={false}
             statusLabel={quizLabel ? `Leaderboard for ${quizLabel.toUpperCase()}` : "Leaderboard"}
             navActions={liveSurfaceNavActions}
             actions={liveSurfaceActions}
           >
-            <div className="quiz-surface-content">
+            <ResponsiveQuizSurface leaderboard>
               <Leaderboard
                 entries={sock.leaderboard}
                 totalQuestions={sock.totalQuestions ?? totalQuestionsInQuiz}
                 maxRows={10}
+                showStudentIds={!autoGenerateStudentIds}
               />
-            </div>
+            </ResponsiveQuizSurface>
           </LiveSurface>
         )}
       </div>
@@ -1323,28 +1447,16 @@ function LiveView({
       )}
 
       {accessInfo && sessionCode && !isLiveSurfaceDisplay && (
-        <div className="fixed top-4 right-4 z-20 bg-white text-zinc-900 rounded-xl shadow-xl border border-zinc-200 p-3 w-40">
-          {accessInfo.qrCodeDataUrl && (
-            <img
-              src={accessInfo.qrCodeDataUrl}
-              alt="Join QR"
-              className="w-full h-auto rounded-lg"
-            />
-          )}
-          <p className="text-[11px] text-zinc-500 mt-2 uppercase tracking-wide">Session Code</p>
-          <p className="font-mono text-xl font-bold tracking-[0.12em]">{sessionCode}</p>
-          <p className="text-[11px] text-zinc-500 mt-1">{sock.participants?.count ?? 0} online</p>
-          {accessInfo.presentationUrl && (
-            <a
-              href={accessInfo.presentationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 block text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-600 hover:text-indigo-500"
-            >
-              Presentation view
-            </a>
-          )}
-        </div>
+        <SessionCodeCard
+          className="fixed-session-code-card"
+          qrDataUrl={accessInfo.qrCodeDataUrl}
+          sessionCode={sessionCode}
+          participantCount={sock.participants?.count ?? 0}
+          presentationUrl={accessInfo.presentationUrl}
+          joinUrl={accessInfo.shortUrl || accessInfo.fullUrl}
+          shortUrl={accessInfo.shortUrl}
+          defaultExpanded={false}
+        />
       )}
       {endSessionConfirmDialog}
     </div>

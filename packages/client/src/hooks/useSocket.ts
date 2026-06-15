@@ -17,6 +17,7 @@ import type {
   FoldoutNote,
   AnswerSubmitPayload,
   SlideMedia,
+  SlideLiveEmbed,
   SlideReference,
 } from "@mdq/shared";
 import { SocketEvents } from "@mdq/shared";
@@ -75,6 +76,7 @@ export interface QuestionState {
   questionType: QuestionType;
   attendeeNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
+  slideLiveEmbed?: SlideLiveEmbed;
   slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
@@ -137,6 +139,8 @@ export function useSocket(
   const answeredQuestionsRef = useRef<number[]>([]);
   const currentQuestionRef = useRef<QuestionState | null>(null);
   const studentIdRef = useRef<string | null>(null);
+  const submittedOptionsRef = useRef<string[]>([]);
+  const submittedResponseTextRef = useRef<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -168,6 +172,14 @@ export function useSocket(
     studentIdRef.current = studentIdState;
   }, [studentIdState]);
 
+  useEffect(() => {
+    submittedOptionsRef.current = submittedOptions;
+  }, [submittedOptions]);
+
+  useEffect(() => {
+    submittedResponseTextRef.current = submittedResponseText;
+  }, [submittedResponseText]);
+
   // Connect socket when sessionId is available
   useEffect(() => {
     if (!sessionId) return;
@@ -176,6 +188,7 @@ export function useSocket(
       auth: { sessionId, role },
       query: { sessionId },
       transports: ["websocket", "polling"],
+      autoConnect: false,
     });
 
     socketRef.current = socket;
@@ -233,28 +246,35 @@ export function useSocket(
     // ── Question lifecycle ─────────────────
     socket.on(SocketEvents.QUESTION_OPEN, (data: QuestionOpenPayload) => {
       const questionType = data.questionType ?? (data.isPoll ? "poll" : "multiple_choice");
-      setCurrentQuestion({
+      const previousQuestion = currentQuestionRef.current;
+      const isSameQuestion = previousQuestion?.questionIndex === data.questionIndex;
+      const nextQuestion = {
         questionIndex: data.questionIndex,
         topic: data.topic,
         text: data.text,
         questionType,
         attendeeNotes: data.attendeeNotes,
         slideMedia: data.slideMedia,
+        slideLiveEmbed: data.slideLiveEmbed,
         slideReferences: data.slideReferences,
         options: data.options,
         allowsMultiple: data.allowsMultiple,
         isPoll: data.isPoll ?? false,
         timeLimitSec: data.timeLimitSec,
         startedAt: data.startedAt,
-      });
+      };
+      currentQuestionRef.current = nextQuestion;
+      setCurrentQuestion(nextQuestion);
       setSessionState("QUESTION_OPEN");
       setReveal(null);
       setDistribution(null);
-      // Preserve submitted=true if this question was already answered (reconnect case)
+      // Reveal/reconnect snapshots replay question context before reveal details.
+      // Preserve the local answer when that replay is for the same question.
       const alreadyAnswered = answeredQuestionsRef.current.includes(data.questionIndex);
-      setSubmitted(questionType === "open_response" ? false : alreadyAnswered);
-      setSubmittedOptions([]);
-      setSubmittedResponseText(null);
+      const shouldPreserveSubmission = isSameQuestion && alreadyAnswered;
+      setSubmitted(alreadyAnswered);
+      setSubmittedOptions(shouldPreserveSubmission ? submittedOptionsRef.current : []);
+      setSubmittedResponseText(shouldPreserveSubmission ? submittedResponseTextRef.current : null);
       setRemainingSec(data.timeLimitSec);
     });
 
@@ -317,6 +337,10 @@ export function useSocket(
     });
 
     socket.on(SocketEvents.RESULTS_REVEAL, (data: ResultsRevealPayload) => {
+      if (currentQuestionRef.current?.questionIndex !== data.questionIndex) {
+        return;
+      }
+
       setReveal({
         questionIndex: data.questionIndex,
         questionType: data.questionType ?? (data.isPoll ? "poll" : "multiple_choice"),
@@ -346,7 +370,55 @@ export function useSocket(
       setParticipants(data);
     });
 
+    socket.connect();
+
+    let foregroundReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    const reconnectAfterForeground = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+
+      if (foregroundReconnectTimer) {
+        clearTimeout(foregroundReconnectTimer);
+      }
+
+      foregroundReconnectTimer = setTimeout(() => {
+        const currentSocket = socketRef.current;
+        if (!currentSocket || currentSocket !== socket) {
+          return;
+        }
+
+        // iOS Safari can leave Socket.IO thinking it is connected after a
+        // background/foreground cycle. Reconnecting asks the server to replay
+        // the authoritative session snapshot before the next instructor action.
+        currentSocket.disconnect();
+        currentSocket.connect();
+      }, 100);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        reconnectAfterForeground();
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("pageshow", reconnectAfterForeground);
+    }
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+
     return () => {
+      if (foregroundReconnectTimer) {
+        clearTimeout(foregroundReconnectTimer);
+      }
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pageshow", reconnectAfterForeground);
+      }
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
       socket.disconnect();
       socketRef.current = null;
     };
@@ -372,8 +444,12 @@ export function useSocket(
     (payload: AnswerSubmitPayload) => {
       if (!socketRef.current) return;
       socketRef.current.emit(SocketEvents.ANSWER_SUBMIT, payload);
-      setSubmittedOptions(payload.selectedOptions ?? []);
-      setSubmittedResponseText(payload.responseText?.trim() || null);
+      const nextSubmittedOptions = payload.selectedOptions ?? [];
+      const nextSubmittedResponseText = payload.responseText?.trim() || null;
+      submittedOptionsRef.current = nextSubmittedOptions;
+      submittedResponseTextRef.current = nextSubmittedResponseText;
+      setSubmittedOptions(nextSubmittedOptions);
+      setSubmittedResponseText(nextSubmittedResponseText);
     },
     [],
   );

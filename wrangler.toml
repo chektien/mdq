@@ -3,5 +3,5 @@ main = "workers/mdq-proxy.js"
 compatibility_date = "2026-05-14"
 account_id = "0d864d6d359743f9fd325ff195badd55"
 routes = [
-  { pattern = "mdq.ch3k.com", custom_domain = true }
+  { pattern = "mdq.ch3k.com/*", zone_name = "ch3k.com" }
 ]

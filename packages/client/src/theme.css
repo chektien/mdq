@@ -157,7 +157,7 @@ html[data-theme="dark"] [class*="border-indigo-600"] {
 
 html[data-theme="dark"] [class*="rounded-xl"],
 html[data-theme="dark"] [class*="rounded-2xl"] {
-  border-radius: 0.85rem;
+  border-radius: 0.72rem;
 }
 
 html[data-theme="dark"] [class*="focus:ring-indigo-500"] {
@@ -371,7 +371,7 @@ html[data-theme="light"] [class*="border-indigo-600"] {
 
 html[data-theme="light"] [class*="rounded-xl"],
 html[data-theme="light"] [class*="rounded-2xl"] {
-  border-radius: 1.4rem;
+  border-radius: 1.1rem;
 }
 
 html[data-theme="light"] [class*="focus:ring-indigo-500"] {
@@ -395,7 +395,7 @@ html[data-theme="light"] .option-btn {
 html[data-theme="light"] .dist-row-shell {
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--mdq-line);
-  border-radius: 1.4rem;
+  border-radius: 1.1rem;
   background: rgba(255, 250, 241, 0.7);
   box-shadow: 0 12px 30px rgba(88, 64, 39, 0.08);
 }

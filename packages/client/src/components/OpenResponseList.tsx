@@ -5,10 +5,12 @@ export default function OpenResponseList({
   responses,
   title = "Responses",
   emptyLabel = "No responses yet.",
+  showStudentIds = true,
 }: {
   responses: OpenResponseEntry[];
   title?: string;
   emptyLabel?: string;
+  showStudentIds?: boolean;
 }) {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
@@ -29,6 +31,7 @@ export default function OpenResponseList({
           {responses.map((response) => {
             const rowKey = `${response.studentId}-${response.submittedAt}`;
             const expanded = !!expandedRows[rowKey];
+            const participantLabel = response.displayName || (showStudentIds ? response.studentId : "Anonymous");
             return (
               <button
                 key={rowKey}
@@ -37,8 +40,10 @@ export default function OpenResponseList({
                 className="w-full rounded-xl border border-zinc-800 bg-zinc-950/70 px-3 py-3 text-left transition-colors hover:border-zinc-700"
               >
                 <div className="flex items-center gap-3 overflow-hidden text-xs text-zinc-500">
-                  <span className="shrink-0 font-mono font-semibold text-zinc-300">{response.studentId}</span>
-                  <span className="truncate">{response.displayName || "Anonymous"}</span>
+                  {showStudentIds && (
+                    <span className="shrink-0 font-mono font-semibold text-zinc-300">{response.studentId}</span>
+                  )}
+                  <span className="truncate">{participantLabel}</span>
                 </div>
                 <p
                   className={`mt-2 text-sm leading-relaxed text-zinc-100 ${expanded ? "whitespace-pre-wrap break-words" : "truncate whitespace-nowrap"}`}

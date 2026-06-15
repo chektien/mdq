@@ -66,6 +66,36 @@ B. No
       expect(result.quiz!.questions[0].timeLimitSec).toBe(45);
     });
 
+    it("parses multiline overall feedback blockquotes until the next metadata block", () => {
+      const md = `# Quiz
+
+---
+
+## Topic
+
+**Question?**
+
+A. Yes
+B. No
+
+> Correct Answer: A
+> Overall Feedback: First line.
+>
+> **Learning Objective:** Explain the idea.
+>
+> **Gap:** Keep this in the explanation.
+> Presenter Note:
+> - Do not include this in feedback.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week03.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.questions[0].explanation).toBe(
+        "First line.\n\n**Learning Objective:** Explain the idea.\n\n**Gap:** Keep this in the explanation.",
+      );
+    });
+
     it("defaults time_limit to 35 when not specified", () => {
       const md = `# Quiz
 
@@ -289,6 +319,37 @@ type: slide
       ]);
     });
 
+    it("extracts live slide embed metadata without rendering it as body text", () => {
+      const md = `# Quiz
+
+---
+
+## Live Demo
+
+type: slide
+live_url: https://example.com/demo
+live_title_overlay: true
+live_interactive: true
+
+Use the live artifact as the slide.
+
+> Attendee Note: Tan, C. T. 2026. The HMD Simulator. In *DIS '26*. https://doi.org/10.1145/example
+
+---`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.slideLiveEmbed).toEqual({
+        url: "https://example.com/demo",
+        titleOverlay: true,
+        interactive: true,
+      });
+      expect(q.textMd).toBe("Use the live artifact as the slide.");
+      expect(q.textHtml).not.toContain("live_url");
+      expect(q.slideMedia).toBeUndefined();
+      expect(q.attendeeNotes?.[0].bodyMd).toContain("The HMD Simulator");
+    });
+
     it("extracts slide references into footer-ready inline html", () => {
       const md = `# Quiz
 
@@ -334,6 +395,47 @@ B. No
       const result = parseQuizMarkdown(md, "week09-lab.md");
       expect(result.errors).toHaveLength(0);
       expect(result.quiz!.week).toBe("week09-lab");
+    });
+
+    it("uses non-week deck keys from filenames", () => {
+      const md = `# Quiz
+
+---
+
+## Topic
+
+**Question?**
+
+A. Yes
+B. No
+
+> Correct Answer: A
+> Overall Feedback: Explanation.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "dis2026-hmd-simulator.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.week).toBe("dis2026-hmd-simulator");
+    });
+
+    it("uses a preamble title when the deck has no H1", () => {
+      const md = `title: "DIS 2026 HMD Simulator"
+
+---
+
+## Opening Slide
+
+type: slide
+
+Welcome to the session.
+
+---`;
+      const result = parseQuizMarkdown(md, "dis2026-hmd-simulator.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.title).toBe("DIS 2026 HMD Simulator");
+      expect(result.quiz!.week).toBe("dis2026-hmd-simulator");
+      expect(result.quiz!.questions).toHaveLength(1);
     });
 
     it("parses code blocks in question text", () => {
@@ -748,7 +850,7 @@ B. No
     });
   });
 
-  describe("sample quiz files", () => {
+  describe("sample deck files", () => {
     const quizDir = path.join(__dirname, "fixtures/quizzes");
 
     it("parses week01.md", () => {

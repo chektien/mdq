@@ -1,7 +1,8 @@
 {
   "port": 2081,
   "portFallbacks": 10,
-  "quizDir": "./quizzes",
+  "deckDir": "./decks",
   "instanceId": "classroom-imac",
-  "theme": "dark"
+  "theme": "dark",
+  "autoGenerateStudentIds": false
 }
