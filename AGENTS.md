@@ -2,7 +2,10 @@
 
 ## Project
 - MDQ is the markdown-driven quiz/presentation app.
-- Keep real quiz data out of the public repo. Do not commit private class quiz content under `data/quizzes` or elsewhere; only intentional samples such as `samples/quizzes/week00.md` belong in git.
+- This is a public-facing repository. Do not commit real quiz data, private class data, session exports, submissions, access logs, or other teaching-instance data.
+- The only quiz/deck content that may be committed is intentional smoke/sample content meant for public distribution, such as files under `samples/decks/` or minimal non-real fixtures used by automated tests.
+- Keep private/runtime quiz data under ignored local data paths. If real quiz data is accidentally committed, stop and remove it from history before continuing normal development.
+- Keep agent-generated planning, handoff, scratch, and review markdown out of the public repository unless Chek explicitly asks to publish a specific document.
 
 ## Local Runtime
 - The local MDQ server commonly runs on port `2081`.
