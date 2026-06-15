@@ -333,7 +333,7 @@ live_interactive: true
 
 Use the live artifact as the slide.
 
-> Attendee Note: Tan, C. T. 2026. The HMD Simulator. In *DIS '26*. https://doi.org/10.1145/example
+> Attendee Note: Example Author. 2026. Demo System. In *Example Proceedings*. https://doi.org/10.1145/example
 
 ---`;
       const result = parseQuizMarkdown(md, "week01.md");
@@ -347,7 +347,7 @@ Use the live artifact as the slide.
       expect(q.textMd).toBe("Use the live artifact as the slide.");
       expect(q.textHtml).not.toContain("live_url");
       expect(q.slideMedia).toBeUndefined();
-      expect(q.attendeeNotes?.[0].bodyMd).toContain("The HMD Simulator");
+      expect(q.attendeeNotes?.[0].bodyMd).toContain("Demo System");
     });
 
     it("extracts slide references into footer-ready inline html", () => {
@@ -362,7 +362,7 @@ type: slide
 Use the result as visual context.
 
 > Reference: [Milgram and Kishino, 1994](https://doi.org/10.1000/example)
-> Image Source: [HMD schematic](https://example.com/hmd.png)
+> Image Source: [System schematic](https://example.com/system.png)
 
 ---`;
       const result = parseQuizMarkdown(md, "week01.md");
@@ -372,7 +372,7 @@ Use the result as visual context.
       expect(q.textHtml).not.toContain("Reference:");
       expect(q.slideReferences).toHaveLength(2);
       expect(q.slideReferences?.[0].html).toContain('<a href="https://doi.org/10.1000/example"');
-      expect(q.slideReferences?.[1].textMd).toContain("HMD schematic");
+      expect(q.slideReferences?.[1].textMd).toContain("System schematic");
     });
 
     it("uses full week key from variant filenames", () => {
@@ -392,9 +392,9 @@ B. No
 
 ---
 `;
-      const result = parseQuizMarkdown(md, "week09-lab.md");
+      const result = parseQuizMarkdown(md, "week03-lab.md");
       expect(result.errors).toHaveLength(0);
-      expect(result.quiz!.week).toBe("week09-lab");
+      expect(result.quiz!.week).toBe("week03-lab");
     });
 
     it("uses non-week deck keys from filenames", () => {
@@ -414,13 +414,13 @@ B. No
 
 ---
 `;
-      const result = parseQuizMarkdown(md, "dis2026-hmd-simulator.md");
+      const result = parseQuizMarkdown(md, "featured-demo.md");
       expect(result.errors).toHaveLength(0);
-      expect(result.quiz!.week).toBe("dis2026-hmd-simulator");
+      expect(result.quiz!.week).toBe("featured-demo");
     });
 
     it("uses a preamble title when the deck has no H1", () => {
-      const md = `title: "DIS 2026 HMD Simulator"
+      const md = `title: "Featured Demo Session"
 
 ---
 
@@ -431,10 +431,10 @@ type: slide
 Welcome to the session.
 
 ---`;
-      const result = parseQuizMarkdown(md, "dis2026-hmd-simulator.md");
+      const result = parseQuizMarkdown(md, "featured-demo.md");
       expect(result.errors).toHaveLength(0);
-      expect(result.quiz!.title).toBe("DIS 2026 HMD Simulator");
-      expect(result.quiz!.week).toBe("dis2026-hmd-simulator");
+      expect(result.quiz!.title).toBe("Featured Demo Session");
+      expect(result.quiz!.week).toBe("featured-demo");
       expect(result.quiz!.questions).toHaveLength(1);
     });
 

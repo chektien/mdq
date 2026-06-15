@@ -193,27 +193,27 @@ B. The slide
     it("loads week and lab variant decks as distinct keys", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-quiz-variants-"));
       const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week09.md"), fixtureWeek01.replace(/^# .+$/m, "# Week 09"), "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week09-lab.md"), fixtureWeek01.replace(/^# .+$/m, "# Week 09 Lab"), "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "dis2026-hmd-simulator.md"), fixtureWeek01.replace(/^# .+$/m, "# DIS 2026 HMD Simulator"), "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week03.md"), fixtureWeek01.replace(/^# .+$/m, "# Week 03"), "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week03-lab.md"), fixtureWeek01.replace(/^# .+$/m, "# Week 03 Lab"), "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "featured-demo.md"), fixtureWeek01.replace(/^# .+$/m, "# Featured Demo"), "utf-8");
 
       const variantApp = createApp(tempQuizDir);
 
       try {
         const listRes = await request(variantApp).get("/api/decks");
         expect(listRes.status).toBe(200);
-        expect(listRes.body[0].week).toBe("dis2026-hmd-simulator");
-        expect(listRes.body.find((q: { week: string }) => q.week === "week09")).toBeDefined();
-        expect(listRes.body.find((q: { week: string }) => q.week === "week09-lab")).toBeDefined();
-        expect(listRes.body.find((q: { week: string }) => q.week === "dis2026-hmd-simulator")).toBeDefined();
+        expect(listRes.body[0].week).toBe("featured-demo");
+        expect(listRes.body.find((q: { week: string }) => q.week === "week03")).toBeDefined();
+        expect(listRes.body.find((q: { week: string }) => q.week === "week03-lab")).toBeDefined();
+        expect(listRes.body.find((q: { week: string }) => q.week === "featured-demo")).toBeDefined();
 
-        const weekRes = await request(variantApp).get("/api/deck/week09");
+        const weekRes = await request(variantApp).get("/api/deck/week03");
         expect(weekRes.status).toBe(200);
 
-        const labRes = await request(variantApp).get("/api/deck/week09-lab");
+        const labRes = await request(variantApp).get("/api/deck/week03-lab");
         expect(labRes.status).toBe(200);
 
-        const namedDeckRes = await request(variantApp).get("/api/deck/dis2026-hmd-simulator");
+        const namedDeckRes = await request(variantApp).get("/api/deck/featured-demo");
         expect(namedDeckRes.status).toBe(200);
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
@@ -224,26 +224,26 @@ B. The slide
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-duplicate-decks-"));
       const descriptiveDeck = fs
         .readFileSync(path.join(quizDir, "week01.md"), "utf-8")
-        .replace(/^# .+$/m, "# DIS 2026: The HMD Simulator (10 min MDQ)");
+        .replace(/^# .+$/m, "# Featured Demo Session (10 min MDQ)");
       const weekAliasDeck = descriptiveDeck.replace(
         /^# .+$/m,
-        "# DIS 2026: The HMD Simulator (10 min, MDQ)",
+        "# Featured Demo Session (10 min, MDQ)",
       );
-      fs.writeFileSync(path.join(tempQuizDir, "week13-dis2026-hmd-simulator.md"), weekAliasDeck, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "dis2026-hmd-simulator.md"), descriptiveDeck, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week13-featured-demo.md"), weekAliasDeck, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "featured-demo.md"), descriptiveDeck, "utf-8");
 
       const duplicateApp = createApp(tempQuizDir);
 
       try {
         const listRes = await request(duplicateApp).get("/api/decks");
         expect(listRes.status).toBe(200);
-        const matchingDecks = listRes.body.filter((q: { title: string }) => q.title.includes("DIS 2026: The HMD Simulator"));
+        const matchingDecks = listRes.body.filter((q: { title: string }) => q.title.includes("Featured Demo Session"));
         expect(matchingDecks).toHaveLength(1);
-        expect(matchingDecks[0].week).toBe("dis2026-hmd-simulator");
-        expect(matchingDecks[0].title).toBe("DIS 2026: The HMD Simulator (10 min MDQ)");
+        expect(matchingDecks[0].week).toBe("featured-demo");
+        expect(matchingDecks[0].title).toBe("Featured Demo Session (10 min MDQ)");
 
-        await request(duplicateApp).get("/api/deck/dis2026-hmd-simulator").expect(200);
-        await request(duplicateApp).get("/api/deck/week13-dis2026-hmd-simulator").expect(404);
+        await request(duplicateApp).get("/api/deck/featured-demo").expect(200);
+        await request(duplicateApp).get("/api/deck/week13-featured-demo").expect(404);
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
       }
@@ -268,14 +268,14 @@ Name the file to edit.
 ---
 `;
       fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week11-lab.md"), invalidQuiz, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week04-lab.md"), invalidQuiz, "utf-8");
 
       const invalidApp = createApp(tempQuizDir);
 
       try {
         const res = await request(invalidApp).get("/api/decks");
         expect(res.status).toBe(409);
-        expect(res.body.error).toContain("week11-lab.md:6");
+        expect(res.body.error).toContain("week04-lab.md:6");
         expect(res.body.error).toContain("no answer choices");
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
@@ -336,14 +336,14 @@ Name the file to edit.
 ---
 `;
       fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week11-lab.md"), invalidQuiz, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week04-lab.md"), invalidQuiz, "utf-8");
 
       const invalidApp = createApp(tempQuizDir);
 
       try {
         const res = await request(invalidApp).post("/api/decks/reload");
         expect(res.status).toBe(409);
-        expect(res.body.error).toContain("week11-lab.md:6");
+        expect(res.body.error).toContain("week04-lab.md:6");
         expect(res.body.error).toContain("Fix the markdown file and reload decks");
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
@@ -453,7 +453,7 @@ Name the file to edit.
 ---
 `;
       fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week11-lab.md"), invalidQuiz, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week04-lab.md"), invalidQuiz, "utf-8");
 
       const invalidApp = createApp(tempQuizDir);
 
@@ -462,7 +462,7 @@ Name the file to edit.
           .post("/api/session")
           .send({ week: "week01" });
         expect(res.status).toBe(409);
-        expect(res.body.error).toContain("week11-lab.md:6");
+        expect(res.body.error).toContain("week04-lab.md:6");
         expect(res.body.error).toContain("cannot run it safely");
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });

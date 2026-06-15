@@ -69,8 +69,8 @@ function hasWeekPrefix(deckId: string): boolean {
 }
 
 function compareDecksForList(a: Quiz, b: Quiz): number {
-  if (a.week === "dis2026-hmd-simulator" && b.week !== "dis2026-hmd-simulator") return -1;
-  if (b.week === "dis2026-hmd-simulator" && a.week !== "dis2026-hmd-simulator") return 1;
+  if (a.week === "featured-demo" && b.week !== "featured-demo") return -1;
+  if (b.week === "featured-demo" && a.week !== "featured-demo") return 1;
 
   const aWeek = a.week.match(/^week(\d+)/i)?.[1];
   const bWeek = b.week.match(/^week(\d+)/i)?.[1];

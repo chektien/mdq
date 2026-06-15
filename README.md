@@ -90,7 +90,7 @@ npm run setup:local
 
 This creates local `data/` directories, including `data/images/`, then copies the sample smoke deck into `data/decks/week00.md` and the sample SVG attachment into `data/images/`. Deck filenames do not need to start with `week`; MDQ uses the markdown filename stem as the deck ID.
 
-Optional local runtime settings live in `data/config.json` (copy from `data/config.example.json`). The tracked example now includes `theme`, which defaults to `dark` and also accepts `light`. The default live surface uses a deep HMD-simulator-inspired background with restrained purple accents and rounded controls.
+Optional local runtime settings live in `data/config.json` (copy from `data/config.example.json`). The tracked example now includes `theme`, which defaults to `dark` and also accepts `light`. The default live surface uses a deep presentation-friendly background with restrained accents and rounded controls.
 
 ## Tailscale Funnel Setup
 
@@ -182,7 +182,7 @@ Tip for classroom privacy and mobility: present from iPad, add MDQ to your iPad 
 ### 2) instructor live surface controls
 
 - The deck picker shows each deck summary as separate quiz question and slide counts, for example `(22 questions, 17 slides)`.
-- The live surface uses the HMD-simulator-inspired dark theme by default: deep background, restrained purple accents, rounded controls, and clean dot bullets.
+- The live surface uses a dark presentation theme by default: deep background, restrained accents, rounded controls, and clean dot bullets.
 - `Prev` and `Next` stay pinned together near the top-left of the live surface so their click targets do not drift when other controls appear or disappear.
 - In live mode, `Next` includes the next item's markdown heading inside the button. In review mode, `Next` stays a plain button.
 - `End Session` remains available from the live controls and opens a confirmation dialog before closing the room. The dialog shows how many quiz questions and slides are left.
@@ -267,7 +267,7 @@ Export a full MDQ markdown deck as a clean PDF packet from the CLI:
 npm run print:pdf -- data/decks/week00.md --out exports/week00.pdf
 ```
 
-The exporter builds the shared/server packages, parses the same markdown used by live sessions, renders a print-specific HTML view in Chromium, then writes a mostly vector PDF with crisp text and proportionally scaled images. Dark mode is the default so exported decks keep the original MDQ/HMD-simulator color direction; use `--theme light` when you want a conventional ink-friendly handout.
+The exporter builds the shared/server packages, parses the same markdown used by live sessions, renders a print-specific HTML view in Chromium, then writes a mostly vector PDF with crisp text and proportionally scaled images. Dark mode is the default so exported decks keep the original MDQ color direction; use `--theme light` when you want a conventional ink-friendly handout.
 
 Printed decks hide correct-answer highlights, answer blocks, and feedback by default so submission/review packets do not become answer keys. Use `--answers` only when you intentionally need an instructor answer-key export.
 
@@ -295,9 +295,9 @@ Options:
 Examples:
 
 ```bash
-npm run print:pdf -- data/decks/week12-hmd-simulator-course.md --theme dark --no-foldouts
-npm run print:pdf -- data/decks/week12-hmd-simulator-course.md --theme dark --answers --presenter-notes
-npm run print:pdf -- data/decks/week12.md --theme light --page-size Letter --out exports/week12-letter.pdf
+npm run print:pdf -- data/decks/sample-session.md --theme dark --no-foldouts
+npm run print:pdf -- data/decks/sample-session.md --theme dark --answers --presenter-notes
+npm run print:pdf -- data/decks/week00.md --theme light --page-size Letter --out exports/week00-letter.pdf
 ```
 
 PDF images keep their source aspect ratio. MDQ only scales images down to fit the print layout, so portrait screenshots and wide diagrams are not stretched, cropped, or reframed.
@@ -307,7 +307,7 @@ PDF images keep their source aspect ratio. MDQ only scales images down to fit th
 Decks can start with an optional preamble title before the first `---`. This title is used in the instructor deck picker and PDF cover, while the `## ...` headings remain the individual live items.
 
 ```markdown
-title: DIS 2026 HMD Simulator
+title: Demo Presentation Session
 
 ---
 ```
@@ -366,11 +366,11 @@ live_interactive: true
 
 - Reveal the common misconception after discussion.
 
-![HMD schematic](../images/hmd-schematic.png "HMD schematic")
+![System schematic](../images/system-schematic.png "System schematic")
 ![Student view](../images/student-view.png "Student view")
 
 > Reference: [Roediger and Karpicke, 2006](https://doi.org/10.1111/j.1467-9280.2006.01693.x)
-> Image Source: [Course XR lab image](https://example.edu/xr-lab-image)
+> Image Source: [Example lab image](https://example.edu/lab-image)
 > Attendee Note: This slide sets up the live quiz that follows.
 ```
 

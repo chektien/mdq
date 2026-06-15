@@ -217,7 +217,7 @@ describe("generateQrDataUrl", () => {
 
 describe("detectAccessInfo", () => {
   it("uses MDQ_PUBLIC_URL when configured", async () => {
-    process.env.MDQ_PUBLIC_URL = "https://mdq.ch3k.com/";
+    process.env.MDQ_PUBLIC_URL = "https://mdq.example.com/";
     mockExecSync.mockReturnValue(
       JSON.stringify({ Self: { DNSName: "quiz-host.tailnet.ts.net." } }),
     );
@@ -229,9 +229,9 @@ describe("detectAccessInfo", () => {
 
     const info = await detectAccessInfo(3000, [mockProvider]);
     expect(info.source).toBe("public-override");
-    expect(info.fullUrl).toBe("https://mdq.ch3k.com");
+    expect(info.fullUrl).toBe("https://mdq.example.com");
     expect(info.shortUrl).toBe("https://short.url/mdq");
-    expect(info.qrTargetUrl).toBe("https://mdq.ch3k.com");
+    expect(info.qrTargetUrl).toBe("https://mdq.example.com");
     expect(info.warning).toBeUndefined();
   });
 

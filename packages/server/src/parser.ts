@@ -50,7 +50,7 @@ export function parseQuizMarkdown(markdown: string, sourceFile: string): ParseRe
 
   const title = extractDeckTitle(markdown);
 
-  // Extract deck key from filename (e.g., "week01.md" -> "week01", "dis2026-hmd-simulator.md" -> "dis2026-hmd-simulator")
+  // Extract deck key from filename (e.g., "week01.md" -> "week01", "featured-demo.md" -> "featured-demo")
   const sourceStem = sourceFile.replace(/^.*[\\/]/, "").replace(/\.md$/i, "").toLowerCase();
   const week = sourceStem;
 
