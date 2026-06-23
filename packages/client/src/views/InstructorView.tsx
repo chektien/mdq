@@ -837,6 +837,8 @@ function LiveView({
             html={displayQuestion.text}
             attendeeNotes={displayQuestion.attendeeNotes}
             slideMedia={displayQuestion.slideMedia}
+            slideMediaPosition={displayQuestion.slideMediaPosition}
+            slideMediaOpacity={displayQuestion.slideMediaOpacity}
             slideReferences={displayQuestion.slideReferences}
           />
         );
@@ -1094,6 +1096,8 @@ function LiveView({
                 html={displayQuestion.text}
                 attendeeNotes={displayQuestion.attendeeNotes}
                 slideMedia={displayQuestion.slideMedia}
+                slideMediaPosition={displayQuestion.slideMediaPosition}
+                slideMediaOpacity={displayQuestion.slideMediaOpacity}
                 slideReferences={displayQuestion.slideReferences}
                 positionLabel={displayPositionLabel}
                 nextLabel={null}

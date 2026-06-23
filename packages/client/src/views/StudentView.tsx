@@ -490,6 +490,8 @@ function QuestionView({
           html={question.text}
           attendeeNotes={question.attendeeNotes}
           slideMedia={question.slideMedia}
+          slideMediaPosition={question.slideMediaPosition}
+          slideMediaOpacity={question.slideMediaOpacity}
           slideReferences={question.slideReferences}
           positionLabel={`${question.questionIndex + 1}`}
           mode="student"

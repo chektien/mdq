@@ -16,6 +16,7 @@ import type {
   OpenResponseEntry,
   FoldoutNote,
   AnswerSubmitPayload,
+  MediaPosition,
   SlideMedia,
   SlideReference,
 } from "@mdq/shared";
@@ -75,6 +76,8 @@ export interface QuestionState {
   questionType: QuestionType;
   attendeeNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
+  slideMediaPosition?: MediaPosition;
+  slideMediaOpacity?: number;
   slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
@@ -240,6 +243,8 @@ export function useSocket(
         questionType,
         attendeeNotes: data.attendeeNotes,
         slideMedia: data.slideMedia,
+        slideMediaPosition: data.slideMediaPosition,
+        slideMediaOpacity: data.slideMediaOpacity,
         slideReferences: data.slideReferences,
         options: data.options,
         allowsMultiple: data.allowsMultiple,

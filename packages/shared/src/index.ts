@@ -88,10 +88,14 @@ export interface FoldoutNote {
   bodyHtml: string;
 }
 
+export type MediaPosition = "right" | "left" | "top" | "bottom" | "background";
+
 export interface SlideMedia {
   src: string;
   alt: string;
   title?: string;
+  position?: MediaPosition;
+  opacity?: number;
 }
 
 export interface SlideReference {
@@ -114,6 +118,8 @@ export interface QuestionOpenPayload {
   questionType?: QuestionType;
   attendeeNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
+  slideMediaPosition?: MediaPosition;
+  slideMediaOpacity?: number;
   slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
@@ -235,6 +241,8 @@ export interface Question {
   attendeeNotes?: FoldoutNote[];
   presenterNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
+  slideMediaPosition?: MediaPosition;
+  slideMediaOpacity?: number;
   slideReferences?: SlideReference[];
   options: QuestionOption[];
   correctOptions: string[];

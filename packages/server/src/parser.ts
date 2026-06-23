@@ -5,6 +5,7 @@ import {
   DEFAULT_TIME_LIMIT_SEC,
   QuestionType,
   FoldoutNote,
+  MediaPosition,
   SlideMedia,
   SlideReference,
 } from "@mdq/shared";
@@ -12,7 +13,13 @@ import { marked } from "marked";
 
 const QUIZ_IMAGE_SOURCE_PREFIX = "../images/";
 const QUIZ_IMAGE_PUBLIC_PREFIX = "/data/images/";
-const MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(?:\s+["']([^"']+)["'])?\)/g;
+// Capture groups:
+//   1: alt text
+//   2: image src (URL, with optional <...> form)
+//   3: title (optional, between quotes)
+//   4: position keyword (optional: left|right|top|bottom|background)
+//   5: opacity (optional, only valid with -background:N form; 0-1)
+const MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(?:\s+["']([^"']+)["'])?(?:\s+-(left|right|top|bottom|background)(?::([\d.]+))?)?\)/g;
 
 /** Error describing a problem in a specific question block */
 export class QuizParseError extends Error {
@@ -330,6 +337,12 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     ? extractSlideMedia(textLines)
     : { contentLines: textLines, media: [] as SlideMedia[] };
   textLines = mediaExtraction.contentLines;
+  const { slideMediaPosition, slideMediaOpacity } = resolveMediaPosition(
+    mediaExtraction.media,
+    sourceFile,
+    index,
+    blockStartLine,
+  );
   const textMd = textLines.join("\n").trim();
 
   // 7. Render markdown to HTML
@@ -352,6 +365,8 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     attendeeNotes: noteExtraction.notes.filter((note) => note.audience === "attendee"),
     presenterNotes: noteExtraction.notes.filter((note) => note.audience === "presenter"),
     slideMedia: mediaExtraction.media.length > 0 ? mediaExtraction.media : undefined,
+    slideMediaPosition,
+    slideMediaOpacity,
     slideReferences: referenceExtraction.references.length > 0 ? referenceExtraction.references : undefined,
     options,
     correctOptions,
@@ -406,40 +421,211 @@ function resolveMarkdownImageHref(href: string): string {
   return `${QUIZ_IMAGE_PUBLIC_PREFIX}${segments.join("/")}`;
 }
 
+/** Find inline backtick code-span ranges on a single line.
+ * Returns [start, end) index pairs that should NOT be treated as markdown.
+ * Handles runs of any length (e.g. `code`, ``code with `tick``). */
+function getInlineCodeSpans(line: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] !== "`") {
+      i++;
+      continue;
+    }
+    const start = i;
+    let tickCount = 0;
+    while (line[i] === "`") {
+      tickCount++;
+      i++;
+    }
+    const needle = "`".repeat(tickCount);
+    const closeIdx = line.indexOf(needle, i);
+    if (closeIdx === -1) {
+      // Unclosed run; not a code span, treat as literal text.
+      continue;
+    }
+    ranges.push([start, closeIdx + tickCount]);
+    i = closeIdx + tickCount;
+  }
+  return ranges;
+}
+
+function indexInRanges(pos: number, ranges: Array<[number, number]>): boolean {
+  for (const [start, end] of ranges) {
+    if (pos >= start && pos < end) return true;
+  }
+  return false;
+}
+
+/** Detect lines that open or close a fenced code block (``` or ~~~).
+ * Returns a set of line indices that fall INSIDE a fence (the fence
+ * delimiter lines themselves are not included). */
+function getFencedCodeLineIndices(lines: string[]): Set<number> {
+  const inside = new Set<number>();
+  let openFence: string | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const fenceMatch = line.match(/^\s*(```+|~~~+)/);
+    if (openFence === null) {
+      if (fenceMatch) {
+        openFence = fenceMatch[1][0]; // ` or ~
+      }
+    } else {
+      // Inside a fence; check for closing delimiter of same character
+      const close = line.match(/^\s*(```+|~~~+)\s*$/);
+      if (close && close[1][0] === openFence) {
+        openFence = null;
+      } else {
+        inside.add(i);
+      }
+    }
+  }
+  return inside;
+}
+
+/** Detect the start of a list item: leading whitespace then `-`, `*`, `+`, or
+ * an ordered marker like `1.` or `12.` followed by a space. */
+const LIST_MARKER_REGEX = /^\s*(?:[-*+]|\d+\.)\s+/;
+
+/** Escape image markdown so marked renders the source literally instead of as
+ * an <img> tag. `\![alt\](src)` is a valid CommonMark escape pair that
+ * prevents the image token from forming. We only need to escape `![` and the
+ * matching `]` before the URL; the trailing `)` is safe because the link
+ * grammar never enters without the unescaped `](`. */
+function escapeImageMarkdownInLine(line: string): string {
+  return line.replace(/!\[([^\]]*)\]\(/g, "\\![$1\\](");
+}
+
 function extractSlideMedia(lines: string[]): { contentLines: string[]; media: SlideMedia[] } {
   const contentLines: string[] = [];
   const media: SlideMedia[] = [];
+  const fencedLines = getFencedCodeLineIndices(lines);
+  let inListItem = false;
 
-  for (const line of lines) {
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
+
+    // Lines inside a fenced code block are literal — pass them through unchanged.
+    if (fencedLines.has(lineIdx)) {
+      contentLines.push(line);
+      continue;
+    }
+
+    // Track whether we're inside a list item. A new bullet/ordered marker
+    // opens the state; a blank line or a non-indented non-marker line closes
+    // it. Indented continuation lines (paragraphs under a bullet) stay in.
+    if (LIST_MARKER_REGEX.test(line)) {
+      inListItem = true;
+    } else if (line.trim() === "" || !/^\s/.test(line)) {
+      inListItem = false;
+    }
+    // else: indented continuation — keep inListItem as-is.
+
+    if (inListItem) {
+      // Inside a list item: image markdown is treated as literal text. Skip
+      // extraction AND escape it so marked renders the raw source instead of
+      // emitting an inline <img>. Lets authors document the syntax in
+      // bullets without backticks.
+      contentLines.push(escapeImageMarkdownInLine(line));
+      continue;
+    }
+
+    const codeSpans = getInlineCodeSpans(line);
     MARKDOWN_IMAGE_REGEX.lastIndex = 0;
     let match: RegExpExecArray | null;
-    let strippedLine = line;
-    let matchedLine = false;
+    const extractedRanges: Array<[number, number]> = [];
 
     while ((match = MARKDOWN_IMAGE_REGEX.exec(line)) !== null) {
-      matchedLine = true;
+      // Skip if the match starts inside an inline code span — that's literal text.
+      if (indexInRanges(match.index, codeSpans)) continue;
+
       const alt = match[1]?.trim() || "Slide image";
       const src = resolveMarkdownImageHref(match[2] || "");
       const title = match[3]?.trim();
+      const position = match[4]?.toLowerCase() as MediaPosition | undefined;
+      const opacityRaw = match[5];
+      const opacity = opacityRaw !== undefined ? Number.parseFloat(opacityRaw) : undefined;
       media.push({
         src,
         alt,
         ...(title ? { title } : {}),
+        ...(position ? { position } : {}),
+        ...(opacity !== undefined ? { opacity } : {}),
       });
+      extractedRanges.push([match.index, match.index + match[0].length]);
     }
 
-    if (matchedLine) {
-      strippedLine = strippedLine.replace(MARKDOWN_IMAGE_REGEX, "").trimEnd();
+    let strippedLine = line;
+    // Strip only the matched (non-code-span) image ranges, in reverse so indices stay valid.
+    for (let i = extractedRanges.length - 1; i >= 0; i--) {
+      const [start, end] = extractedRanges[i];
+      strippedLine = strippedLine.slice(0, start) + strippedLine.slice(end);
     }
+    strippedLine = strippedLine.trimEnd();
 
     if (strippedLine.trim()) {
       contentLines.push(strippedLine);
-    } else if (!matchedLine) {
+    } else if (extractedRanges.length === 0) {
       contentLines.push(line);
     }
   }
 
   return { contentLines, media };
+}
+
+/**
+ * Resolve the slide-level media position from per-image positions on the slide.
+ *
+ * Rules (strict):
+ *   - No images: returns { undefined, undefined }.
+ *   - Images present, none with explicit position: defaults to "right".
+ *   - One or more images with explicit position: ALL explicit positions must match.
+ *     Conflicting positions (e.g. `-left` and `-bottom`) throw a parse error.
+ *   - `-background` requires that the slide have exactly one image; throws otherwise.
+ *   - Opacity is only meaningful with `-background`; if any image carries `opacity`,
+ *     it is used as the slide-level opacity. Default 0.3 when -background is set.
+ */
+function resolveMediaPosition(
+  media: SlideMedia[],
+  sourceFile: string,
+  index: number,
+  blockStartLine: number,
+): { slideMediaPosition?: MediaPosition; slideMediaOpacity?: number } {
+  if (media.length === 0) {
+    return { slideMediaPosition: undefined, slideMediaOpacity: undefined };
+  }
+
+  const declared = media.filter((m) => m.position !== undefined).map((m) => m.position!);
+  if (declared.length === 0) {
+    return { slideMediaPosition: "right", slideMediaOpacity: undefined };
+  }
+
+  const unique = Array.from(new Set(declared));
+  if (unique.length > 1) {
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      `Slide has images with conflicting positions: ${unique.map((p) => `-${p}`).join(", ")}. All images on a slide must share the same position.`,
+      blockStartLine,
+    );
+  }
+
+  const position = unique[0];
+
+  const explicitOpacity = media.find((m) => m.opacity !== undefined)?.opacity;
+  const slideMediaOpacity =
+    position === "background" ? (explicitOpacity !== undefined ? explicitOpacity : 0.3) : undefined;
+
+  if (slideMediaOpacity !== undefined && (slideMediaOpacity < 0 || slideMediaOpacity > 1)) {
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      `Invalid -background opacity: ${slideMediaOpacity}. Must be between 0 and 1.`,
+      blockStartLine,
+    );
+  }
+
+  return { slideMediaPosition: position, slideMediaOpacity };
 }
 
 function extractSlideReferences(lines: string[]): { contentLines: string[]; references: SlideReference[] } {

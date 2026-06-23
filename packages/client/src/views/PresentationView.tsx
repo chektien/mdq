@@ -216,6 +216,8 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
             html={currentQuestion.text}
             attendeeNotes={currentQuestion.attendeeNotes}
             slideMedia={currentQuestion.slideMedia}
+            slideMediaPosition={currentQuestion.slideMediaPosition}
+            slideMediaOpacity={currentQuestion.slideMediaOpacity}
             slideReferences={currentQuestion.slideReferences}
           />
         );
@@ -437,6 +439,8 @@ export default function PresentationView({ sessionId, loginHref }: { sessionId: 
                 html={currentQuestion.text}
                 attendeeNotes={currentQuestion.attendeeNotes}
                 slideMedia={currentQuestion.slideMedia}
+                slideMediaPosition={currentQuestion.slideMediaPosition}
+                slideMediaOpacity={currentQuestion.slideMediaOpacity}
                 slideReferences={currentQuestion.slideReferences}
                 positionLabel={positionLabel}
                 nextLabel={nextHeading}
