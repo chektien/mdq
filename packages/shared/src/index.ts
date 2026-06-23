@@ -104,6 +104,12 @@ export interface SlideReference {
   html: string;
 }
 
+export interface SlideLiveEmbed {
+  url: string;
+  titleOverlay?: boolean;
+  interactive?: boolean;
+}
+
 export interface OpenResponseEntry {
   studentId: string;
   displayName?: string;
@@ -120,6 +126,7 @@ export interface QuestionOpenPayload {
   slideMedia?: SlideMedia[];
   slideMediaPosition?: MediaPosition;
   slideMediaOpacity?: number;
+  slideLiveEmbed?: SlideLiveEmbed;
   slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
@@ -202,11 +209,15 @@ export const API = {
   INSTRUCTOR_LOGIN: "/api/instructor/login",
   INSTRUCTOR_SESSION: "/api/instructor/session",
   INSTRUCTOR_LOGOUT: "/api/instructor/logout",
+  DECKS: "/api/decks",
+  DECKS_RELOAD: "/api/decks/reload",
+  DECK: "/api/deck/:week",
   QUIZZES: "/api/quizzes",
   QUIZZES_RELOAD: "/api/quizzes/reload",
   QUIZ: "/api/quiz/:week",
   SESSION_CREATE: "/api/session",
   SESSION_START: "/api/session/:id/start",
+  SESSION_PREV: "/api/session/:id/prev",
   SESSION_NEXT: "/api/session/:id/next",
   SESSION_CLOSE: "/api/session/:id/close",
   SESSION_REVEAL: "/api/session/:id/reveal",
@@ -243,6 +254,7 @@ export interface Question {
   slideMedia?: SlideMedia[];
   slideMediaPosition?: MediaPosition;
   slideMediaOpacity?: number;
+  slideLiveEmbed?: SlideLiveEmbed;
   slideReferences?: SlideReference[];
   options: QuestionOption[];
   correctOptions: string[];
@@ -288,6 +300,7 @@ export interface Session {
   state: SessionState;
   currentQuestionIndex: number;
   questionStartedAt?: number;
+  revealedQuestionIndexes?: Set<number>;
   participants: Map<string, Participant>;
   submissions: Submission[];
   createdAt: number;

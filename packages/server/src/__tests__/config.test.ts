@@ -18,9 +18,10 @@ describe("loadRuntimeConfig", () => {
     expect(config.loadedFromFile).toBe(false);
     expect(config.port).toBe(DEFAULT_PORT);
     expect(config.portFallbacks).toBe(10);
-    expect(config.quizDir).toBe(path.join(root, "data", "quizzes"));
+    expect(config.quizDir).toBe(path.join(root, "data", "decks"));
     expect(config.instanceId).toBe("");
     expect(config.theme).toBe("dark");
+    expect(config.autoGenerateStudentIds).toBe(false);
   });
 
   it("loads runtime overrides from data/config.json", () => {
@@ -30,9 +31,10 @@ describe("loadRuntimeConfig", () => {
       JSON.stringify({
         port: 3100,
         portFallbacks: 4,
-        quizDir: "./alt-quizzes",
+        deckDir: "./alt-decks",
         instanceId: "room-a",
         theme: "light",
+        autoGenerateStudentIds: true,
       }),
     );
 
@@ -41,16 +43,17 @@ describe("loadRuntimeConfig", () => {
     expect(config.loadedFromFile).toBe(true);
     expect(config.port).toBe(3100);
     expect(config.portFallbacks).toBe(4);
-    expect(config.quizDir).toBe(path.join(root, "data", "alt-quizzes"));
+    expect(config.quizDir).toBe(path.join(root, "data", "alt-decks"));
     expect(config.instanceId).toBe("room-a");
     expect(config.theme).toBe("light");
+    expect(config.autoGenerateStudentIds).toBe(true);
   });
 
   it("lets environment variables override file config", () => {
     const root = createRoot();
     fs.writeFileSync(
       path.join(root, "data", "config.json"),
-      JSON.stringify({ port: 3100, portFallbacks: 4, quizDir: "./alt-quizzes", instanceId: "room-a", theme: "light" }),
+      JSON.stringify({ port: 3100, portFallbacks: 4, deckDir: "./alt-decks", instanceId: "room-a", theme: "light" }),
     );
 
     const config = loadRuntimeConfig({
@@ -58,16 +61,41 @@ describe("loadRuntimeConfig", () => {
       env: {
         PORT: "3200",
         PORT_FALLBACKS: "1",
-        QUIZ_DIR: path.join(root, "custom-quizzes"),
+        MDQ_DECK_DIR: path.join(root, "custom-decks"),
         MDQ_INSTANCE_ID: "room-b",
         MDQ_THEME: "dark",
+        MDQ_AUTO_GENERATE_STUDENT_IDS: "false",
       },
     });
 
     expect(config.port).toBe(3200);
     expect(config.portFallbacks).toBe(1);
-    expect(config.quizDir).toBe(path.join(root, "custom-quizzes"));
+    expect(config.quizDir).toBe(path.join(root, "custom-decks"));
     expect(config.instanceId).toBe("room-b");
     expect(config.theme).toBe("dark");
+    expect(config.autoGenerateStudentIds).toBe(false);
+  });
+
+  it("falls back to an existing legacy data/quizzes directory", () => {
+    const root = createRoot();
+    fs.mkdirSync(path.join(root, "data", "quizzes"));
+
+    const config = loadRuntimeConfig({ rootDir: root, env: {} });
+
+    expect(config.quizDir).toBe(path.join(root, "data", "quizzes"));
+  });
+
+  it("accepts legacy quizDir config and QUIZ_DIR env overrides", () => {
+    const root = createRoot();
+    fs.writeFileSync(path.join(root, "data", "config.json"), JSON.stringify({ quizDir: "./legacy-quizzes" }));
+
+    const fileConfig = loadRuntimeConfig({ rootDir: root, env: {} });
+    const envConfig = loadRuntimeConfig({
+      rootDir: root,
+      env: { QUIZ_DIR: path.join(root, "custom-quizzes") },
+    });
+
+    expect(fileConfig.quizDir).toBe(path.join(root, "data", "legacy-quizzes"));
+    expect(envConfig.quizDir).toBe(path.join(root, "custom-quizzes"));
   });
 });

@@ -4,6 +4,7 @@ import PresentationView from "./views/PresentationView";
 import StudentView from "./views/StudentView";
 import InstructorLoginPrompt from "./components/InstructorLoginPrompt";
 import { fetchInstructorSessionStatus } from "./hooks/api";
+import type { RuntimeClientConfig } from "./hooks/api";
 
 const DEFAULT_INSTRUCTOR_ROUTE_SEGMENT = "instructor";
 
@@ -16,6 +17,7 @@ const INSTRUCTOR_ROUTE_SEGMENT = normalizeRouteSegment(
   (import.meta as { env?: { VITE_INSTRUCTOR_ROUTE_SEGMENT?: string } }).env?.VITE_INSTRUCTOR_ROUTE_SEGMENT,
 );
 const INSTRUCTOR_HASH_ROUTE = `/${INSTRUCTOR_ROUTE_SEGMENT}`;
+const INSTRUCTOR_RESTORE_KEY = "mdquiz_instructor_session";
 
 type AppPage = "home" | "instructor" | "join" | "student" | "presentation";
 type AuthContext = "presentation";
@@ -35,6 +37,21 @@ function sanitizeHashPath(value?: string | null): string | undefined {
 
 function navigateToHashPath(path: string): void {
   window.location.hash = path;
+}
+
+function canonicalizePathRoute(path: string): void {
+  window.history.replaceState(null, "", `/${window.location.search}#${path}`);
+}
+
+function hasStoredInstructorRestore(): boolean {
+  try {
+    const raw = sessionStorage.getItem(INSTRUCTOR_RESTORE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { sessionId?: unknown };
+    return typeof parsed.sessionId === "string" && parsed.sessionId.trim().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 function buildInstructorLoginHash(options: { next?: string; authContext?: AuthContext } = {}): string {
@@ -63,24 +80,42 @@ function buildInstructorLoginHash(options: { next?: string; authContext?: AuthCo
  */
 function getRoute(): AppRoute {
   const hash = window.location.hash.replace(/^#/, "");
-  const [path, queryString = ""] = hash.split("?");
+  const routeSource = hash || `${window.location.pathname}${window.location.search}`;
+  const [path, queryString = ""] = routeSource.split("?");
   const params = new URLSearchParams(queryString);
+  const shouldCanonicalizePathRoute = !hash && path !== "/";
+
+  if (!hash && path === "/" && hasStoredInstructorRestore()) {
+    canonicalizePathRoute(INSTRUCTOR_HASH_ROUTE);
+    return { page: "instructor" };
+  }
 
   if (path === INSTRUCTOR_HASH_ROUTE || path === `${INSTRUCTOR_HASH_ROUTE}/`) {
+    if (shouldCanonicalizePathRoute) canonicalizePathRoute(INSTRUCTOR_HASH_ROUTE);
     return {
       page: "instructor",
       next: sanitizeHashPath(params.get("next")),
       authContext: params.get("context") === "presentation" ? "presentation" : undefined,
     };
   }
-  if (path.startsWith("/join/")) return { page: "join", param: path.split("/")[2] };
-  if (path.startsWith("/s/")) return { page: "student", param: path.split("/")[2] };
-  if (path.startsWith("/present/")) return { page: "presentation", param: path.split("/")[2] };
+  if (path.startsWith("/join/")) {
+    if (shouldCanonicalizePathRoute) canonicalizePathRoute(path);
+    return { page: "join", param: path.split("/")[2] };
+  }
+  if (path.startsWith("/s/")) {
+    if (shouldCanonicalizePathRoute) canonicalizePathRoute(path);
+    return { page: "student", param: path.split("/")[2] };
+  }
+  if (path.startsWith("/present/")) {
+    if (shouldCanonicalizePathRoute) canonicalizePathRoute(path);
+    return { page: "presentation", param: path.split("/")[2] };
+  }
   return { page: "home" };
 }
 
-export default function App() {
+export default function App({ runtimeConfig = {} }: { runtimeConfig?: RuntimeClientConfig }) {
   const [route, setRoute] = useState(getRoute);
+  const autoGenerateStudentIds = runtimeConfig.autoGenerateStudentIds === true;
 
   useEffect(() => {
     const onHash = () => setRoute(getRoute());
@@ -89,15 +124,15 @@ export default function App() {
   }, []);
 
   if (route.page === "instructor") {
-    return <InstructorGate returnTo={route.next} authContext={route.authContext} />;
+    return <InstructorGate returnTo={route.next} authContext={route.authContext} autoGenerateStudentIds={autoGenerateStudentIds} />;
   }
 
   if (route.page === "join") {
-    return <StudentView initialSessionCode={route.param} />;
+    return <StudentView initialSessionCode={route.param} autoGenerateStudentIds={autoGenerateStudentIds} />;
   }
 
   if (route.page === "student") {
-    return <StudentView initialSessionId={route.param} />;
+    return <StudentView initialSessionId={route.param} autoGenerateStudentIds={autoGenerateStudentIds} />;
   }
 
   if (route.page === "presentation" && route.param) {
@@ -108,6 +143,7 @@ export default function App() {
           next: `/present/${route.param}`,
           authContext: "presentation",
         })}
+        autoGenerateStudentIds={autoGenerateStudentIds}
       />
     );
   }
@@ -146,7 +182,15 @@ export default function App() {
   );
 }
 
-function InstructorGate({ returnTo, authContext }: { returnTo?: string; authContext?: AuthContext }) {
+function InstructorGate({
+  returnTo,
+  authContext,
+  autoGenerateStudentIds,
+}: {
+  returnTo?: string;
+  authContext?: AuthContext;
+  autoGenerateStudentIds: boolean;
+}) {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,7 +229,7 @@ function InstructorGate({ returnTo, authContext }: { returnTo?: string; authCont
   }
 
   if (authenticated) {
-    return <InstructorView />;
+    return <InstructorView autoGenerateStudentIds={autoGenerateStudentIds} />;
   }
 
   const isPresentationLogin = authContext === "presentation";

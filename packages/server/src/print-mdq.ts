@@ -63,9 +63,9 @@ Options:
   -h, --help           Show this help.
 
 Examples:
-  npm run print:pdf -- data/quizzes/week00.md --theme light --out exports/week00.pdf
-  npm run print:pdf -- data/quizzes/week12-hmd-simulator-course.md --theme dark --no-foldouts --page-size Letter
-  npm run print:pdf -- data/quizzes/week12-hmd-simulator-course.md --theme dark --answers --presenter-notes
+  npm run print:pdf -- data/decks/week00.md --theme light --out exports/week00.pdf
+  npm run print:pdf -- data/decks/sample-session.md --theme dark --no-foldouts --page-size Letter
+  npm run print:pdf -- data/decks/sample-session.md --theme dark --answers --presenter-notes
 `;
 }
 
@@ -272,8 +272,19 @@ function rewriteImageSources(html: string, inputDir: string, imagesDir: string):
   ));
 }
 
+function appendVisibleLinkTargets(html: string): string {
+  return html.replace(
+    /(<a\b[^>]*\bhref=["'](https?:\/\/[^"']+)["'][^>]*>)([\s\S]*?)(<\/a>)/gi,
+    (match: string, openTag: string, href: string, body: string, closeTag: string) => {
+      const bodyText = body.replace(/<[^>]+>/g, "").trim();
+      if (bodyText.includes(href)) return match;
+      return `${openTag}${body}${closeTag}<span class="print-url"> (${escapeHtml(href)})</span>`;
+    },
+  );
+}
+
 function renderTrustedHtml(html: string, inputDir: string, imagesDir: string): string {
-  return rewriteImageSources(html, inputDir, imagesDir);
+  return appendVisibleLinkTargets(rewriteImageSources(html, inputDir, imagesDir));
 }
 
 function questionHeading(question: Question): string {
@@ -345,10 +356,11 @@ function renderSlideMedia(question: Question, inputDir: string, imagesDir: strin
         const src = escapeHtml(toImageUrl(item.src, inputDir, imagesDir));
         const alt = escapeHtml(item.alt || "Slide image");
         const title = item.title ? escapeHtml(item.title) : "";
+        const caption = escapeHtml(item.title || item.alt || "");
         return `
           <figure class="media-figure">
             <img src="${src}" alt="${alt}"${title ? ` title="${title}"` : ""}>
-            ${title ? `<figcaption>${title}</figcaption>` : ""}
+            ${caption ? `<figcaption>${caption}</figcaption>` : ""}
           </figure>
         `;
       }).join("")}
@@ -434,6 +446,11 @@ function renderItem(question: Question, index: number, total: number, options: P
   const isSlide = type === "slide";
   const heading = questionHeading(question);
   const body = renderTrustedHtml(question.textHtml, inputDir, options.imagesDir);
+  const hasBody = body.trim().length > 0;
+  const hasSlideMedia = isSlide && (question.slideMedia?.length ?? 0) > 0;
+  const bodySection = hasBody || !hasSlideMedia
+    ? `<section class="body-copy">${hasBody ? body : "<p class=\"empty-copy\">No body text.</p>"}</section>`
+    : "";
 
   return `
     <article class="item item-${type}">
@@ -451,7 +468,7 @@ function renderItem(question: Question, index: number, total: number, options: P
           ? ` style="--bg-opacity: ${question.slideMediaOpacity ?? 0.3}"`
           : ""
       }>
-        <section class="body-copy">${body || "<p class=\"empty-copy\">No body text.</p>"}</section>
+        ${bodySection}
         ${renderSlideMedia(question, inputDir, options.imagesDir)}
       </div>
       ${renderOptions(question, inputDir, options.imagesDir, options.includeAnswers)}
@@ -576,6 +593,13 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
     a {
       color: var(--accent);
       text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    .print-url {
+      color: var(--muted);
+      font-size: 0.92em;
+      font-weight: 500;
       overflow-wrap: anywhere;
     }
 
@@ -890,6 +914,8 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
       font-size: 7.7pt;
       line-height: 1.3;
       text-align: center;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .quiz-embedded-image {

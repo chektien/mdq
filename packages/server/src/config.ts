@@ -7,9 +7,11 @@ const DEFAULT_PORT_FALLBACKS = 10;
 interface RuntimeConfigFile {
   port?: unknown;
   portFallbacks?: unknown;
+  deckDir?: unknown;
   quizDir?: unknown;
   instanceId?: unknown;
   theme?: unknown;
+  autoGenerateStudentIds?: unknown;
 }
 
 export type RuntimeTheme = "dark" | "light";
@@ -20,6 +22,7 @@ export interface RuntimeConfig {
   quizDir: string;
   instanceId: string;
   theme: RuntimeTheme;
+  autoGenerateStudentIds: boolean;
   configPath: string;
   loadedFromFile: boolean;
 }
@@ -77,6 +80,16 @@ function parseTheme(value: unknown): RuntimeTheme | undefined {
   return undefined;
 }
 
+function parseBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+  }
+  return undefined;
+}
+
 function readRuntimeConfigFile(configPath: string): RuntimeConfigFile {
   if (!fs.existsSync(configPath)) {
     return {};
@@ -100,6 +113,15 @@ function resolveQuizDir(configDir: string, rawQuizDir: string | undefined, fallb
   return path.isAbsolute(rawQuizDir) ? rawQuizDir : path.resolve(configDir, rawQuizDir);
 }
 
+function defaultDeckDir(dataDir: string): string {
+  const deckDir = path.join(dataDir, "decks");
+  const legacyQuizDir = path.join(dataDir, "quizzes");
+  if (!fs.existsSync(deckDir) && fs.existsSync(legacyQuizDir)) {
+    return legacyQuizDir;
+  }
+  return deckDir;
+}
+
 export function loadRuntimeConfig(options: RuntimeConfigLoadOptions = {}): RuntimeConfig {
   const rootDir = options.rootDir || path.resolve(__dirname, "../../../");
   const env = options.env || process.env;
@@ -107,7 +129,12 @@ export function loadRuntimeConfig(options: RuntimeConfigLoadOptions = {}): Runti
   const configPath = path.join(dataDir, "config.json");
   const configDir = path.dirname(configPath);
   const fileConfig = readRuntimeConfigFile(configPath);
-  const defaultQuizDir = path.join(dataDir, "quizzes");
+  const defaultQuizDir = defaultDeckDir(dataDir);
+  const configuredDeckDir =
+    parseString(env.MDQ_DECK_DIR)
+    ?? parseString(env.DECK_DIR)
+    ?? parseString(fileConfig.deckDir);
+  const configuredQuizDir = parseString(env.QUIZ_DIR) ?? parseString(fileConfig.quizDir);
 
   return {
     port: parsePositiveInt(env.PORT) ?? parsePositiveInt(fileConfig.port) ?? DEFAULT_PORT,
@@ -115,9 +142,13 @@ export function loadRuntimeConfig(options: RuntimeConfigLoadOptions = {}): Runti
       parseNonNegativeInt(env.PORT_FALLBACKS)
       ?? parseNonNegativeInt(fileConfig.portFallbacks)
       ?? DEFAULT_PORT_FALLBACKS,
-    quizDir: resolveQuizDir(configDir, parseString(env.QUIZ_DIR) ?? parseString(fileConfig.quizDir), defaultQuizDir),
+    quizDir: resolveQuizDir(configDir, configuredDeckDir ?? configuredQuizDir, defaultQuizDir),
     instanceId: parseString(env.MDQ_INSTANCE_ID) ?? parseString(fileConfig.instanceId) ?? "",
     theme: parseTheme(env.MDQ_THEME) ?? parseTheme(fileConfig.theme) ?? "dark",
+    autoGenerateStudentIds:
+      parseBoolean(env.MDQ_AUTO_GENERATE_STUDENT_IDS)
+      ?? parseBoolean(fileConfig.autoGenerateStudentIds)
+      ?? false,
     configPath,
     loadedFromFile: fs.existsSync(configPath),
   };

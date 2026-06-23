@@ -7,6 +7,7 @@ import {
   FoldoutNote,
   MediaPosition,
   SlideMedia,
+  SlideLiveEmbed,
   SlideReference,
 } from "@mdq/shared";
 import { marked } from "marked";
@@ -54,14 +55,11 @@ interface QuestionBlock {
 export function parseQuizMarkdown(markdown: string, sourceFile: string): ParseResult {
   const errors: QuizParseError[] = [];
 
-  // Extract title from H1 heading
-  const titleMatch = markdown.match(/^#\s+(.+)$/m);
-  const title = titleMatch ? titleMatch[1].trim() : "";
+  const title = extractDeckTitle(markdown);
 
-  // Extract quiz key from filename (e.g., "week01.md" -> "week01", "week09-lab.md" -> "week09-lab")
+  // Extract deck key from filename (e.g., "week01.md" -> "week01", "featured-demo.md" -> "featured-demo")
   const sourceStem = sourceFile.replace(/^.*[\\/]/, "").replace(/\.md$/i, "").toLowerCase();
-  const weekMatch = sourceStem.match(/^(week\d+(?:-[a-z0-9]+)*)$/i);
-  const week = weekMatch ? weekMatch[1].toLowerCase() : sourceStem;
+  const week = sourceStem;
 
   // Split into question blocks by horizontal rules (---)
   // First, find where questions start (after title and any preamble)
@@ -132,6 +130,27 @@ function splitQuestionBlocks(markdown: string): QuestionBlock[] {
 
   pushCurrentBlock();
   return blocks;
+}
+
+function extractDeckTitle(markdown: string): string {
+  const preamble = markdown.split(/^---+\s*$/m, 1)[0] || markdown;
+  const metadataTitleMatch = preamble.match(/^title:\s*(.+)$/im);
+  if (metadataTitleMatch) {
+    return stripOptionalQuotes(metadataTitleMatch[1].trim());
+  }
+
+  const titleMatch = markdown.match(/^#\s+(.+)$/m);
+  return titleMatch ? titleMatch[1].trim() : "";
+}
+
+function stripOptionalQuotes(value: string): string {
+  const trimmed = value.trim();
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
 }
 
 /**
@@ -229,8 +248,19 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
   }
 
   // 4. Extract correct answer(s) from blockquote
-  const correctSingleMatch = block.match(/^>\s*Correct\s+Answer:\s*([A-Z])[.\s]*/m);
+  const correctSingleLineMatch = block.match(/^>\s*Correct\s+Answer:\s*(.+)$/m);
+  const correctSingleMatch = block.match(/^>\s*Correct\s+Answer:\s*([A-Z])(?:[.\s]|$)/m);
   const correctMultiMatch = block.match(/^>\s*Correct\s+Answers:\s*(.+)$/m);
+
+  const correctSinglePayload = correctSingleLineMatch?.[1].trim() || "";
+  if (/^[A-Z]\s*,\s*[A-Z](?:\s*,\s*[A-Z])*(?:\s|$|[.])/.test(correctSinglePayload)) {
+    throw new QuizParseError(
+      sourceFile,
+      index,
+      "Use '> Correct Answers: X, Y' when a question has multiple correct options",
+      findLineNumber(lines, blockStartLine, (line) => /^>\s*Correct\s+Answer/i.test(line)),
+    );
+  }
 
   let correctOptions: string[];
   if (isSlide) {
@@ -306,9 +336,9 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     );
   }
 
-  // 5. Extract explanation from blockquote
-  const feedbackMatch = block.match(/^>\s*Overall\s+Feedback:\s*(.+)$/m);
-  const explanation = feedbackMatch ? feedbackMatch[1].trim() : "";
+  // 5. Extract explanation from blockquote. Continuation blockquote lines belong
+  // to the same feedback until another MDQ metadata block starts.
+  const explanation = extractOverallFeedback(lines);
 
   // 6. Extract question text (between H2/time_limit and first option)
   const h2LineIdx = lines.findIndex((l) => /^##\s+/.test(l));
@@ -327,6 +357,10 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
   textLines = textLines.filter((l) => !/^time_limit:\s*\d+/i.test(l.trim()));
   textLines = textLines.filter((l) => !/^(?:type|question_type):\s*[a-z_]+$/i.test(l.trim()));
   textLines = textLines.filter((l) => !/^multi_select:\s*(true|false|yes|no|1|0)$/i.test(l.trim()));
+  const liveEmbedExtraction = isSlide
+    ? extractSlideLiveEmbed(textLines)
+    : { contentLines: textLines, liveEmbed: undefined };
+  textLines = liveEmbedExtraction.contentLines;
   const referenceExtraction = isSlide
     ? extractSlideReferences(textLines)
     : { contentLines: textLines, references: [] as SlideReference[] };
@@ -367,6 +401,7 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     slideMedia: mediaExtraction.media.length > 0 ? mediaExtraction.media : undefined,
     slideMediaPosition,
     slideMediaOpacity,
+    slideLiveEmbed: liveEmbedExtraction.liveEmbed,
     slideReferences: referenceExtraction.references.length > 0 ? referenceExtraction.references : undefined,
     options,
     correctOptions,
@@ -494,6 +529,45 @@ const LIST_MARKER_REGEX = /^\s*(?:[-*+]|\d+\.)\s+/;
  * grammar never enters without the unescaped `](`. */
 function escapeImageMarkdownInLine(line: string): string {
   return line.replace(/!\[([^\]]*)\]\(/g, "\\![$1\\](");
+}
+
+function extractSlideLiveEmbed(lines: string[]): { contentLines: string[]; liveEmbed?: SlideLiveEmbed } {
+  const contentLines: string[] = [];
+  let url = "";
+  let titleOverlay: boolean | undefined;
+  let interactive: boolean | undefined;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(/^(live_url|live_title_overlay|live_interactive):\s*(.+)$/i);
+    if (!match) {
+      contentLines.push(line);
+      continue;
+    }
+
+    const key = match[1].toLowerCase();
+    const value = match[2].trim();
+    if (key === "live_url") {
+      url = stripOptionalQuotes(value);
+    } else if (key === "live_title_overlay") {
+      titleOverlay = parseBooleanField(value);
+    } else if (key === "live_interactive") {
+      interactive = parseBooleanField(value);
+    }
+  }
+
+  if (!url) {
+    return { contentLines };
+  }
+
+  return {
+    contentLines,
+    liveEmbed: {
+      url,
+      ...(titleOverlay !== undefined ? { titleOverlay } : {}),
+      ...(interactive !== undefined ? { interactive } : {}),
+    },
+  };
 }
 
 function extractSlideMedia(lines: string[]): { contentLines: string[]; media: SlideMedia[] } {
@@ -712,6 +786,36 @@ function extractFoldoutNotes(lines: string[]): { contentLines: string[]; notes: 
 
 function parseBooleanField(value: string): boolean {
   return /^(true|yes|1)$/i.test(value.trim());
+}
+
+function extractOverallFeedback(lines: string[]): string {
+  const feedbackStart = lines.findIndex((line) => /^>\s*Overall\s+Feedback:\s*/i.test(line));
+  if (feedbackStart < 0) return "";
+
+  const firstLine = lines[feedbackStart].replace(/^>\s*Overall\s+Feedback:\s*/i, "");
+  const feedbackLines = [firstLine.trimEnd()];
+
+  for (let i = feedbackStart + 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    const metadataMatch = line.match(/^>\s*([A-Za-z][A-Za-z\s]+):\s*/);
+    if (metadataMatch) {
+      const label = metadataMatch[1].replace(/\s+/g, " ").trim().toLowerCase();
+      if (
+        label === "correct answer" ||
+        label === "correct answers" ||
+        label === "overall feedback" ||
+        label === "presenter note" ||
+        label === "attendee note"
+      ) {
+        break;
+      }
+    }
+
+    if (!/^>\s?/.test(line)) break;
+    feedbackLines.push(line.replace(/^>\s?/, "").trimEnd());
+  }
+
+  return feedbackLines.join("\n").trim();
 }
 
 /** Render markdown to HTML using marked (synchronous) */

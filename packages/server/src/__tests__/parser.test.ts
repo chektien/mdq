@@ -66,6 +66,36 @@ B. No
       expect(result.quiz!.questions[0].timeLimitSec).toBe(45);
     });
 
+    it("parses multiline overall feedback blockquotes until the next metadata block", () => {
+      const md = `# Quiz
+
+---
+
+## Topic
+
+**Question?**
+
+A. Yes
+B. No
+
+> Correct Answer: A
+> Overall Feedback: First line.
+>
+> **Learning Objective:** Explain the idea.
+>
+> **Gap:** Keep this in the explanation.
+> Presenter Note:
+> - Do not include this in feedback.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "week03.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.questions[0].explanation).toBe(
+        "First line.\n\n**Learning Objective:** Explain the idea.\n\n**Gap:** Keep this in the explanation.",
+      );
+    });
+
     it("defaults time_limit to 35 when not specified", () => {
       const md = `# Quiz
 
@@ -289,6 +319,37 @@ type: slide
       ]);
     });
 
+    it("extracts live slide embed metadata without rendering it as body text", () => {
+      const md = `# Quiz
+
+---
+
+## Live Demo
+
+type: slide
+live_url: https://example.com/demo
+live_title_overlay: true
+live_interactive: true
+
+Use the live artifact as the slide.
+
+> Attendee Note: Example Author. 2026. Demo System. In *Example Proceedings*. https://doi.org/10.1145/example
+
+---`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      const q = result.quiz!.questions[0];
+      expect(q.slideLiveEmbed).toEqual({
+        url: "https://example.com/demo",
+        titleOverlay: true,
+        interactive: true,
+      });
+      expect(q.textMd).toBe("Use the live artifact as the slide.");
+      expect(q.textHtml).not.toContain("live_url");
+      expect(q.slideMedia).toBeUndefined();
+      expect(q.attendeeNotes?.[0].bodyMd).toContain("Demo System");
+    });
+
     it("extracts slide references into footer-ready inline html", () => {
       const md = `# Quiz
 
@@ -301,7 +362,7 @@ type: slide
 Use the result as visual context.
 
 > Reference: [Milgram and Kishino, 1994](https://doi.org/10.1000/example)
-> Image Source: [HMD schematic](https://example.com/hmd.png)
+> Image Source: [System schematic](https://example.com/system.png)
 
 ---`;
       const result = parseQuizMarkdown(md, "week01.md");
@@ -311,7 +372,7 @@ Use the result as visual context.
       expect(q.textHtml).not.toContain("Reference:");
       expect(q.slideReferences).toHaveLength(2);
       expect(q.slideReferences?.[0].html).toContain('<a href="https://doi.org/10.1000/example"');
-      expect(q.slideReferences?.[1].textMd).toContain("HMD schematic");
+      expect(q.slideReferences?.[1].textMd).toContain("System schematic");
     });
 
     it("uses full week key from variant filenames", () => {
@@ -331,9 +392,50 @@ B. No
 
 ---
 `;
-      const result = parseQuizMarkdown(md, "week09-lab.md");
+      const result = parseQuizMarkdown(md, "week03-lab.md");
       expect(result.errors).toHaveLength(0);
-      expect(result.quiz!.week).toBe("week09-lab");
+      expect(result.quiz!.week).toBe("week03-lab");
+    });
+
+    it("uses non-week deck keys from filenames", () => {
+      const md = `# Quiz
+
+---
+
+## Topic
+
+**Question?**
+
+A. Yes
+B. No
+
+> Correct Answer: A
+> Overall Feedback: Explanation.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "featured-demo.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.week).toBe("featured-demo");
+    });
+
+    it("uses a preamble title when the deck has no H1", () => {
+      const md = `title: "Featured Demo Session"
+
+---
+
+## Opening Slide
+
+type: slide
+
+Welcome to the session.
+
+---`;
+      const result = parseQuizMarkdown(md, "featured-demo.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.title).toBe("Featured Demo Session");
+      expect(result.quiz!.week).toBe("featured-demo");
+      expect(result.quiz!.questions).toHaveLength(1);
     });
 
     it("parses code blocks in question text", () => {
@@ -590,6 +692,31 @@ B. Unsure
       expect(result.errors[0].detail).toContain("must not define correct answers");
     });
 
+    it("rejects multi-answer syntax on a singular correct-answer line", () => {
+      const md = `# Quiz
+
+---
+
+## Invalid Config
+
+multi_select: true
+
+**Select all that apply.**
+
+A. First
+B. Second
+C. Third
+
+> Correct Answer: A, C
+> Overall Feedback: A and C are correct.
+
+---
+`;
+      const result = parseQuizMarkdown(md, "test.md");
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].detail).toContain("Correct Answers");
+    });
+
     it("rejects multi_select false when multiple correct answers are declared", () => {
       const md = `# Quiz
 
@@ -748,7 +875,7 @@ B. No
     });
   });
 
-  describe("sample quiz files", () => {
+  describe("sample deck files", () => {
     const quizDir = path.join(__dirname, "fixtures/quizzes");
 
     it("parses week01.md", () => {

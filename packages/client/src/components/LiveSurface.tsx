@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import SessionCodeCard from "./SessionCodeCard";
 
 export interface LiveSurfaceAction {
   label: string;
@@ -20,6 +21,9 @@ interface LiveSurfaceProps {
   sessionCode?: string;
   participantCount?: number;
   presentationUrl?: string;
+  joinUrl?: string;
+  shortUrl?: string;
+  joinCardDefaultExpanded?: boolean;
   showFullscreenButton?: boolean;
   navActions?: LiveSurfaceAction[];
   actions?: LiveSurfaceAction[];
@@ -37,6 +41,9 @@ export default function LiveSurface({
   sessionCode,
   participantCount,
   presentationUrl,
+  joinUrl,
+  shortUrl,
+  joinCardDefaultExpanded = true,
   showFullscreenButton = true,
   navActions = [],
   actions = [],
@@ -44,7 +51,7 @@ export default function LiveSurface({
   const surfaceRef = useRef<HTMLElement | null>(null);
   const [fullscreenSupported, setFullscreenSupported] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const hasJoinInfo = qrDataUrl || sessionCode || participantCount !== undefined || presentationUrl;
+  const hasJoinInfo = qrDataUrl || sessionCode || participantCount !== undefined || presentationUrl || joinUrl || shortUrl;
   const hasNavActions = navActions.length > 0;
   const hasActions = actions.length > 0;
   const className = [
@@ -150,21 +157,16 @@ export default function LiveSurface({
         {children}
 
         {hasJoinInfo && (
-          <aside className="slide-join-panel" aria-label="Session join details">
-            {qrDataUrl && <img src={qrDataUrl} alt="Join QR" />}
-            {sessionCode && (
-              <>
-                <span className="slide-join-label">Session code</span>
-                <strong>{sessionCode}</strong>
-              </>
-            )}
-            {participantCount !== undefined && <span className="slide-join-meta">{participantCount} online</span>}
-            {presentationUrl && (
-              <a href={presentationUrl} target="_blank" rel="noopener noreferrer">
-                Presentation view
-              </a>
-            )}
-          </aside>
+          <SessionCodeCard
+            className="slide-join-panel"
+            qrDataUrl={qrDataUrl}
+            sessionCode={sessionCode || ""}
+            participantCount={participantCount}
+            presentationUrl={presentationUrl}
+            joinUrl={joinUrl}
+            shortUrl={shortUrl}
+            defaultExpanded={joinCardDefaultExpanded}
+          />
         )}
 
         {positionLabel && <p className="slide-counter">{positionLabel}</p>}

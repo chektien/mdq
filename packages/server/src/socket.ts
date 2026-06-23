@@ -84,6 +84,7 @@ function buildQuestionOpenPayload(session: Session): QuestionOpenPayload | null 
     slideMedia: question.slideMedia,
     slideMediaPosition: question.slideMediaPosition,
     slideMediaOpacity: question.slideMediaOpacity,
+    slideLiveEmbed: question.slideLiveEmbed,
     slideReferences: question.slideReferences,
     options: question.options.map((o) => ({ label: o.label, text: o.textHtml })),
     allowsMultiple: question.allowsMultiple,
@@ -520,22 +521,7 @@ export function broadcastQuestionOpen(
   const q = quiz.questions[session.currentQuestionIndex];
   session.questionStartedAt = Date.now();
 
-  io.to(sessionRoom(sessionId)).emit(SocketEvents.QUESTION_OPEN, {
-    questionIndex: session.currentQuestionIndex,
-    topic: q.topic,
-    text: q.textHtml,
-    questionType: getQuestionType(q),
-    attendeeNotes: buildPublicNotes(q),
-    slideMedia: q.slideMedia,
-    slideMediaPosition: q.slideMediaPosition,
-    slideMediaOpacity: q.slideMediaOpacity,
-    slideReferences: q.slideReferences,
-    options: q.options.map((o) => ({ label: o.label, text: o.textHtml })),
-    allowsMultiple: q.allowsMultiple,
-    isPoll: q.isPoll === true,
-    timeLimitSec: q.timeLimitSec,
-    startedAt: session.questionStartedAt,
-  });
+  emitQuestionContext(io, session, sessionId, quiz);
 
   io.to(sessionRoom(sessionId)).emit(SocketEvents.SESSION_STATE, {
     state: session.state,
@@ -560,6 +546,11 @@ export function broadcastReveal(
   const q = quiz.questions[session.currentQuestionIndex];
   const dist = getDistribution(session, session.currentQuestionIndex);
 
+  // Review navigation can land directly on a completed quiz. Replay the
+  // question context first so clients have the option text needed to render
+  // the reveal, but do not restart timers or reopen submissions.
+  emitQuestionContext(io, session, sessionId, quiz);
+
   io.to(sessionRoom(sessionId)).emit(SocketEvents.RESULTS_REVEAL, {
     questionIndex: session.currentQuestionIndex,
     questionType: getQuestionType(q),
@@ -573,6 +564,32 @@ export function broadcastReveal(
   io.to(sessionRoom(sessionId)).emit(SocketEvents.SESSION_STATE, {
     state: session.state,
     questionIndex: session.currentQuestionIndex,
+  });
+}
+
+function emitQuestionContext(
+  io: Server,
+  session: Session,
+  sessionId: string,
+  quiz: Quiz,
+): void {
+  const q = quiz.questions[session.currentQuestionIndex];
+  io.to(sessionRoom(sessionId)).emit(SocketEvents.QUESTION_OPEN, {
+    questionIndex: session.currentQuestionIndex,
+    topic: q.topic,
+    text: q.textHtml,
+    questionType: getQuestionType(q),
+    attendeeNotes: buildPublicNotes(q),
+    slideMedia: q.slideMedia,
+    slideMediaPosition: q.slideMediaPosition,
+    slideMediaOpacity: q.slideMediaOpacity,
+    slideLiveEmbed: q.slideLiveEmbed,
+    slideReferences: q.slideReferences,
+    options: q.options.map((o) => ({ label: o.label, text: o.textHtml })),
+    allowsMultiple: q.allowsMultiple,
+    isPoll: q.isPoll === true,
+    timeLimitSec: q.timeLimitSec,
+    startedAt: session.questionStartedAt || Date.now(),
   });
 }
 

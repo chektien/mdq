@@ -24,7 +24,7 @@ const requestedPort = runtimeConfig.port || DEFAULT_PORT;
 const maxPortFallbacks = runtimeConfig.portFallbacks;
 const instanceId = runtimeConfig.instanceId || randomUUID();
 const dataDir = path.resolve(__dirname, "../../../data");
-const quizDir = runtimeConfig.quizDir || path.resolve(__dirname, "../../../data/quizzes");
+const quizDir = runtimeConfig.quizDir || path.resolve(__dirname, "../../../data/decks");
 const clientDist = path.join(__dirname, "../../client/dist");
 
 // We need io available for the state change callback, so we use a container
@@ -107,6 +107,7 @@ const app = createApp({
   dataDir,
   instanceId,
   theme: runtimeConfig.theme,
+  autoGenerateStudentIds: runtimeConfig.autoGenerateStudentIds,
   onStateChange: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => {
     const io = ioRef.current;
     if (!io) return;
@@ -196,7 +197,7 @@ async function onListening(): Promise<void> {
   console.log(`Port fallback retry limit: ${maxPortFallbacks}`);
   console.log(`Instructor password: ${isInstructorAuthEnabled() ? "configured" : "not configured"}`);
   console.log(`Data directory: ${dataDir}`);
-  console.log(`Quiz directory: ${quizDir}`);
+  console.log(`Deck directory: ${quizDir}`);
 
   // Detect access info (Tailscale/LAN) on startup
   try {

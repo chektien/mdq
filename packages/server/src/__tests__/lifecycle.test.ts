@@ -126,16 +126,16 @@ describe("REST API", () => {
   });
 
   describe("GET /api/runtime-config", () => {
-    it("returns the configured runtime theme", async () => {
-      const res = await request(createApp({ quizDir, theme: "light" })).get("/api/runtime-config");
+    it("returns the configured browser-visible runtime options", async () => {
+      const res = await request(createApp({ quizDir, theme: "light", autoGenerateStudentIds: true })).get("/api/runtime-config");
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ theme: "light" });
+      expect(res.body).toEqual({ theme: "light", autoGenerateStudentIds: true });
     });
   });
 
-  describe("GET /api/quizzes", () => {
-    it("lists available quizzes", async () => {
-      const res = await request(app).get("/api/quizzes");
+  describe("GET /api/decks", () => {
+    it("lists available decks", async () => {
+      const res = await request(app).get("/api/decks");
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body.length).toBeGreaterThanOrEqual(2);
@@ -146,7 +146,7 @@ describe("REST API", () => {
       expect(w1.slideCount).toBe(0);
     });
 
-    it("separates quiz questions from slides in quiz summaries", async () => {
+    it("separates quiz questions from slides in deck summaries", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-quiz-summary-"));
       fs.writeFileSync(
         path.join(tempQuizDir, "week99-mixed.md"),
@@ -178,7 +178,7 @@ B. The slide
       const mixedApp = createApp(tempQuizDir);
 
       try {
-        const res = await request(mixedApp).get("/api/quizzes");
+        const res = await request(mixedApp).get("/api/decks");
         expect(res.status).toBe(200);
         const summary = res.body.find((q: { week: string }) => q.week === "week99-mixed");
         expect(summary).toBeDefined();
@@ -190,31 +190,66 @@ B. The slide
       }
     });
 
-    it("loads week and lab variant quizzes as distinct keys", async () => {
+    it("loads week and lab variant decks as distinct keys", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-quiz-variants-"));
       const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week09.md"), fixtureWeek01, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week09-lab.md"), fixtureWeek01, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week03.md"), fixtureWeek01.replace(/^# .+$/m, "# Week 03"), "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week03-lab.md"), fixtureWeek01.replace(/^# .+$/m, "# Week 03 Lab"), "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "featured-demo.md"), fixtureWeek01.replace(/^# .+$/m, "# Featured Demo"), "utf-8");
 
       const variantApp = createApp(tempQuizDir);
 
       try {
-        const listRes = await request(variantApp).get("/api/quizzes");
+        const listRes = await request(variantApp).get("/api/decks");
         expect(listRes.status).toBe(200);
-        expect(listRes.body.find((q: { week: string }) => q.week === "week09")).toBeDefined();
-        expect(listRes.body.find((q: { week: string }) => q.week === "week09-lab")).toBeDefined();
+        expect(listRes.body[0].week).toBe("featured-demo");
+        expect(listRes.body.find((q: { week: string }) => q.week === "week03")).toBeDefined();
+        expect(listRes.body.find((q: { week: string }) => q.week === "week03-lab")).toBeDefined();
+        expect(listRes.body.find((q: { week: string }) => q.week === "featured-demo")).toBeDefined();
 
-        const weekRes = await request(variantApp).get("/api/quiz/week09");
+        const weekRes = await request(variantApp).get("/api/deck/week03");
         expect(weekRes.status).toBe(200);
 
-        const labRes = await request(variantApp).get("/api/quiz/week09-lab");
+        const labRes = await request(variantApp).get("/api/deck/week03-lab");
         expect(labRes.status).toBe(200);
+
+        const namedDeckRes = await request(variantApp).get("/api/deck/featured-demo");
+        expect(namedDeckRes.status).toBe(200);
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
       }
     });
 
-    it("blocks instructor setup when any quiz file has format errors", async () => {
+    it("collapses duplicate deck titles and prefers descriptive filenames over week-prefixed aliases", async () => {
+      const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-duplicate-decks-"));
+      const descriptiveDeck = fs
+        .readFileSync(path.join(quizDir, "week01.md"), "utf-8")
+        .replace(/^# .+$/m, "# Featured Demo Session (10 min MDQ)");
+      const weekAliasDeck = descriptiveDeck.replace(
+        /^# .+$/m,
+        "# Featured Demo Session (10 min, MDQ)",
+      );
+      fs.writeFileSync(path.join(tempQuizDir, "week13-featured-demo.md"), weekAliasDeck, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "featured-demo.md"), descriptiveDeck, "utf-8");
+
+      const duplicateApp = createApp(tempQuizDir);
+
+      try {
+        const listRes = await request(duplicateApp).get("/api/decks");
+        expect(listRes.status).toBe(200);
+        const matchingDecks = listRes.body.filter((q: { title: string }) => q.title.includes("Featured Demo Session"));
+        expect(matchingDecks).toHaveLength(1);
+        expect(matchingDecks[0].week).toBe("featured-demo");
+        expect(matchingDecks[0].title).toBe("Featured Demo Session (10 min MDQ)");
+
+        await request(duplicateApp).get("/api/deck/featured-demo").expect(200);
+        await request(duplicateApp).get("/api/deck/week13-featured-demo").expect(404);
+      } finally {
+        fs.rmSync(tempQuizDir, { recursive: true, force: true });
+      }
+    });
+
+    it("blocks instructor setup when any deck file has format errors", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-invalid-quiz-list-"));
       const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
       const invalidQuiz = `# Broken Quiz
@@ -233,14 +268,14 @@ Name the file to edit.
 ---
 `;
       fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week11-lab.md"), invalidQuiz, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week04-lab.md"), invalidQuiz, "utf-8");
 
       const invalidApp = createApp(tempQuizDir);
 
       try {
-        const res = await request(invalidApp).get("/api/quizzes");
+        const res = await request(invalidApp).get("/api/decks");
         expect(res.status).toBe(409);
-        expect(res.body.error).toContain("week11-lab.md:6");
+        expect(res.body.error).toContain("week04-lab.md:6");
         expect(res.body.error).toContain("no answer choices");
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
@@ -248,9 +283,9 @@ Name the file to edit.
     });
   });
 
-  describe("POST /api/quizzes/reload", () => {
-    it("reloads quiz markdown files without restarting server", async () => {
-      const res = await request(app).post("/api/quizzes/reload");
+  describe("POST /api/decks/reload", () => {
+    it("reloads deck markdown files without restarting server", async () => {
+      const res = await request(app).post("/api/decks/reload");
       expect(res.status).toBe(200);
       expect(res.body.loaded).toBeGreaterThanOrEqual(2);
       expect(Array.isArray(res.body.quizzes)).toBe(true);
@@ -258,7 +293,7 @@ Name the file to edit.
       expect(w1).toBeDefined();
     });
 
-    it("skips a quiz file deleted during reload instead of failing", async () => {
+    it("skips a deck file deleted during reload instead of failing", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-quiz-reload-"));
       const week01Path = path.join(tempQuizDir, "week01.md");
       const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
@@ -271,7 +306,7 @@ Name the file to edit.
       const flakyApp = createApp(tempQuizDir);
 
       try {
-        const res = await request(flakyApp).post("/api/quizzes/reload");
+        const res = await request(flakyApp).post("/api/decks/reload");
         expect(res.status).toBe(200);
         expect(res.body.loaded).toBe(1);
         expect(Array.isArray(res.body.quizzes)).toBe(true);
@@ -282,7 +317,7 @@ Name the file to edit.
       }
     });
 
-    it("returns a lecturer-friendly validation error when reload finds a broken quiz", async () => {
+    it("returns a lecturer-friendly validation error when reload finds a broken deck", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-invalid-quiz-reload-"));
       const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
       const invalidQuiz = `# Broken Quiz
@@ -301,31 +336,31 @@ Name the file to edit.
 ---
 `;
       fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week11-lab.md"), invalidQuiz, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week04-lab.md"), invalidQuiz, "utf-8");
 
       const invalidApp = createApp(tempQuizDir);
 
       try {
-        const res = await request(invalidApp).post("/api/quizzes/reload");
+        const res = await request(invalidApp).post("/api/decks/reload");
         expect(res.status).toBe(409);
-        expect(res.body.error).toContain("week11-lab.md:6");
-        expect(res.body.error).toContain("Fix the markdown file and reload quizzes");
+        expect(res.body.error).toContain("week04-lab.md:6");
+        expect(res.body.error).toContain("Fix the markdown file and reload decks");
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
       }
     });
   });
 
-  describe("GET /api/quiz/:week", () => {
+  describe("GET /api/deck/:week", () => {
     it("returns quiz metadata", async () => {
-      const res = await request(app).get("/api/quiz/week01");
+      const res = await request(app).get("/api/deck/week01");
       expect(res.status).toBe(200);
       expect(res.body.week).toBe("week01");
       expect(res.body.questionCount).toBe(3);
     });
 
     it("returns 404 for non-existent week", async () => {
-      const res = await request(app).get("/api/quiz/week99");
+      const res = await request(app).get("/api/deck/week99");
       expect(res.status).toBe(404);
     });
   });
@@ -418,7 +453,7 @@ Name the file to edit.
 ---
 `;
       fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
-      fs.writeFileSync(path.join(tempQuizDir, "week11-lab.md"), invalidQuiz, "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week04-lab.md"), invalidQuiz, "utf-8");
 
       const invalidApp = createApp(tempQuizDir);
 
@@ -427,7 +462,7 @@ Name the file to edit.
           .post("/api/session")
           .send({ week: "week01" });
         expect(res.status).toBe(409);
-        expect(res.body.error).toContain("week11-lab.md:6");
+        expect(res.body.error).toContain("week04-lab.md:6");
         expect(res.body.error).toContain("cannot run it safely");
       } finally {
         fs.rmSync(tempQuizDir, { recursive: true, force: true });
@@ -477,6 +512,43 @@ Name the file to edit.
       res = await request(app).post(`/api/session/${sessionId}/reveal`);
       res = await request(app).post(`/api/session/${sessionId}/end`);
       expect(res.body.state).toBe("ENDED");
+    });
+
+    it("goes back to the previous revealed quiz in review mode", async () => {
+      await request(app).post(`/api/session/${sessionId}/start`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+
+      const res = await request(app)
+        .post(`/api/session/${sessionId}/prev`)
+        .expect(200);
+
+      expect(res.body.state).toBe("REVEAL");
+      expect(res.body.questionIndex).toBe(0);
+    });
+
+    it("keeps completed quiz questions in review mode when navigating back and forward", async () => {
+      await request(app).post(`/api/session/${sessionId}/start`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+
+      let res = await request(app)
+        .post(`/api/session/${sessionId}/prev`)
+        .expect(200);
+
+      expect(res.body.state).toBe("REVEAL");
+      expect(res.body.questionIndex).toBe(0);
+
+      res = await request(app)
+        .post(`/api/session/${sessionId}/next`)
+        .expect(200);
+
+      expect(res.body.state).toBe("REVEAL");
+      expect(res.body.questionIndex).toBe(1);
     });
 
     it("allows ending directly from a closed question", async () => {
@@ -679,6 +751,35 @@ Name the file to edit.
         { heading: "Intro: Defaults", questionType: "multiple_choice" },
         { heading: "Intro: Multi-select", questionType: "multiple_choice" },
       ]);
+      expect(res.body.reviewQuestions).toHaveLength(1);
+      expect(res.body.reviewQuestions[0]).toMatchObject({
+        questionIndex: 0,
+        topic: "Intro",
+        questionType: "multiple_choice",
+      });
+      expect(res.body.reviewReveals).toEqual([]);
+    });
+
+    it("returns visited question and reveal history for resumed instructor review", async () => {
+      await request(app).post(`/api/session/${sessionId}/start`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/close`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/reveal`).expect(200);
+      await request(app).post(`/api/session/${sessionId}/next`).expect(200);
+
+      const res = await request(app)
+        .get(`/api/session/${sessionId}/state`)
+        .expect(200);
+
+      expect(res.body.state).toBe("QUESTION_OPEN");
+      expect(res.body.currentQuestionIndex).toBe(1);
+      expect(res.body.reviewQuestions).toHaveLength(2);
+      expect(res.body.reviewQuestions.map((question: { questionIndex: number }) => question.questionIndex)).toEqual([0, 1]);
+      expect(res.body.reviewReveals).toHaveLength(1);
+      expect(res.body.reviewReveals[0]).toMatchObject({
+        questionIndex: 0,
+        questionType: "multiple_choice",
+        correctOptions: ["B"],
+      });
     });
 
     it("returns 410 for restore request on ended session", async () => {

@@ -6,14 +6,19 @@ export default function Leaderboard({
   totalQuestions,
   highlightStudentId,
   maxRows = 10,
+  showStudentIds = true,
 }: {
   entries: LeaderboardEntry[];
   totalQuestions: number;
   highlightStudentId?: string;
   maxRows?: number;
+  showStudentIds?: boolean;
 }) {
   const visible = entries.slice(0, maxRows);
   const hasScoredQuestions = totalQuestions > 0;
+  const getParticipantLabel = (entry: LeaderboardEntry) => (
+    entry.displayName || (showStudentIds ? entry.studentId : "Anonymous")
+  );
 
   const rankLabel = (rank: number) => {
     if (rank === 1) return "1st";
@@ -50,9 +55,9 @@ export default function Leaderboard({
 
                 <div className="leaderboard-person">
                   <span className="leaderboard-name">
-                    {entry.displayName || entry.studentId}
+                    {getParticipantLabel(entry)}
                   </span>
-                  {entry.displayName && (
+                  {showStudentIds && entry.displayName && (
                     <span className="leaderboard-id">{entry.studentId}</span>
                   )}
                 </div>
