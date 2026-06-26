@@ -16,6 +16,7 @@ import type {
   OpenResponseEntry,
   FoldoutNote,
   AnswerSubmitPayload,
+  MediaPosition,
   SlideMedia,
   SlideLiveEmbed,
   SlideReference,
@@ -76,6 +77,8 @@ export interface QuestionState {
   questionType: QuestionType;
   attendeeNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
+  slideMediaPosition?: MediaPosition;
+  slideMediaOpacity?: number;
   slideLiveEmbed?: SlideLiveEmbed;
   slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
@@ -255,6 +258,8 @@ export function useSocket(
         questionType,
         attendeeNotes: data.attendeeNotes,
         slideMedia: data.slideMedia,
+        slideMediaPosition: data.slideMediaPosition,
+        slideMediaOpacity: data.slideMediaOpacity,
         slideLiveEmbed: data.slideLiveEmbed,
         slideReferences: data.slideReferences,
         options: data.options,

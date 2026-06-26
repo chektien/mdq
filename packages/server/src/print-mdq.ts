@@ -463,7 +463,11 @@ function renderItem(question: Question, index: number, total: number, options: P
         </div>
         <h2>${escapeHtml(heading)}</h2>
       </header>
-      <div class="${isSlide ? "slide-layout" : "question-layout"}">
+      <div class="${isSlide ? `slide-layout media-${question.slideMediaPosition ?? "right"}` : "question-layout"}"${
+        isSlide && question.slideMediaPosition === "background"
+          ? ` style="--bg-opacity: ${question.slideMediaOpacity ?? 0.3}"`
+          : ""
+      }>
         ${bodySection}
         ${renderSlideMedia(question, inputDir, options.imagesDir)}
       </div>
@@ -766,6 +770,106 @@ function renderStyles(pageSize: PrintOptions["pageSize"], theme: PrintTheme): st
     .slide-layout:has(.media-grid) {
       grid-template-columns: minmax(0, 0.92fr) minmax(54mm, 1fr);
       align-items: start;
+    }
+
+    /* media-left: mirror of default. Text on the right, media on the left. */
+    .slide-layout.media-left:has(.media-grid) {
+      grid-template-columns: minmax(54mm, 1fr) minmax(0, 0.92fr);
+      align-items: start;
+    }
+    .slide-layout.media-left > .body-copy { grid-column: 2; grid-row: 1; }
+    .slide-layout.media-left > .media-grid { grid-column: 1; grid-row: 1; }
+
+    /* media-top: stack vertically, media on top, text below. */
+    .slide-layout.media-top:has(.media-grid) {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+      gap: 3mm;
+    }
+    .slide-layout.media-top > .body-copy { grid-row: 2; grid-column: 1; }
+    .slide-layout.media-top > .media-grid { grid-row: 1; grid-column: 1; }
+    .slide-layout.media-top .media-figure img { max-height: 60mm; }
+
+    /* media-bottom: text above, media below. */
+    .slide-layout.media-bottom:has(.media-grid) {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: 1fr auto;
+      gap: 3mm;
+    }
+    .slide-layout.media-bottom > .body-copy { grid-row: 1; grid-column: 1; }
+    .slide-layout.media-bottom > .media-grid { grid-row: 2; grid-column: 1; }
+    .slide-layout.media-bottom .media-figure img { max-height: 60mm; }
+
+    /* media-background: the media-grid is absolutely positioned to fill the
+       slide, so the existing 1 / 2 / 3+ multi-image layout still applies
+       (single image fills, two split side-by-side, etc.). A darkening overlay
+       (::after) sits between the images and the body text. opacity = 0 means
+       image is invisible (fully dark); 1 means no darken. */
+    .slide-layout.media-background {
+      position: relative;
+      grid-template-columns: minmax(0, 1fr);
+      min-height: 100mm;
+      padding: 4mm;
+      border-radius: 6px;
+      overflow: hidden;
+      isolation: isolate;
+      background: var(--media-bg);
+    }
+    .slide-layout.media-background > .media-grid {
+      position: absolute;
+      inset: 4mm;  /* leave a visible frame around the background image, matching slide padding */
+      z-index: 0;
+      gap: 2mm;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    /* Without explicit grid-template-rows, rows auto-size to content
+       (image natural height). For an absolute-positioned grid, we need
+       definite cell heights so the figures and images can fill them. */
+    .slide-layout.media-background > .media-grid.media-grid-1,
+    .slide-layout.media-background > .media-grid.media-grid-2 {
+      grid-template-rows: 1fr;
+    }
+    .slide-layout.media-background > .media-grid.media-grid-many {
+      grid-template-rows: 1fr 1fr;
+    }
+    .slide-layout.media-background .media-figure {
+      border: none;
+      padding: 0;
+      margin: 0;
+      background: transparent;
+      width: 100%;
+      height: 100%;
+      min-width: 0;   /* critical: grid items default to min-content, which can be larger than the cell */
+      min-height: 0;
+      overflow: hidden;
+    }
+    .slide-layout.media-background .media-figure img {
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      object-fit: cover;
+      max-height: none;
+      display: block;
+    }
+    .slide-layout.media-background .media-figure figcaption {
+      display: none;
+    }
+    /* Darkening overlay sits between the images and the body text.
+       Inset matches the media-grid so the overlay covers exactly the image area. */
+    .slide-layout.media-background::after {
+      content: "";
+      position: absolute;
+      inset: 4mm;
+      background: rgba(0, 0, 0, calc(1 - var(--bg-opacity, 0.3)));
+      z-index: 1;
+      pointer-events: none;
+      border-radius: 4px;
+    }
+    .slide-layout.media-background > .body-copy {
+      position: relative;
+      z-index: 2;
     }
 
     .media-grid {

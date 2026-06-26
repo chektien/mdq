@@ -569,6 +569,8 @@ function QuestionView({
           html={question.text}
           attendeeNotes={question.attendeeNotes}
           slideMedia={question.slideMedia}
+          slideMediaPosition={question.slideMediaPosition}
+          slideMediaOpacity={question.slideMediaOpacity}
           slideLiveEmbed={question.slideLiveEmbed}
           slideReferences={question.slideReferences}
           positionLabel={positionLabel}

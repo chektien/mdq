@@ -1,5 +1,6 @@
 import type {
   FoldoutNote as FoldoutNoteModel,
+  MediaPosition,
   SlideMedia,
   SlideLiveEmbed,
   SlideReference,
@@ -15,6 +16,8 @@ interface SlideContentBodyProps {
   attendeeNotes?: FoldoutNoteModel[];
   presenterNotes?: FoldoutNoteModel[];
   slideMedia?: SlideMedia[];
+  slideMediaPosition?: MediaPosition;
+  slideMediaOpacity?: number;
   slideLiveEmbed?: SlideLiveEmbed;
   slideReferences?: SlideReference[];
   chromeLabel?: string | null;
@@ -44,6 +47,8 @@ export function SlideContentBody({
   attendeeNotes = [],
   presenterNotes = [],
   slideMedia = [],
+  slideMediaPosition,
+  slideMediaOpacity,
   slideLiveEmbed,
   slideReferences = [],
   chromeLabel = null,
@@ -57,6 +62,12 @@ export function SlideContentBody({
   const mediaCountClass = slideMedia.length > 3
     ? "slide-media-grid-count-many"
     : `slide-media-grid-count-${slideMedia.length}`;
+  const resolvedPosition: MediaPosition = slideMediaPosition ?? "right";
+  const positionClass = hasMedia ? `slide-content-grid-media-${resolvedPosition}` : null;
+  const bgStyle =
+    resolvedPosition === "background" && hasMedia
+      ? ({ ["--bg-opacity" as string]: slideMediaOpacity ?? 0.3 } as React.CSSProperties)
+      : undefined;
 
   if (slideLiveEmbed) {
     const showOverlay = slideLiveEmbed.titleOverlay !== false;
@@ -119,11 +130,15 @@ export function SlideContentBody({
         <h1 className="slide-title">{title}</h1>
       </header>
 
-      <div className={[
-        "slide-content-grid",
-        hasMedia ? "slide-content-grid-with-media" : "slide-content-grid-text-only",
-        !hasBody && hasMedia ? "slide-content-grid-media-only" : null,
-      ].filter(Boolean).join(" ")}>
+      <div
+        className={[
+          "slide-content-grid",
+          hasMedia ? "slide-content-grid-with-media" : "slide-content-grid-text-only",
+          !hasBody && hasMedia ? "slide-content-grid-media-only" : null,
+          positionClass,
+        ].filter(Boolean).join(" ")}
+        style={bgStyle}
+      >
         {hasBody && <QuizHtml className="quiz-html slide-body slide-content-text" html={html} />}
 
         {hasMedia && (
@@ -186,6 +201,8 @@ export default function SlideContent({
   attendeeNotes = [],
   presenterNotes = [],
   slideMedia = [],
+  slideMediaPosition,
+  slideMediaOpacity,
   slideLiveEmbed,
   slideReferences = [],
   positionLabel,
@@ -232,6 +249,8 @@ export default function SlideContent({
         attendeeNotes={attendeeNotes}
         presenterNotes={presenterNotes}
         slideMedia={slideMedia}
+        slideMediaPosition={slideMediaPosition}
+        slideMediaOpacity={slideMediaOpacity}
         slideLiveEmbed={slideLiveEmbed}
         slideReferences={slideReferences}
         chromeLabel={chromeLabel}

@@ -1006,6 +1006,20 @@ html[data-theme="light"] .slide-surface::after {
   align-items: center;
 }
 
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-right,
+    .slide-content-grid-media-left
+  ) {
+  gap: clamp(0.95rem, 1.65cqi, 1.65rem);
+}
+
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-top,
+    .slide-content-grid-media-bottom
+  ) {
+  gap: clamp(0.8rem, 1.45cqi, 1.45rem);
+}
+
 .slide-content-grid-media-only {
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
@@ -1064,6 +1078,241 @@ html[data-theme="light"] .slide-surface::after {
 .slide-media-grid-count-many {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.85fr);
+}
+
+/* ============================================================
+   Per-slide media position variants (live viewer)
+   Matches the print-mdq.ts CSS but uses the live viewer's class names.
+   ============================================================ */
+
+/* media-right (default) — already handled by .slide-content-grid-with-media above.
+   The .slide-content-grid-media-right class is included for explicit author markup. */
+
+/* media-left: swap columns so media is on the left, body on the right. */
+.slide-content-grid-with-media.slide-content-grid-media-left {
+  grid-template-columns: minmax(min(20rem, 100%), 0.88fr) minmax(0, 0.96fr);
+}
+.slide-content-grid-with-media.slide-content-grid-media-left > .slide-content-text {
+  grid-column: 2;
+  grid-row: 1;
+}
+.slide-content-grid-with-media.slide-content-grid-media-left > .slide-media-grid {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+}
+.slide-safe:has(.slide-join-panel) .slide-content-grid-with-media.slide-content-grid-media-left > .slide-media-grid {
+  width: 100%;
+  justify-self: start;
+}
+
+/* media-top: stack vertically, media on top. */
+.slide-content-grid-with-media.slide-content-grid-media-top {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: start;
+}
+.slide-content-grid-with-media.slide-content-grid-media-top > .slide-content-text {
+  grid-row: 2;
+  grid-column: 1;
+}
+.slide-content-grid-with-media.slide-content-grid-media-top > .slide-media-grid {
+  grid-row: 1;
+  grid-column: 1;
+  height: min(35dvh, 18rem);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* media-bottom: text top, media bottom. */
+.slide-content-grid-with-media.slide-content-grid-media-bottom {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: start;
+}
+.slide-content-grid-with-media.slide-content-grid-media-bottom > .slide-content-text {
+  grid-row: 1;
+  grid-column: 1;
+}
+.slide-content-grid-with-media.slide-content-grid-media-bottom > .slide-media-grid {
+  grid-row: 2;
+  grid-column: 1;
+  height: min(35dvh, 18rem);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* For top/bottom variants, multi-image grids should run side-by-side in a
+   single horizontal row (the strip is wide and short — stacking would
+   compress each image into a thin sliver). Right/left keep the existing
+   vertical stack since the column is narrow and tall. */
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-top,
+    .slide-content-grid-media-bottom
+  ) > .slide-media-grid.slide-media-grid-count-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: 1fr;
+}
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-top,
+    .slide-content-grid-media-bottom
+  ) > .slide-media-grid:is(
+    .slide-media-grid-count-3,
+    .slide-media-grid-count-many
+  ) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: 1fr;
+}
+/* Cancel the hero-spans-all-columns rule for top/bottom — every image gets
+   its own equal column in the horizontal strip. */
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-top,
+    .slide-content-grid-media-bottom
+  ) > .slide-media-grid:is(
+    .slide-media-grid-count-3,
+    .slide-media-grid-count-many
+  ) > .slide-media-figure:first-child {
+  grid-column: auto;
+  grid-row: auto;
+}
+
+/* media-background: image becomes the slide background; an overlay darkens it. */
+.slide-content-grid-with-media.slide-content-grid-media-background {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 1rem;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  isolation: isolate;
+  min-height: min(48dvh, 26rem);
+}
+.slide-content-grid-with-media.slide-content-grid-media-background > .slide-media-grid {
+  position: absolute;
+  inset: 1rem;
+  z-index: 0;
+  gap: 0;
+  width: calc(100% - 2rem);
+  height: calc(100% - 2rem);
+  border-radius: 0.4rem;
+  overflow: hidden;
+  justify-self: stretch;
+}
+/* Defeat the join-panel width trim for background mode — the bg image and
+   overlay must occupy the same area, the QR sits over the darkened overlay. */
+.slide-safe:has(.slide-join-panel) .slide-content-grid-with-media.slide-content-grid-media-background > .slide-media-grid {
+  width: calc(100% - 2rem);
+  justify-self: stretch;
+}
+.slide-content-grid-with-media.slide-content-grid-media-background > .slide-media-grid.slide-media-grid-count-1,
+.slide-content-grid-with-media.slide-content-grid-media-background > .slide-media-grid.slide-media-grid-count-2 {
+  grid-template-rows: 1fr;
+}
+.slide-content-grid-with-media.slide-content-grid-media-background > .slide-media-grid.slide-media-grid-count-3,
+.slide-content-grid-with-media.slide-content-grid-media-background > .slide-media-grid.slide-media-grid-count-many {
+  grid-template-rows: 1fr 1fr;
+}
+.slide-content-grid-with-media.slide-content-grid-media-background .slide-media-figure {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.slide-content-grid-with-media.slide-content-grid-media-background .slide-media-figure .slide-media-expand-button,
+.slide-content-grid-with-media.slide-content-grid-media-background .slide-media-figure .expandable-image-button {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  min-width: 0;
+  min-height: 0;
+}
+.slide-content-grid-with-media.slide-content-grid-media-background .slide-media-figure img,
+.slide-content-grid-with-media.slide-content-grid-media-background .slide-media-figure .slide-media-expand-button img {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  object-fit: cover;
+  max-height: none;
+  display: block;
+}
+.slide-content-grid-with-media.slide-content-grid-media-background .slide-media-figure figcaption {
+  display: none;
+}
+/* Darkening overlay: rgba(0,0,0,N) where N = 1 - opacity.
+   opacity 0 = fully dark; opacity 1 = no overlay. Default opacity 0.3. */
+.slide-content-grid-with-media.slide-content-grid-media-background::after {
+  content: "";
+  position: absolute;
+  inset: 1rem;
+  background: rgba(0, 0, 0, calc(1 - var(--bg-opacity, 0.3)));
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 0.4rem;
+}
+
+/* Chrome variants (right/left/top/bottom): fill the grid cell vertically
+   (height anchor from .slide-media-grid cap), break the height:100% layout
+   cycle by making the expand-button a proper flex item (flex:1 1 0) and
+   pinning figcaption (flex:0 0 auto). The img then fills its button cell
+   with object-fit: contain to letterbox cleanly — mirrors print's invariant
+   that img controls visual sizing, never crops.
+   Background variant uses its own cover-style cascade and is excluded. */
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-right,
+    .slide-content-grid-media-left,
+    .slide-content-grid-media-top,
+    .slide-content-grid-media-bottom
+  ) .slide-media-figure {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+}
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-right,
+    .slide-content-grid-media-left,
+    .slide-content-grid-media-top,
+    .slide-content-grid-media-bottom
+  ) .slide-media-figure > .slide-media-expand-button {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+}
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-right,
+    .slide-content-grid-media-left,
+    .slide-content-grid-media-top,
+    .slide-content-grid-media-bottom
+  ) .slide-media-figure > figcaption {
+  flex: 0 0 auto;
+}
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-right,
+    .slide-content-grid-media-left,
+    .slide-content-grid-media-top,
+    .slide-content-grid-media-bottom
+  ) .slide-media-figure :is(.slide-media-expand-button, .expandable-image-button) > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  margin: 0 auto;
+}
+.slide-content-grid-with-media.slide-content-grid-media-background > .slide-content-text {
+  position: relative;
+  z-index: 2;
+  padding: 1rem;
 }
 
 .slide-media-grid-count-3 .slide-media-figure:first-child,
@@ -2032,6 +2281,60 @@ html[data-theme="light"] .slide-surface::after {
   .slide-content-grid-with-media,
   .slide-content-grid-media-only {
     gap: 0.72rem;
+  }
+
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-right,
+      .slide-content-grid-media-left,
+      .slide-content-grid-media-top,
+      .slide-content-grid-media-bottom
+    ) > .slide-content-text,
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-right,
+      .slide-content-grid-media-left,
+      .slide-content-grid-media-top,
+      .slide-content-grid-media-bottom
+    ) > .slide-media-grid {
+    grid-column: 1;
+  }
+
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-left,
+      .slide-content-grid-media-top
+    ) > .slide-media-grid {
+    grid-row: 1;
+    justify-self: stretch;
+  }
+
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-left,
+      .slide-content-grid-media-top
+    ) > .slide-content-text {
+    grid-row: 2;
+  }
+
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-right,
+      .slide-content-grid-media-bottom
+    ) > .slide-content-text {
+    grid-row: 1;
+  }
+
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-right,
+      .slide-content-grid-media-bottom
+    ) > .slide-media-grid {
+    grid-row: 2;
+    justify-self: stretch;
+  }
+
+  .slide-safe:has(.slide-join-panel) .slide-content-grid-with-media:is(
+      .slide-content-grid-media-right,
+      .slide-content-grid-media-left,
+      .slide-content-grid-media-top,
+      .slide-content-grid-media-bottom
+    ) > .slide-media-grid {
+    justify-self: stretch;
   }
 
   .slide-media-grid {

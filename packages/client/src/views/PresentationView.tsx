@@ -237,6 +237,8 @@ export default function PresentationView({
             html={currentQuestion.text}
             attendeeNotes={currentQuestion.attendeeNotes}
             slideMedia={currentQuestion.slideMedia}
+            slideMediaPosition={currentQuestion.slideMediaPosition}
+            slideMediaOpacity={currentQuestion.slideMediaOpacity}
             slideLiveEmbed={currentQuestion.slideLiveEmbed}
             slideReferences={currentQuestion.slideReferences}
           />
@@ -468,6 +470,8 @@ export default function PresentationView({
                 html={currentQuestion.text}
                 attendeeNotes={currentQuestion.attendeeNotes}
                 slideMedia={currentQuestion.slideMedia}
+                slideMediaPosition={currentQuestion.slideMediaPosition}
+                slideMediaOpacity={currentQuestion.slideMediaOpacity}
                 slideLiveEmbed={currentQuestion.slideLiveEmbed}
                 slideReferences={currentQuestion.slideReferences}
                 positionLabel={positionLabel}
