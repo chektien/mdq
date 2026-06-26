@@ -1,86 +1,72 @@
 # mdq
 
 MCQs are passe. Enter MDQs. Human- and agent-friendly Markdown Quizzes.
-No clunky interfaces. No database. No proprietary nonsense.
-Just your own machine and a public secure tunnel (like Tailscale).
+No clunky interfaces. No proprietary nonsense. No database.
+Just your own machine and a public secure tunnel.
 
-## Philosophy
-
-MDQ is markdown quizzes first. Slides can support the flow with sparse text,
-structured images, fold-out notes, and quiet reference footers, but the core
-offering is still a presentation learning activity where interactive quizzes
-drive attention, pacing, discussion, feedback, and review.
-
-The target author is someone who likes markdown as their working surface:
-write the teaching material in plain text, keep it versionable and
-agent-editable, then run it live without exporting through a heavyweight slide
-tool. Slide-style content should stay sparse and supportive, while quiz moments
-remain the center of the session.
-
-## Disclaimer
-
-MDQ is provided as-is, and you use it at your own risk.
-
-MDQ is an independent project and is not affiliated with, endorsed by, or sponsored by Tailscale or is.gd.
-
-## Open Source Repo Layout
-
-- `packages/`: app code (safe to commit)
-- `samples/decks/`: tracked sample smoke deck markdown for onboarding
-- `samples/images/`: tracked sample image assets copied into local runtime storage
-- `data/`: local-only runtime and private instance data (gitignored)
-  - `data/decks/`: your editable deck source files
-  - `data/images/`: quiz and slide image attachments referenced from markdown
-  - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
-  - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
-- `docs/DEV-*.md`: local development planning docs (gitignored by naming convention)
-
-The `data/` folder is intentionally ignored so local state and access info do not get committed.
+MDQ turns a markdown file into a live class session: sparse slides, quiz
+questions, polls, open responses, fold-out notes, live embedded demos, answer
+reveals, leaderboards, and printable PDF packets all come from the same deck.
 
 ## Demo
 
-![MDQ demo 1](docs/demo/mdq-demo-01.png)
-![MDQ demo 2](docs/demo/mdq-demo-02.png)
-![MDQ demo 3](docs/demo/mdq-demo-03.png)
-![MDQ demo 4](docs/demo/mdq-demo-04.png)
-![MDQ demo 5](docs/demo/mdq-demo-05.png)
-![MDQ demo 6](docs/demo/mdq-demo-06.png)
+https://github.com/user-attachments/assets/6ce84fce-3841-4ec1-979c-29df1631967e
 
-## Why This Works
+The walkthrough shows the current flow: open MDQ, choose an instructor session,
+pick a markdown deck, show the join QR, move through slides and questions, answer
+from a phone-sized student view, reveal feedback, use fold-out notes and image
+placement, and export a printable PDF.
 
-MDQ is optimized for a narrow classroom usage scenario:
-- markdown-first teaching material that can mix short explanation slides, proportionally scaled images, small references, and live quiz prompts
-- quiz-centered presentation sessions where interaction is the main pedagogical event
-- a stable instructor live surface with fixed Prev/Next controls, fullscreen support, review mode, and guarded session ending
-- This project is intentionally built with tight operational integration around Tailscale (secure tunnel/Funnel) and is.gd (short links in instructor flow).
-- The core MDQ logic does not depend on those specific vendors, so you can adapt the same flow to other tunnel providers and URL shorteners if your environment prefers different services.
-- short, synchronous quiz sessions
-- one instructor-led live room
-- simple leaderboard and answer distribution
+## What MDQ Does
+
+- **Markdown-first authoring**: write decks as plain text, keep them in git, and
+  let humans or agents revise them without an export/import round trip.
+- **Slides and quizzes in one deck**: mix explanation slides, MCQs, multi-select
+  questions, polls, open responses, and leaderboard moments in sequence.
+- **Live instructor/projector surface**: run a session with pinned controls,
+  fullscreen support, review mode, guarded session ending, QR/join links, and a
+  read-only projector route.
+- **Student join and answer flow**: students join from any device and answer
+  without needing accounts.
+- **Slide-friendly markdown**: sparse slide bodies can include bullets, images,
+  references, and fold-out attendee or presenter notes.
+- **Live embedded slides**: a slide can embed a live web demo while keeping normal
+  markdown text and a static PDF fallback.
+- **Image positioning**: slide images preserve aspect ratio and can be placed
+  left, right, top, bottom, or background-style with markdown hints.
+- **Printable PDFs**: export handouts, answer keys, and presenter-note packets
+  from the same markdown deck.
+
+## Why This Exists
+
+MDQ is optimized for short instructor-led sessions where interaction matters more
+than slide decoration. The authoring surface is markdown; the live surface is a
+classroom tool. That makes it small enough to run locally, easy to version, and
+easy to adapt during teaching.
+
+Use MDQ when you want:
+
 - markdown files as the source of truth
-- zero-friction deck updates: edit markdown in `data/decks/`, click `Reload Decks`, and run the next session
-- agent-friendly quiz iteration without export/import overhead
+- quiz-centered pacing and discussion
+- a lightweight local deployment instead of a multi-tenant quiz platform
+- fast deck edits before or during a teaching session
+- generated session artifacts that stay on the machine running the class
 
-Because sessions are short and operationally simple, you do not need a large multi-tenant cloud quiz stack with heavy admin workflows and feature bloat.
+## Repo Layout
 
-## Files
+- `packages/`: client, server, and shared TypeScript code.
+- `samples/decks/`: public sample decks for onboarding and smoke tests.
+- `samples/images/`: public sample assets copied into local runtime storage.
+- `docs/`: public documentation and demo media.
+- `data/`: local runtime/private instance data. Keep real decks, generated
+  sessions, submissions, winners, access URLs, and private images here.
 
-- `packages/`: app code (safe to commit)
-- `samples/decks/`: tracked sample deck markdown for onboarding
-- `data/`: local-only runtime and private instance data (gitignored)
-  - `data/decks/`: your editable deck source files (you need to copy sample decks here on first setup)
-  - `data/sessions/`, `data/submissions/`, `data/winners/`, `data/access/`: generated runtime data
-  - `data/access/current.json` may contain your active Tailscale or LAN access URL and should stay local
-
-The `data/` folder is intentionally ignored so local state and access info do not get committed. Again, you need to copy sample decks from `samples/decks/` to `data/decks/` on first setup, but after that you can edit deck markdown directly in `data/decks/` and it becomes your source of truth for quiz content.
-
-Server runtime note:
-
-- MDQ writes runtime artifacts to the repository root `data/` directory by default.
-- If you previously ran older builds, you may still have a local `packages/server/data/` folder from earlier path resolution.
-- `packages/server/data/` is local runtime output, not source. It is safe to delete locally when the server is stopped.
+The repository intentionally keeps `data/` local-first. Only public sample data
+should be committed.
 
 ## First-Time Setup
+
+Install dependencies and create local runtime folders:
 
 ```bash
 cd /path/to/mdq
@@ -88,9 +74,30 @@ npm install
 npm run setup:local
 ```
 
-This creates local `data/` directories, including `data/images/`, then copies the sample smoke deck into `data/decks/week00.md` and the sample SVG attachment into `data/images/`. Deck filenames do not need to start with `week`; MDQ uses the markdown filename stem as the deck ID.
+This creates `data/` directories, copies public sample decks into
+`data/decks/`, and copies sample images into `data/images/`. Deck filenames do
+not need to start with `week`; MDQ uses the markdown filename stem as the deck
+ID.
 
-Optional local runtime settings live in `data/config.json` (copy from `data/config.example.json`). The tracked example now includes `theme`, which defaults to `dark` and also accepts `light`. The default live surface uses a deep presentation-friendly background with restrained accents and rounded controls.
+Optional local runtime settings live in `data/config.json` (copy from
+`data/config.example.json`). The tracked example includes `theme`, which accepts
+`dark` or `light`.
+
+Build and run the app:
+
+```bash
+npm run build
+npm run start --workspace=@mdq/server
+```
+
+Open the instructor route locally:
+
+```text
+http://localhost:3000/#/instructor
+```
+
+For class use, set `INSTRUCTOR_PASSWORD` and expose only the student join URL or
+QR code shown by MDQ.
 
 ## Tailscale Funnel Setup
 
