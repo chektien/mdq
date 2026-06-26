@@ -1006,6 +1006,20 @@ html[data-theme="light"] .slide-surface::after {
   align-items: center;
 }
 
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-right,
+    .slide-content-grid-media-left
+  ) {
+  gap: clamp(0.95rem, 1.65cqi, 1.65rem);
+}
+
+.slide-content-grid-with-media:is(
+    .slide-content-grid-media-top,
+    .slide-content-grid-media-bottom
+  ) {
+  gap: clamp(0.8rem, 1.45cqi, 1.45rem);
+}
+
 .slide-content-grid-media-only {
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
@@ -1085,6 +1099,11 @@ html[data-theme="light"] .slide-surface::after {
 .slide-content-grid-with-media.slide-content-grid-media-left > .slide-media-grid {
   grid-column: 1;
   grid-row: 1;
+  justify-self: start;
+}
+.slide-safe:has(.slide-join-panel) .slide-content-grid-with-media.slide-content-grid-media-left > .slide-media-grid {
+  width: 100%;
+  justify-self: start;
 }
 
 /* media-top: stack vertically, media on top. */
@@ -2262,6 +2281,60 @@ html[data-theme="light"] .slide-surface::after {
   .slide-content-grid-with-media,
   .slide-content-grid-media-only {
     gap: 0.72rem;
+  }
+
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-right,
+      .slide-content-grid-media-left,
+      .slide-content-grid-media-top,
+      .slide-content-grid-media-bottom
+    ) > .slide-content-text,
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-right,
+      .slide-content-grid-media-left,
+      .slide-content-grid-media-top,
+      .slide-content-grid-media-bottom
+    ) > .slide-media-grid {
+    grid-column: 1;
+  }
+
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-left,
+      .slide-content-grid-media-top
+    ) > .slide-media-grid {
+    grid-row: 1;
+    justify-self: stretch;
+  }
+
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-left,
+      .slide-content-grid-media-top
+    ) > .slide-content-text {
+    grid-row: 2;
+  }
+
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-right,
+      .slide-content-grid-media-bottom
+    ) > .slide-content-text {
+    grid-row: 1;
+  }
+
+  .slide-content-grid-with-media:is(
+      .slide-content-grid-media-right,
+      .slide-content-grid-media-bottom
+    ) > .slide-media-grid {
+    grid-row: 2;
+    justify-self: stretch;
+  }
+
+  .slide-safe:has(.slide-join-panel) .slide-content-grid-with-media:is(
+      .slide-content-grid-media-right,
+      .slide-content-grid-media-left,
+      .slide-content-grid-media-top,
+      .slide-content-grid-media-bottom
+    ) > .slide-media-grid {
+    justify-self: stretch;
   }
 
   .slide-media-grid {

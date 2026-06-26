@@ -1,4 +1,4 @@
-# Week 00 Quiz: Localhost Smoke Test (5 Questions + 1 Slide)
+# Week 00 Quiz: Localhost Smoke Test (5 Questions + 6 Slides)
 
 ---
 
@@ -97,5 +97,60 @@ D. Campus Wi-Fi router
 
 > Correct Answer: B. Instructor laptop
 > Overall Feedback: The diagram shows the instructor laptop hosting mdq, while the phone joins as a student client and the projector mirrors the instructor screen.
+
+---
+
+## Visual Smoke: Image Left
+
+type: slide
+
+![Smoke diagram left](../images/week00-smoke-diagram.svg -left)
+
+- The diagram should sit on the left.
+- This slide checks the `-left` media suffix.
+
+---
+
+## Visual Smoke: Image Right
+
+type: slide
+
+![Smoke diagram right](../images/week00-smoke-diagram.svg -right)
+
+- The diagram should sit on the right.
+- This slide checks the `-right` media suffix.
+
+---
+
+## Visual Smoke: Image Top
+
+type: slide
+
+![Smoke diagram top](../images/week00-smoke-diagram.svg -top)
+
+- The diagram should sit above the text.
+- This slide checks the `-top` media suffix.
+
+---
+
+## Visual Smoke: Image Bottom
+
+type: slide
+
+![Smoke diagram bottom](../images/week00-smoke-diagram.svg -bottom)
+
+- The diagram should sit below the text.
+- This slide checks the `-bottom` media suffix.
+
+---
+
+## Visual Smoke: Image Background
+
+type: slide
+
+![Smoke diagram background](../images/week00-smoke-diagram.svg -background:0.22)
+
+- The diagram should appear as a muted background.
+- This slide checks the `-background` media suffix with explicit opacity.
 
 ---

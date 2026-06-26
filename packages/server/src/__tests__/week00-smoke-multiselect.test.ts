@@ -1,5 +1,6 @@
 import { createServer, Server as HttpServer } from "http";
 import { AddressInfo } from "net";
+import * as fs from "fs";
 import * as path from "path";
 import request from "supertest";
 import { io as ioClient, Socket as ClientSocket } from "socket.io-client";
@@ -16,6 +17,7 @@ import {
   ResultsRevealPayload,
   LeaderboardUpdatePayload,
 } from "@mdq/shared";
+import { parseQuizMarkdown } from "../parser";
 
 function waitFor<T>(socket: ClientSocket, event: string, timeout = 5000): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -95,6 +97,33 @@ describe("week00 smoke multi-select", () => {
 
   afterEach(() => {
     clearAllSessions();
+  });
+
+  it("includes visual smoke slides for each image position suffix", () => {
+    const markdown = fs.readFileSync(path.join(quizDir, "week00.md"), "utf-8");
+    const result = parseQuizMarkdown(markdown, "week00.md");
+    expect(result.errors).toHaveLength(0);
+
+    const visualSlides = result.quiz!.questions.slice(6);
+    expect(visualSlides.map((question) => question.topic)).toEqual(Array(5).fill("Visual Smoke"));
+    expect(visualSlides.map((question) => question.subtopic)).toEqual([
+      "Image Left",
+      "Image Right",
+      "Image Top",
+      "Image Bottom",
+      "Image Background",
+    ]);
+    expect(visualSlides.map((question) => question.slideMediaPosition)).toEqual([
+      "left",
+      "right",
+      "top",
+      "bottom",
+      "background",
+    ]);
+    expect(visualSlides.map((question) => question.slideMedia?.[0]?.src)).toEqual(
+      Array(5).fill("/data/images/week00-smoke-diagram.svg"),
+    );
+    expect(visualSlides[4].slideMediaOpacity).toBe(0.22);
   });
 
   it("covers the smoke-test multi-select and poll questions without scoring the poll", async () => {
