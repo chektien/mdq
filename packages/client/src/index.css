@@ -998,7 +998,11 @@ html[data-theme="light"] .slide-surface::after {
 }
 
 .slide-content-grid-text-only {
-  max-width: min(62cqi, 70rem);
+  max-width: min(82cqi, 92rem);
+}
+
+.slide-content-grid-text-only .slide-body {
+  max-width: 100%;
 }
 
 .slide-content-grid-with-media {
@@ -2528,6 +2532,15 @@ html[data-theme="light"] .slide-surface::after {
 .quiz-html p { margin: 0.5em 0; }
 .slide-body.quiz-html p {
   margin: 0 0 1.3cqi;
+}
+
+.slide-body.quiz-html ul + p,
+.slide-body.quiz-html ol + p,
+.slide-body.quiz-html ul + h3,
+.slide-body.quiz-html ol + h3,
+.slide-body.quiz-html ul + h4,
+.slide-body.quiz-html ol + h4 {
+  margin-top: clamp(0.8rem, 1.45cqi, 1.55rem);
 }
 
 .slide-body.quiz-html li > p,
