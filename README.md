@@ -12,8 +12,6 @@ reveals, leaderboards, and printable PDF packets all come from the same deck.
 
 https://github.com/user-attachments/assets/6ce84fce-3841-4ec1-979c-29df1631967e
 
-[Download the 45-second screen-capture demo](docs/demo/mdq-readme-screen-demo.mp4)
-
 The walkthrough shows the current flow: open MDQ, choose an instructor session,
 pick a markdown deck, show the join QR, move through slides and questions, answer
 from a phone-sized student view, reveal feedback, use fold-out notes and image
