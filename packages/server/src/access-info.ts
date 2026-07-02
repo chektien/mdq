@@ -12,11 +12,20 @@ interface TailscaleStatus {
   };
 }
 
+function isTailscaleDetectionDisabled(): boolean {
+  const value = (process.env.MDQ_DISABLE_TAILSCALE || "").trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(value);
+}
+
 /**
  * Detect the Tailscale Funnel URL by calling `tailscale status --json`.
  * Returns the DNS name (e.g., "my-laptop.tailnet.ts.net") or null if unavailable.
  */
 export function detectTailscaleUrl(): string | null {
+  if (isTailscaleDetectionDisabled()) {
+    return null;
+  }
+
   const configuredUrl = (process.env.MDQ_PUBLIC_URL || process.env.PUBLIC_URL || "").trim();
   if (configuredUrl) {
     return configuredUrl.replace(/\/+$/, "");
@@ -187,7 +196,9 @@ export async function detectAccessInfo(
     const lanIp = getLanIp();
     fullUrl = `http://${lanIp}:${port}`;
     source = "lan-fallback";
-    warning = "Tailscale unavailable. Students on isolated campus WiFi may not be able to connect.";
+    warning = isTailscaleDetectionDisabled()
+      ? "Local/mock mode: Tailscale detection is disabled for this run."
+      : "Tailscale unavailable. Students on isolated campus WiFi may not be able to connect.";
   }
 
   // Generate short URL

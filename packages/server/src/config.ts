@@ -6,6 +6,8 @@ const DEFAULT_PORT_FALLBACKS = 10;
 
 interface RuntimeConfigFile {
   port?: unknown;
+  host?: unknown;
+  bindHost?: unknown;
   portFallbacks?: unknown;
   deckDir?: unknown;
   quizDir?: unknown;
@@ -18,6 +20,7 @@ export type RuntimeTheme = "dark" | "light";
 
 export interface RuntimeConfig {
   port: number;
+  bindHost: string;
   portFallbacks: number;
   quizDir: string;
   instanceId: string;
@@ -138,6 +141,12 @@ export function loadRuntimeConfig(options: RuntimeConfigLoadOptions = {}): Runti
 
   return {
     port: parsePositiveInt(env.PORT) ?? parsePositiveInt(fileConfig.port) ?? DEFAULT_PORT,
+    bindHost:
+      parseString(env.MDQ_BIND_HOST)
+      ?? parseString(env.HOST)
+      ?? parseString(fileConfig.bindHost)
+      ?? parseString(fileConfig.host)
+      ?? "",
     portFallbacks:
       parseNonNegativeInt(env.PORT_FALLBACKS)
       ?? parseNonNegativeInt(fileConfig.portFallbacks)
