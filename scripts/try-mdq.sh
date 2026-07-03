@@ -269,6 +269,8 @@ else
   echo
   echo "After you create a session in the instructor screen, mock local students with:"
   echo "  npx tsx scripts/mock-students.ts 20 http://localhost:$PORT_VALUE"
+  echo "or, after copying the session code:"
+  echo "  npx tsx scripts/mock-students.ts <SESSION_CODE> 20 http://localhost:$PORT_VALUE"
 fi
 
 section "Start Server"

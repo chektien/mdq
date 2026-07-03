@@ -41,6 +41,12 @@ interface FunnelReadinessResult {
   details: string[];
 }
 
+interface PublicHealthCheckResult {
+  ok: boolean;
+  instanceId: string;
+  error: string;
+}
+
 function inspectFunnelReadiness(publicUrl: string, boundPort: number): FunnelReadinessResult {
   try {
     const raw = execSync("tailscale funnel status --json", {
@@ -118,6 +124,39 @@ function logReadinessResult(params: {
   }
   for (const nextStep of params.nextSteps || []) {
     console.log(`  Next: ${nextStep}`);
+  }
+}
+
+async function checkPublicHealth(publicUrl: string): Promise<PublicHealthCheckResult> {
+  const healthUrl = `${publicUrl}/api/health`;
+  try {
+    const response = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
+    const payloadUnknown = await response.json().catch(() => ({}));
+    const payload =
+      payloadUnknown && typeof payloadUnknown === "object"
+        ? (payloadUnknown as { instanceId?: unknown })
+        : {};
+    const publicInstanceId = typeof payload.instanceId === "string" ? payload.instanceId : "";
+
+    if (!response.ok || !publicInstanceId) {
+      return {
+        ok: false,
+        instanceId: publicInstanceId,
+        error: `unexpected health response from ${healthUrl}`,
+      };
+    }
+
+    return {
+      ok: true,
+      instanceId: publicInstanceId,
+      error: "",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      instanceId: "",
+      error: error instanceof Error ? error.message : "unknown",
+    };
   }
 }
 
@@ -283,52 +322,34 @@ async function onListening(): Promise<void> {
 
     if (info.source === "tailscale") {
       const healthUrl = `${info.fullUrl}/api/health`;
-      try {
-        const response = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
-        const payloadUnknown = await response.json().catch(() => ({}));
-        const payload =
-          payloadUnknown && typeof payloadUnknown === "object"
-            ? (payloadUnknown as { instanceId?: unknown })
-            : {};
-        const publicInstanceId =
-          typeof payload.instanceId === "string" ? payload.instanceId : "";
+      const health = await checkPublicHealth(info.fullUrl);
 
-        if (!response.ok || !publicInstanceId) {
-          logReadinessResult({
-            title: "Tailscale URL did not pass the health check",
-            status: "The public URL responded unexpectedly, so students may not reach this MDQ instance.",
-            url: info.fullUrl,
-            details: [`Health check URL: ${healthUrl}`],
-            nextSteps: ["Run: tailscale funnel status"],
-          });
-        } else if (publicInstanceId !== instanceId) {
-          logReadinessResult({
-            title: "Tailscale URL points to another MDQ server",
-            status: "The public URL is not connected to this server process.",
-            url: info.fullUrl,
-            details: [
-              `Public instance: ${publicInstanceId}`,
-              `This instance: ${instanceId}`,
-            ],
-            nextSteps: ["Stop the old process on the published port, then restart MDQ."],
-          });
-        } else {
-          tailscaleHealthVerified = true;
-          logReadinessResult({
-            title: "Tailscale Funnel is ready",
-            status: "The public URL reaches this MDQ server.",
-            url: info.fullUrl,
-            details: [`Local server port: ${boundPort}`],
-          });
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "unknown";
+      if (!health.ok) {
         logReadinessResult({
           title: "Tailscale URL could not be checked",
           status: "The server is running, but MDQ could not confirm the public classroom URL.",
           url: info.fullUrl,
-          details: [`Health check failed: ${message}`],
+          details: [`Health check URL: ${healthUrl}`, `Health check failed: ${health.error}`],
           nextSteps: ["Check your network, then run: tailscale funnel status"],
+        });
+      } else if (health.instanceId !== instanceId) {
+        logReadinessResult({
+          title: "Tailscale URL points to another MDQ server",
+          status: "The public URL is not connected to this server process.",
+          url: info.fullUrl,
+          details: [
+            `Public instance: ${health.instanceId}`,
+            `This instance: ${instanceId}`,
+          ],
+          nextSteps: ["Stop the old process on the published port, then restart MDQ."],
+        });
+      } else {
+        tailscaleHealthVerified = true;
+        logReadinessResult({
+          title: "Tailscale Funnel is ready",
+          status: "The public URL reaches this MDQ server.",
+          url: info.fullUrl,
+          details: [`Local server port: ${boundPort}`],
         });
       }
     }
@@ -338,17 +359,8 @@ async function onListening(): Promise<void> {
       if (tailscaleHealthVerified) {
         console.log(`Verified public host routes to this instance (${instanceId}) after fallback.`);
       } else {
-        try {
-        const response = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
-        const payloadUnknown = await response.json().catch(() => ({}));
-        const payload =
-          payloadUnknown && typeof payloadUnknown === "object"
-            ? (payloadUnknown as { instanceId?: unknown })
-            : {};
-        const publicInstanceId =
-          typeof payload.instanceId === "string" ? payload.instanceId : "";
-
-        if (!response.ok || !publicInstanceId) {
+        const health = await checkPublicHealth(info.fullUrl);
+        if (!health.ok) {
           logReadinessResult({
             title: "stopped to avoid opening the wrong classroom link",
             status: "MDQ had to move to a fallback port, but the public URL did not prove that it reaches this server.",
@@ -357,6 +369,7 @@ async function onListening(): Promise<void> {
               `Requested port: ${requestedPort}`,
               `Actual server port: ${boundPort}`,
               `Health check URL: ${healthUrl}`,
+              `Health check failed: ${health.error}`,
             ],
             nextSteps: [
               `Stop the process using port ${requestedPort}, then run npm run try again.`,
@@ -369,7 +382,7 @@ async function onListening(): Promise<void> {
           return;
         }
 
-        if (publicInstanceId !== instanceId) {
+        if (health.instanceId !== instanceId) {
           logReadinessResult({
             title: "stopped because the public URL points to another MDQ server",
             status: "The fallback server started, but the classroom URL is connected to a different running MDQ instance.",
@@ -377,7 +390,7 @@ async function onListening(): Promise<void> {
             details: [
               `Requested port: ${requestedPort}`,
               `Actual server port: ${boundPort}`,
-              `Public instance: ${publicInstanceId}`,
+              `Public instance: ${health.instanceId}`,
               `This instance: ${instanceId}`,
             ],
             nextSteps: [
@@ -392,27 +405,6 @@ async function onListening(): Promise<void> {
         }
 
         console.log(`Verified public host routes to this instance (${instanceId}) after fallback.`);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "unknown";
-          logReadinessResult({
-            title: "stopped because the public URL could not be checked",
-            status: "MDQ had to move to a fallback port, and it could not confirm that the public URL reaches this server.",
-            url: info.fullUrl,
-            details: [
-              `Requested port: ${requestedPort}`,
-              `Actual server port: ${boundPort}`,
-              `Health check failed: ${message}`,
-            ],
-            nextSteps: [
-              `Stop the process using port ${requestedPort}, then run npm run try again.`,
-              "For local testing only, run: npm run try -- --local-only",
-            ],
-          });
-        httpServer.close(() => {
-          process.exit(1);
-        });
-        return;
-        }
       }
     }
   } catch (e) {
