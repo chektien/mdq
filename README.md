@@ -64,7 +64,46 @@ Use MDQ when you want:
 The repository intentionally keeps `data/` local-first. Only public sample data
 should be committed.
 
-## First-Time Setup
+## Try MDQ Now
+
+From a fresh checkout, run:
+
+```bash
+npm run try
+```
+
+This one command installs dependencies, creates local runtime folders, copies the
+public sample deck, builds the app, checks the available network mode, and starts
+the MDQ server. The launcher defaults to port `2081`; override it with `PORT`:
+
+```bash
+PORT=3000 npm run try
+```
+
+The launcher prints the requested instructor URL before the server starts, and
+the server prints the actual bound URL if it has to use a fallback port. If
+Tailscale is unavailable, it clearly marks the run as local/mock testing only:
+good for checking how the quiz looks, projector flow, and mock students, but not
+a real public classroom link. After creating a session, you can simulate students
+locally with the mock-student command printed by the launcher.
+
+If Tailscale is available, the launcher binds MDQ to localhost so it can sit
+behind a proxy without competing with Tailscale's own listener. It checks whether
+Funnel already proxies to the MDQ port, but it will not rewrite the shared
+Tailscale hostname automatically because that hostname may already serve other
+tools. To see the guarded publish path, run:
+
+```bash
+npm run try -- --publish
+```
+
+For a strictly local run that never offers to change Tailscale Funnel state:
+
+```bash
+npm run try -- --local-only
+```
+
+## Manual First-Time Setup
 
 Install dependencies and create local runtime folders:
 
@@ -93,7 +132,7 @@ npm run start --workspace=@mdq/server
 Open the instructor route locally:
 
 ```text
-http://localhost:3000/#/instructor
+http://localhost:2081/#/instructor
 ```
 
 For class use, set `INSTRUCTOR_PASSWORD` and expose only the student join URL or

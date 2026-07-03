@@ -23,6 +23,7 @@ beforeEach(() => {
   mockExecSync.mockReset();
   setCachedAccessInfo(null);
   delete process.env.MDQ_PUBLIC_URL;
+  delete process.env.MDQ_DISABLE_TAILSCALE;
 });
 
 describe("detectTailscaleUrl", () => {
@@ -60,6 +61,16 @@ describe("detectTailscaleUrl", () => {
       throw new Error("command not found: tailscale");
     });
     expect(detectTailscaleUrl()).toBeNull();
+  });
+
+  it("returns null when tailscale detection is disabled", () => {
+    process.env.MDQ_DISABLE_TAILSCALE = "1";
+    mockExecSync.mockReturnValue(
+      JSON.stringify({ Self: { DNSName: "quiz-host.tailnet.ts.net." } }),
+    );
+
+    expect(detectTailscaleUrl()).toBeNull();
+    expect(mockExecSync).not.toHaveBeenCalled();
   });
 
   it("returns null when tailscale times out", () => {
@@ -272,6 +283,18 @@ describe("detectAccessInfo", () => {
     expect(info.qrTargetUrl).toBe(info.fullUrl);
     expect(info.warning).toBeDefined();
     expect(info.warning).toContain("Tailscale unavailable");
+  });
+
+  it("falls back to LAN when tailscale detection is disabled", async () => {
+    process.env.MDQ_DISABLE_TAILSCALE = "true";
+    mockExecSync.mockReturnValue(
+      JSON.stringify({ Self: { DNSName: "quiz-host.tailnet.ts.net." } }),
+    );
+
+    const info = await detectAccessInfo(2081, []);
+    expect(info.source).toBe("lan-fallback");
+    expect(info.fullUrl).toMatch(/^http:\/\/\d+\.\d+\.\d+\.\d+:2081$/);
+    expect(info.warning).toContain("Local/mock mode");
   });
 
   it("caches access info after detection", async () => {

@@ -21,11 +21,15 @@ import { isInstructorAuthEnabled } from "./instructor-auth";
 
 const runtimeConfig = loadRuntimeConfig();
 const requestedPort = runtimeConfig.port || DEFAULT_PORT;
+const bindHost = runtimeConfig.bindHost || undefined;
 const maxPortFallbacks = runtimeConfig.portFallbacks;
 const instanceId = runtimeConfig.instanceId || randomUUID();
 const dataDir = path.resolve(__dirname, "../../../data");
 const quizDir = runtimeConfig.quizDir || path.resolve(__dirname, "../../../data/decks");
 const clientDist = path.join(__dirname, "../../client/dist");
+const tailscaleDisabled = ["1", "true", "yes", "on"].includes(
+  (process.env.MDQ_DISABLE_TAILSCALE || "").trim().toLowerCase(),
+);
 
 // We need io available for the state change callback, so we use a container
 // that's populated after setupSocket. The callback won't fire before the server starts.
@@ -35,6 +39,12 @@ interface FunnelReadinessResult {
   ready: boolean;
   reason: string;
   details: string[];
+}
+
+interface PublicHealthCheckResult {
+  ok: boolean;
+  instanceId: string;
+  error: string;
 }
 
 function inspectFunnelReadiness(publicUrl: string, boundPort: number): FunnelReadinessResult {
@@ -94,6 +104,58 @@ function inspectFunnelReadiness(publicUrl: string, boundPort: number): FunnelRea
         `unable to read tailscale funnel status: ${message}`,
         "run: tailscale funnel status",
       ],
+    };
+  }
+}
+
+function logReadinessResult(params: {
+  title: string;
+  status: string;
+  url: string;
+  details?: string[];
+  nextSteps?: string[];
+}): void {
+  console.log("");
+  console.log(`mdq readiness result: ${params.title}`);
+  console.log(`  Status: ${params.status}`);
+  console.log(`  URL: ${params.url}`);
+  for (const detail of params.details || []) {
+    console.log(`  Detail: ${detail}`);
+  }
+  for (const nextStep of params.nextSteps || []) {
+    console.log(`  Next: ${nextStep}`);
+  }
+}
+
+async function checkPublicHealth(publicUrl: string): Promise<PublicHealthCheckResult> {
+  const healthUrl = `${publicUrl}/api/health`;
+  try {
+    const response = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
+    const payloadUnknown = await response.json().catch(() => ({}));
+    const payload =
+      payloadUnknown && typeof payloadUnknown === "object"
+        ? (payloadUnknown as { instanceId?: unknown })
+        : {};
+    const publicInstanceId = typeof payload.instanceId === "string" ? payload.instanceId : "";
+
+    if (!response.ok || !publicInstanceId) {
+      return {
+        ok: false,
+        instanceId: publicInstanceId,
+        error: `unexpected health response from ${healthUrl}`,
+      };
+    }
+
+    return {
+      ok: true,
+      instanceId: publicInstanceId,
+      error: "",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      instanceId: "",
+      error: error instanceof Error ? error.message : "unknown",
     };
   }
 }
@@ -188,6 +250,9 @@ async function onListening(): Promise<void> {
   const usedFallbackPort = boundPort !== requestedPort;
 
   console.log(`mdq server listening on port ${boundPort} (instance ${instanceId})`);
+  if (bindHost) {
+    console.log(`Bind host: ${bindHost}`);
+  }
   console.log(
     `Runtime config: ${runtimeConfig.loadedFromFile ? runtimeConfig.configPath : "defaults only (data/config.json not found)"}`,
   );
@@ -202,6 +267,7 @@ async function onListening(): Promise<void> {
   // Detect access info (Tailscale/LAN) on startup
   try {
     const info = await detectAccessInfo(boundPort);
+    let tailscaleHealthVerified = false;
     console.log(`Access URL: ${info.fullUrl} (source: ${info.source})`);
     if (info.shortUrl) {
       console.log(`Short URL: ${info.shortUrl}`);
@@ -211,91 +277,127 @@ async function onListening(): Promise<void> {
     }
 
     if (info.source === "public-override") {
-      console.log(
-        `[mdq readiness] public_url_override=true bound_port=${boundPort} public_url=${info.fullUrl}`,
-      );
+      logReadinessResult({
+        title: "using the configured public URL",
+        status: "MDQ will use the URL you configured.",
+        url: info.fullUrl,
+        details: [`Local server port: ${boundPort}`],
+      });
     } else if (info.source === "tailscale") {
       const readiness = inspectFunnelReadiness(info.fullUrl, boundPort);
-      console.log(
-        `[mdq readiness] funnel_ready=${readiness.ready} reason=${readiness.reason} bound_port=${boundPort} public_url=${info.fullUrl}`,
-      );
       if (!readiness.ready) {
-        for (const detail of readiness.details) {
-          console.warn(`[mdq readiness] ${detail}`);
-        }
+        logReadinessResult({
+          title: "Tailscale is available, but Funnel needs attention",
+          status: "The server is running, but the public classroom URL may not reach this MDQ instance yet.",
+          url: info.fullUrl,
+          details: [`Local server port: ${boundPort}`, `Check result: ${readiness.reason}`],
+          nextSteps: readiness.details,
+        });
       }
     } else {
-      console.log(
-        `[mdq readiness] funnel_ready=false reason=tailscale-unavailable bound_port=${boundPort} public_url=${info.fullUrl}`,
-      );
-      console.warn("[mdq readiness] public classroom access may fail without Tailscale Funnel");
-      console.warn(`[mdq readiness] run: tailscale funnel ${boundPort}`);
+      if (tailscaleDisabled) {
+        logReadinessResult({
+          title: "local test mode",
+          status: "MDQ is running locally. Tailscale checks are off for this run.",
+          url: info.fullUrl,
+          details: [
+            `Local server port: ${boundPort}`,
+            "Good for checking the UI, projector flow, and mock students on this machine.",
+          ],
+          nextSteps: ["Use npm run try -- --publish when you want to test a public classroom link."],
+        });
+      } else {
+        logReadinessResult({
+          title: "Tailscale Funnel is not available",
+          status: "MDQ is running on your local network, but this is probably not a reliable public classroom link.",
+          url: info.fullUrl,
+          details: [`Local server port: ${boundPort}`],
+          nextSteps: [
+            "Sign in to Tailscale or check that Tailscale is running.",
+            `To publish this port later, run: tailscale funnel ${boundPort}`,
+          ],
+        });
+      }
     }
 
     if (info.source === "tailscale") {
       const healthUrl = `${info.fullUrl}/api/health`;
-      try {
-        const response = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
-        const payloadUnknown = await response.json().catch(() => ({}));
-        const payload =
-          payloadUnknown && typeof payloadUnknown === "object"
-            ? (payloadUnknown as { instanceId?: unknown })
-            : {};
-        const publicInstanceId =
-          typeof payload.instanceId === "string" ? payload.instanceId : "";
+      const health = await checkPublicHealth(info.fullUrl);
 
-        if (!response.ok || !publicInstanceId) {
-          console.warn(
-            `[mdq readiness] funnel_ready=false reason=health-mismatch bound_port=${boundPort} public_url=${info.fullUrl}`,
-          );
-          console.warn(`[mdq readiness] failed health probe at ${healthUrl}`);
-          console.warn("[mdq readiness] run: tailscale funnel status");
-        } else if (publicInstanceId !== instanceId) {
-          console.warn(
-            `[mdq readiness] funnel_ready=false reason=instance-mismatch bound_port=${boundPort} public_url=${info.fullUrl}`,
-          );
-          console.warn(
-            `[mdq readiness] public host points to instance ${publicInstanceId}, local instance is ${instanceId}`,
-          );
-          console.warn("[mdq readiness] stop old process on published port and retry");
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "unknown";
-        console.warn(
-          `[mdq readiness] funnel_ready=false reason=health-unreachable bound_port=${boundPort} public_url=${info.fullUrl}`,
-        );
-        console.warn(`[mdq readiness] public health probe failed: ${message}`);
+      if (!health.ok) {
+        logReadinessResult({
+          title: "Tailscale URL could not be checked",
+          status: "The server is running, but MDQ could not confirm the public classroom URL.",
+          url: info.fullUrl,
+          details: [`Health check URL: ${healthUrl}`, `Health check failed: ${health.error}`],
+          nextSteps: ["Check your network, then run: tailscale funnel status"],
+        });
+      } else if (health.instanceId !== instanceId) {
+        logReadinessResult({
+          title: "Tailscale URL points to another MDQ server",
+          status: "The public URL is not connected to this server process.",
+          url: info.fullUrl,
+          details: [
+            `Public instance: ${health.instanceId}`,
+            `This instance: ${instanceId}`,
+          ],
+          nextSteps: ["Stop the old process on the published port, then restart MDQ."],
+        });
+      } else {
+        tailscaleHealthVerified = true;
+        logReadinessResult({
+          title: "Tailscale Funnel is ready",
+          status: "The public URL reaches this MDQ server.",
+          url: info.fullUrl,
+          details: [`Local server port: ${boundPort}`],
+        });
       }
     }
 
     if (usedFallbackPort && info.source === "tailscale") {
       const healthUrl = `${info.fullUrl}/api/health`;
-      try {
-        const response = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
-        const payloadUnknown = await response.json().catch(() => ({}));
-        const payload =
-          payloadUnknown && typeof payloadUnknown === "object"
-            ? (payloadUnknown as { instanceId?: unknown })
-            : {};
-        const publicInstanceId =
-          typeof payload.instanceId === "string" ? payload.instanceId : "";
-
-        if (!response.ok || !publicInstanceId) {
-          console.error(
-            `Unsafe fallback detected: unable to verify public host ${healthUrl} for instance consistency while running on fallback port ${boundPort}.`
-          );
-          console.error("Refusing to continue to avoid split-brain sessions. Free the requested port and restart.");
+      if (tailscaleHealthVerified) {
+        console.log(`Verified public host routes to this instance (${instanceId}) after fallback.`);
+      } else {
+        const health = await checkPublicHealth(info.fullUrl);
+        if (!health.ok) {
+          logReadinessResult({
+            title: "stopped to avoid opening the wrong classroom link",
+            status: "MDQ had to move to a fallback port, but the public URL did not prove that it reaches this server.",
+            url: info.fullUrl,
+            details: [
+              `Requested port: ${requestedPort}`,
+              `Actual server port: ${boundPort}`,
+              `Health check URL: ${healthUrl}`,
+              `Health check failed: ${health.error}`,
+            ],
+            nextSteps: [
+              `Stop the process using port ${requestedPort}, then run npm run try again.`,
+              "For local testing only, run: npm run try -- --local-only",
+            ],
+          });
           httpServer.close(() => {
             process.exit(1);
           });
           return;
         }
 
-        if (publicInstanceId !== instanceId) {
-          console.error(
-            `Unsafe fallback detected: public host ${info.fullUrl} resolves to instance ${publicInstanceId}, but this process is instance ${instanceId} on port ${boundPort}.`
-          );
-          console.error("Refusing to continue to avoid split-brain sessions. Stop the old process on the public port and restart.");
+        if (health.instanceId !== instanceId) {
+          logReadinessResult({
+            title: "stopped because the public URL points to another MDQ server",
+            status: "The fallback server started, but the classroom URL is connected to a different running MDQ instance.",
+            url: info.fullUrl,
+            details: [
+              `Requested port: ${requestedPort}`,
+              `Actual server port: ${boundPort}`,
+              `Public instance: ${health.instanceId}`,
+              `This instance: ${instanceId}`,
+            ],
+            nextSteps: [
+              "Stop the old MDQ server on the published port, then run npm run try again.",
+              "For local testing only, run: npm run try -- --local-only",
+            ],
+          });
           httpServer.close(() => {
             process.exit(1);
           });
@@ -303,18 +405,6 @@ async function onListening(): Promise<void> {
         }
 
         console.log(`Verified public host routes to this instance (${instanceId}) after fallback.`);
-      } catch (error) {
-        console.error(
-          `Unsafe fallback detected: failed to verify public host ${healthUrl} while running on fallback port ${boundPort}.`
-        );
-        console.error("Refusing to continue to avoid split-brain sessions. Free the requested port and restart.");
-        if (error instanceof Error) {
-          console.error(`Verification error: ${error.message}`);
-        }
-        httpServer.close(() => {
-          process.exit(1);
-        });
-        return;
       }
     }
   } catch (e) {
@@ -346,7 +436,11 @@ function startWithPortFallback(portToTry: number, fallbackCount: number): void {
 
   httpServer.once("listening", handleListening);
   httpServer.once("error", handleError);
-  httpServer.listen(portToTry);
+  if (bindHost) {
+    httpServer.listen(portToTry, bindHost);
+  } else {
+    httpServer.listen(portToTry);
+  }
 }
 
 startWithPortFallback(requestedPort, 0);

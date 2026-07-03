@@ -17,6 +17,7 @@ describe("loadRuntimeConfig", () => {
 
     expect(config.loadedFromFile).toBe(false);
     expect(config.port).toBe(DEFAULT_PORT);
+    expect(config.bindHost).toBe("");
     expect(config.portFallbacks).toBe(10);
     expect(config.quizDir).toBe(path.join(root, "data", "decks"));
     expect(config.instanceId).toBe("");
@@ -30,6 +31,7 @@ describe("loadRuntimeConfig", () => {
       path.join(root, "data", "config.json"),
       JSON.stringify({
         port: 3100,
+        bindHost: "127.0.0.1",
         portFallbacks: 4,
         deckDir: "./alt-decks",
         instanceId: "room-a",
@@ -42,6 +44,7 @@ describe("loadRuntimeConfig", () => {
 
     expect(config.loadedFromFile).toBe(true);
     expect(config.port).toBe(3100);
+    expect(config.bindHost).toBe("127.0.0.1");
     expect(config.portFallbacks).toBe(4);
     expect(config.quizDir).toBe(path.join(root, "data", "alt-decks"));
     expect(config.instanceId).toBe("room-a");
@@ -60,6 +63,7 @@ describe("loadRuntimeConfig", () => {
       rootDir: root,
       env: {
         PORT: "3200",
+        MDQ_BIND_HOST: "localhost",
         PORT_FALLBACKS: "1",
         MDQ_DECK_DIR: path.join(root, "custom-decks"),
         MDQ_INSTANCE_ID: "room-b",
@@ -69,6 +73,7 @@ describe("loadRuntimeConfig", () => {
     });
 
     expect(config.port).toBe(3200);
+    expect(config.bindHost).toBe("localhost");
     expect(config.portFallbacks).toBe(1);
     expect(config.quizDir).toBe(path.join(root, "custom-decks"));
     expect(config.instanceId).toBe("room-b");
