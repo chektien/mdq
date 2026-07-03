@@ -1,6 +1,6 @@
 {
   "name": "mdq",
-  "version": "0.3.3-beta",
+  "version": "0.3.4-beta",
   "private": true,
   "workspaces": [
     "packages/*"
