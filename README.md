@@ -17,6 +17,10 @@ pick a markdown deck, show the join QR, move through slides and questions, answe
 from a phone-sized student view, reveal feedback, use fold-out notes and image
 placement, and export a printable PDF.
 
+A future cut should also show the presenter-view workflow: the projected laptop
+opens the read-only presentation surface while the instructor advances and
+reveals content from an authenticated phone view.
+
 ## What MDQ Does
 
 - **Markdown-first authoring**: write decks as plain text, keep them in git, and
@@ -209,7 +213,7 @@ If `VITE_INSTRUCTOR_ROUTE_SEGMENT` is unset, the default segment is `instructor`
    npm run build --workspace=@mdq/client
    ```
 
-2. On your iPad, open:
+2. On your instructor device, open:
 
    `https://<your-mdq-host>/#/<VITE_INSTRUCTOR_ROUTE_SEGMENT>`
 
@@ -221,7 +225,7 @@ If `VITE_INSTRUCTOR_ROUTE_SEGMENT` is unset, the default segment is `instructor`
 
 4. **Important limitation:** The longer route is still obscurity, not authentication by itself. Keep using a strong `INSTRUCTOR_PASSWORD` and avoid sharing your instructor route.
 
-Tip for classroom privacy and mobility: present from iPad, add MDQ to your iPad Home Screen, and launch it as a web app. This keeps browser chrome out of view, hides the full URL during projection, and lets you walk around while controlling the session.
+Tip for classroom privacy and mobility: project a separate presentation view from the laptop, then keep the authenticated instructor controls on a phone or other personal device. The projected browser shows only the live session surface while the instructor device moves the session forward.
 
 **For classroom security:** Keep your Tailscale Funnel URL private. The security boundary is your private network (Tailscale) plus operational secrecy (don't share the instructor route with students).
 
@@ -234,7 +238,7 @@ Tip for classroom privacy and mobility: present from iPad, add MDQ to your iPad 
 - `End Session` remains available from the live controls and opens a confirmation dialog before closing the room. The dialog shows how many quiz questions and slides are left.
 - The fullscreen control appears when the browser supports the Fullscreen API, letting the instructor/projector surface fill the display without browser chrome.
 - Review mode lets the instructor step through previous slides/questions without moving students, then return to the current live item with `Back to Live`.
-- On narrow screens, the same controls stack from the top-left so phone and iPad use keeps the same visual order.
+- On narrow screens, the same controls stack from the top-left so small-device use keeps the same visual order.
 
 ### 3) student join flow (share this one)
 
@@ -279,6 +283,8 @@ Student QR behavior:
 - Open the session-scoped `Presentation view` link from the authenticated instructor screen when you want a second display that mirrors the instructor presentation without controls.
 - The presentation route is intentionally not linked from the public home page. A code-based public entry point would let students discover the live projector feed and monitor the session outside the instructor flow.
 - The presentation screen stays read-only. It never renders instructor action buttons or calls instructor REST actions.
+- A common classroom setup is to connect the laptop to the projector, open the `Presentation view` there, then open the authenticated instructor view on a phone. Advancing, reviewing, revealing feedback, and ending the session from the phone updates the projected laptop view in real time.
+- This keeps instructor-only controls and route details off the projector while still allowing the instructor to move around the room.
 
 ### 5) mock students (for testing)
 
@@ -477,44 +483,6 @@ C. The HDMI adapter
 - In quiz stems and option text, images stay inline with the prompt content. In slide bodies, images move into the slide media layout.
 - MDQ preserves the source image aspect ratio in all quiz and slide surfaces.
 - Images are keyboard-accessible expansion targets when rendered in quiz or slide surfaces.
-
-## iPad usage and troubleshooting (optional)
-
-Most deployments can ignore this section. Use it only if you run instructor controls from iPad during class.
-
-### iPad instructor flow (optional)
-
-Security model: MDQ serves one built client bundle to everyone (students and instructor). `VITE_INSTRUCTOR_ROUTE_SEGMENT` is build-time routing only. Real instructor access is gated by a server-side login cookie created after entering `INSTRUCTOR_PASSWORD`.
-
-1. Build the client with a non-default instructor route segment:
-   ```bash
-   export VITE_INSTRUCTOR_ROUTE_SEGMENT="instructor-9f2c7b1e4d8a6f3c"
-   npm run build --workspace=@mdq/client
-   ```
-2. Open `https://<your-mdq-host>/#/<VITE_INSTRUCTOR_ROUTE_SEGMENT>` on iPad.
-3. Log in with `INSTRUCTOR_PASSWORD`.
-
-Tip: adding MDQ to iPad Home Screen hides browser chrome and can make projector presentation cleaner.
-
-### iPad Home Screen recovery
-
-If the Home Screen app gets into a bad state during class:
-
-1. Force-close the Home Screen app and reopen it from the Home Screen icon.
-2. If still stuck, open Safari and load the same instructor URL (`https://<host>/#/<instructor-route-segment>`), then log in again.
-3. If Safari does not restore active instructor controls, return to the Home Screen app and retry there.
-
-Current limitation:
-
-- Instructor auto-resume depends on browser-session storage from the same app context.
-- iPad Home Screen web app and normal Safari can behave like separate browser contexts.
-- Switching from Home Screen app to Safari may not reliably resume an already running instructor session.
-
-Verification status for `VITE_INSTRUCTOR_ROUTE_SEGMENT`:
-
-- Covered by type/build checks and server integration tests in this repo.
-- Smoke-tested by building with a non-default route segment and validating instructor login flow against that hash route.
-- There is currently no dedicated client unit test that isolates hash-route parsing logic, so validate your exact route string before live class.
 
 ## Architecture
 
