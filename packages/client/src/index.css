@@ -490,6 +490,61 @@ html[data-theme="light"] .slide-surface::after {
   content: none;
 }
 
+/* ── Light-theme media canvas ───────────── */
+html[data-theme="light"] .slide-media-figure {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: #fffdfa;
+  box-shadow: 0 10px 24px rgba(70, 60, 45, 0.08);
+}
+
+html[data-theme="light"] .slide-media-expand-button {
+  background: transparent;
+}
+
+/* Keep the transparent quote figures transparent (no slab, no shadow). */
+html[data-theme="light"] .slide-media-figure:has(img[src*="finding1-quote-"]),
+html[data-theme="light"] .slide-media-figure:has(img[src*="finding2-quote-"]) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme="light"] .slide-media-expand-button:hover img,
+html[data-theme="light"] .slide-media-expand-button:focus-visible img {
+  box-shadow: 0 14px 32px rgba(70, 60, 45, 0.16);
+}
+
+html[data-theme="light"] .image-expansion-backdrop {
+  background: rgba(44, 36, 26, 0.46);
+}
+
+html[data-theme="light"] .image-expansion-frame {
+  border-color: rgba(100, 116, 139, 0.28);
+  background: #fffdfa;
+  box-shadow: 0 30px 70px rgba(70, 60, 45, 0.22);
+}
+
+html[data-theme="light"] .image-expansion-image {
+  background: #ffffff;
+  box-shadow: 0 14px 40px rgba(70, 60, 45, 0.14);
+}
+
+html[data-theme="light"] .image-expansion-close {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: #fffdfa;
+  box-shadow: 0 10px 24px rgba(70, 60, 45, 0.14);
+}
+
+html[data-theme="light"] .image-expansion-close:hover,
+html[data-theme="light"] .image-expansion-close:focus-visible {
+  border-color: var(--mdq-slide-accent);
+  background: #ffffff;
+}
+
+html[data-theme="light"] .image-expansion-close:focus-visible {
+  outline-color: color-mix(in srgb, var(--mdq-slide-accent) 72%, white);
+}
+
 .slide-safe {
   position: relative;
   z-index: 1;

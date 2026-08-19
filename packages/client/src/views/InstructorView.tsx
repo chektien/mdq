@@ -875,7 +875,7 @@ function LiveView({
 
   const endSessionConfirmDialog = showEndConfirm ? (
     <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-[#07060b]/80 px-5 backdrop-blur-sm"
+      className="end-session-overlay fixed inset-0 z-[10000] flex items-center justify-center bg-[#07060b]/80 px-5 backdrop-blur-sm"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
@@ -884,30 +884,30 @@ function LiveView({
       }}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-red-300/25 bg-[#201d28] p-6 text-white shadow-2xl shadow-black/50"
+        className="end-session-card w-full max-w-lg rounded-2xl border border-red-300/25 bg-[#201d28] p-6 text-white shadow-2xl shadow-black/50"
         role="dialog"
         aria-modal="true"
         aria-labelledby="end-session-title"
       >
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-200/80">End live session</p>
+        <p className="end-session-eyebrow text-xs font-semibold uppercase tracking-[0.22em] text-red-200/80">End live session</p>
         <h2 id="end-session-title" className="mt-3 text-2xl font-semibold">Are you sure?</h2>
-        <p className="mt-3 text-sm leading-6 text-zinc-300">
+        <p className="end-session-desc mt-3 text-sm leading-6 text-zinc-300">
           Ending now will close the live room for everyone. If you continue, {pluralize(remainingQuizQuestionCount, "quiz question")} and {pluralize(remainingSlideCount, "slide")} {remainingVerb}.
         </p>
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3">
-            <p className="text-3xl font-semibold tabular-nums text-white">{remainingQuizQuestionCount}</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-zinc-400">Quiz questions left</p>
+          <div className="end-session-stat rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3">
+            <p className="end-session-stat-value text-3xl font-semibold tabular-nums text-white">{remainingQuizQuestionCount}</p>
+            <p className="end-session-stat-label mt-1 text-xs uppercase tracking-[0.18em] text-zinc-400">Quiz questions left</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3">
-            <p className="text-3xl font-semibold tabular-nums text-white">{remainingSlideCount}</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-zinc-400">Slides left</p>
+          <div className="end-session-stat rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3">
+            <p className="end-session-stat-value text-3xl font-semibold tabular-nums text-white">{remainingSlideCount}</p>
+            <p className="end-session-stat-label mt-1 text-xs uppercase tracking-[0.18em] text-zinc-400">Slides left</p>
           </div>
         </div>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="rounded-xl border border-white/12 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-zinc-100 transition-colors hover:bg-white/[0.08]"
+            className="end-session-keep rounded-xl border border-white/12 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-zinc-100 transition-colors hover:bg-white/[0.08]"
             onClick={() => setShowEndConfirm(false)}
             autoFocus
           >
@@ -915,7 +915,7 @@ function LiveView({
           </button>
           <button
             type="button"
-            className="rounded-xl border border-red-300/35 bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-950/25 transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-700 disabled:text-zinc-400 disabled:shadow-none"
+            className="end-session-end rounded-xl border border-red-300/35 bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-950/25 transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-700 disabled:text-zinc-400 disabled:shadow-none"
             onClick={confirmEndSession}
             disabled={loading}
           >
