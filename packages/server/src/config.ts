@@ -14,6 +14,8 @@ interface RuntimeConfigFile {
   instanceId?: unknown;
   theme?: unknown;
   autoGenerateStudentIds?: unknown;
+  presenterNotes?: unknown;
+  presenterNotesDefaultOpen?: unknown;
 }
 
 export type RuntimeTheme = "dark" | "light";
@@ -26,6 +28,8 @@ export interface RuntimeConfig {
   instanceId: string;
   theme: RuntimeTheme;
   autoGenerateStudentIds: boolean;
+  presenterNotes: boolean;
+  presenterNotesDefaultOpen: boolean;
   configPath: string;
   loadedFromFile: boolean;
 }
@@ -157,6 +161,17 @@ export function loadRuntimeConfig(options: RuntimeConfigLoadOptions = {}): Runti
     autoGenerateStudentIds:
       parseBoolean(env.MDQ_AUTO_GENERATE_STUDENT_IDS)
       ?? parseBoolean(fileConfig.autoGenerateStudentIds)
+      ?? false,
+    // Presenter notes ship DISABLED by default so existing installs see no
+    // change and no instructor-only data endpoint is exposed. A deck runtime
+    // opts in via data/config.json or MDQ_PRESENTER_NOTES.
+    presenterNotes:
+      parseBoolean(env.MDQ_PRESENTER_NOTES)
+      ?? parseBoolean(fileConfig.presenterNotes)
+      ?? false,
+    presenterNotesDefaultOpen:
+      parseBoolean(env.MDQ_PRESENTER_NOTES_DEFAULT_OPEN)
+      ?? parseBoolean(fileConfig.presenterNotesDefaultOpen)
       ?? false,
     configPath,
     loadedFromFile: fs.existsSync(configPath),

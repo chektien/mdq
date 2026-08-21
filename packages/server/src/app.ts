@@ -39,6 +39,8 @@ export interface AppOptions {
   instanceId?: string;
   theme?: "dark" | "light";
   autoGenerateStudentIds?: boolean;
+  presenterNotes?: boolean;
+  presenterNotesDefaultOpen?: boolean;
   shortUrlProviders?: ShortUrlProvider[];
   /** Called after a successful REST-driven state transition */
   onStateChange?: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => void;
@@ -116,6 +118,8 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   let instanceId: string | undefined;
   let theme: "dark" | "light" = "dark";
   let autoGenerateStudentIds = false;
+  let presenterNotesEnabled = false;
+  let presenterNotesDefaultOpen = false;
   let shortUrlProviders: ShortUrlProvider[] | undefined;
   let onStateChange: AppOptions["onStateChange"];
   if (typeof quizDirOrOpts === "string") {
@@ -126,6 +130,8 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     instanceId = quizDirOrOpts.instanceId;
     theme = quizDirOrOpts.theme || "dark";
     autoGenerateStudentIds = quizDirOrOpts.autoGenerateStudentIds || false;
+    presenterNotesEnabled = quizDirOrOpts.presenterNotes || false;
+    presenterNotesDefaultOpen = quizDirOrOpts.presenterNotesDefaultOpen || false;
     shortUrlProviders = quizDirOrOpts.shortUrlProviders;
     onStateChange = quizDirOrOpts.onStateChange;
   }
@@ -180,6 +186,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         : undefined,
       slideMedia: question.slideMedia,
       slideLiveEmbed: question.slideLiveEmbed,
+      slideVideo: question.slideVideo,
       slideReferences: question.slideReferences,
       options: question.options.map((option) => ({ label: option.label, text: option.textHtml })),
       allowsMultiple: question.allowsMultiple,
@@ -431,7 +438,12 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   });
 
   app.get("/api/runtime-config", (_req, res) => {
-    res.json({ theme, autoGenerateStudentIds });
+    res.json({
+      theme,
+      autoGenerateStudentIds,
+      presenterNotes: presenterNotesEnabled,
+      presenterNotesDefaultOpen,
+    });
   });
 
   app.get(API.INSTRUCTOR_SESSION, (req, res) => {
@@ -524,6 +536,29 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
 
   app.get(API.DECK, getDeckHandler);
   app.get(API.QUIZ, getDeckHandler);
+
+  // Instructor-only presenter notes. Never broadcast on any socket/session
+  // payload. When disabled by config, returns enabled:false with no note
+  // bodies so the client cannot render any presenter-notes UI.
+  const getPresenterNotesHandler = (req: Request, res: Response) => {
+    // Presenter notes are only served when the feature is enabled AND an
+    // instructor password is configured. Without configured auth we cannot
+    // guarantee the notes stay instructor-only (any LAN client could call
+    // this endpoint), so we serve nothing rather than risk a leak.
+    if (!presenterNotesEnabled || !isInstructorAuthEnabled()) {
+      return res.json({ enabled: false, defaultOpen: false, items: [] });
+    }
+    const quiz = quizzes.get(req.params.week);
+    if (!quiz) {
+      return res.status(404).json({ error: `Deck not found: ${req.params.week}` });
+    }
+    const items = quiz.questions.map((question, index) => ({
+      questionIndex: question.index ?? index,
+      notes: question.presenterNotes ?? [],
+    }));
+    return res.json({ enabled: true, defaultOpen: presenterNotesDefaultOpen, items });
+  };
+  app.get(API.DECK_PRESENTER_NOTES, requireInstructorAuth, getPresenterNotesHandler);
 
   // ── Session lifecycle ─────────────────────
   app.post(API.SESSION_CREATE, requireInstructorAuth, (req, res) => {

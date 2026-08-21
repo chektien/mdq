@@ -572,6 +572,7 @@ function QuestionView({
           slideMediaPosition={question.slideMediaPosition}
           slideMediaOpacity={question.slideMediaOpacity}
           slideLiveEmbed={question.slideLiveEmbed}
+          slideVideo={question.slideVideo}
           slideReferences={question.slideReferences}
           positionLabel={positionLabel}
           mode="student"

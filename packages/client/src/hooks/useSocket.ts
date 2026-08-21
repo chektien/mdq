@@ -19,6 +19,7 @@ import type {
   MediaPosition,
   SlideMedia,
   SlideLiveEmbed,
+  SlideVideo,
   SlideReference,
 } from "@mdq/shared";
 import { SocketEvents } from "@mdq/shared";
@@ -80,6 +81,7 @@ export interface QuestionState {
   slideMediaPosition?: MediaPosition;
   slideMediaOpacity?: number;
   slideLiveEmbed?: SlideLiveEmbed;
+  slideVideo?: SlideVideo;
   slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
@@ -261,6 +263,7 @@ export function useSocket(
         slideMediaPosition: data.slideMediaPosition,
         slideMediaOpacity: data.slideMediaOpacity,
         slideLiveEmbed: data.slideLiveEmbed,
+        slideVideo: data.slideVideo,
         slideReferences: data.slideReferences,
         options: data.options,
         allowsMultiple: data.allowsMultiple,

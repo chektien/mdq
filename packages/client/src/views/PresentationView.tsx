@@ -240,6 +240,7 @@ export default function PresentationView({
             slideMediaPosition={currentQuestion.slideMediaPosition}
             slideMediaOpacity={currentQuestion.slideMediaOpacity}
             slideLiveEmbed={currentQuestion.slideLiveEmbed}
+            slideVideo={currentQuestion.slideVideo}
             slideReferences={currentQuestion.slideReferences}
           />
         );
@@ -473,6 +474,7 @@ export default function PresentationView({
                 slideMediaPosition={currentQuestion.slideMediaPosition}
                 slideMediaOpacity={currentQuestion.slideMediaOpacity}
                 slideLiveEmbed={currentQuestion.slideLiveEmbed}
+                slideVideo={currentQuestion.slideVideo}
                 slideReferences={currentQuestion.slideReferences}
                 positionLabel={positionLabel}
                 nextLabel={nextHeading}
