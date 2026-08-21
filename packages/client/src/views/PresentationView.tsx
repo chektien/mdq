@@ -238,6 +238,7 @@ export default function PresentationView({
             attendeeNotes={currentQuestion.attendeeNotes}
             slideMedia={currentQuestion.slideMedia}
             slideLiveEmbed={currentQuestion.slideLiveEmbed}
+            slideVideo={currentQuestion.slideVideo}
             slideReferences={currentQuestion.slideReferences}
           />
         );
@@ -469,6 +470,7 @@ export default function PresentationView({
                 attendeeNotes={currentQuestion.attendeeNotes}
                 slideMedia={currentQuestion.slideMedia}
                 slideLiveEmbed={currentQuestion.slideLiveEmbed}
+                slideVideo={currentQuestion.slideVideo}
                 slideReferences={currentQuestion.slideReferences}
                 positionLabel={positionLabel}
                 nextLabel={nextHeading}

@@ -2,9 +2,11 @@ import type {
   FoldoutNote as FoldoutNoteModel,
   SlideMedia,
   SlideLiveEmbed,
+  SlideVideo,
   SlideReference,
 } from "@mdq/shared";
 import FoldoutNote from "./FoldoutNote";
+import VideoCard from "./VideoCard";
 import { ExpandableImage } from "./ImageExpansion";
 import LiveSurface, { type LiveSurfaceAction } from "./LiveSurface";
 import QuizHtml from "./QuizHtml";
@@ -13,9 +15,9 @@ interface SlideContentBodyProps {
   title: string;
   html: string;
   attendeeNotes?: FoldoutNoteModel[];
-  presenterNotes?: FoldoutNoteModel[];
   slideMedia?: SlideMedia[];
   slideLiveEmbed?: SlideLiveEmbed;
+  slideVideo?: SlideVideo;
   slideReferences?: SlideReference[];
   chromeLabel?: string | null;
 }
@@ -42,16 +44,16 @@ export function SlideContentBody({
   title,
   html,
   attendeeNotes = [],
-  presenterNotes = [],
   slideMedia = [],
   slideLiveEmbed,
+  slideVideo,
   slideReferences = [],
   chromeLabel = null,
 }: SlideContentBodyProps) {
   const hasAttendeeNotes = attendeeNotes.length > 0;
-  const hasPresenterNotes = presenterNotes.length > 0;
-  const hasNotes = hasAttendeeNotes || hasPresenterNotes;
   const hasMedia = slideMedia.length > 0;
+  const hasVideo = !!slideVideo;
+  const hasVisual = hasMedia || hasVideo;
   const hasReferences = slideReferences.length > 0;
   const hasBody = html.trim().length > 0;
   const mediaCountClass = slideMedia.length > 3
@@ -88,22 +90,13 @@ export function SlideContentBody({
                 ))}
               </div>
             )}
-            {hasNotes && (
+            {hasAttendeeNotes && (
               <div className="slide-notes slide-live-embed-notes">
-                {hasAttendeeNotes && (
-                  <div className="slide-note-group slide-note-group-attendee">
-                    {attendeeNotes.map((note) => (
-                      <FoldoutNote key={note.id} note={note} />
-                    ))}
-                  </div>
-                )}
-                {hasPresenterNotes && (
-                  <div className="slide-note-group slide-note-group-presenter">
-                    {presenterNotes.map((note) => (
-                      <FoldoutNote key={note.id} note={note} />
-                    ))}
-                  </div>
-                )}
+                <div className="slide-note-group slide-note-group-attendee">
+                  {attendeeNotes.map((note) => (
+                    <FoldoutNote key={note.id} note={note} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -121,10 +114,16 @@ export function SlideContentBody({
 
       <div className={[
         "slide-content-grid",
-        hasMedia ? "slide-content-grid-with-media" : "slide-content-grid-text-only",
-        !hasBody && hasMedia ? "slide-content-grid-media-only" : null,
+        hasVisual ? "slide-content-grid-with-media" : "slide-content-grid-text-only",
+        !hasBody && hasVisual ? "slide-content-grid-media-only" : null,
       ].filter(Boolean).join(" ")}>
         {hasBody && <QuizHtml className="quiz-html slide-body slide-content-text" html={html} />}
+
+        {hasVideo && slideVideo && (
+          <div className="slide-video-slot">
+            <VideoCard video={slideVideo} title={title} />
+          </div>
+        )}
 
         {hasMedia && (
           <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
@@ -146,22 +145,13 @@ export function SlideContentBody({
         )}
       </div>
 
-      {(hasAttendeeNotes || hasPresenterNotes) && (
+      {hasAttendeeNotes && (
         <div className="slide-notes">
-          {hasAttendeeNotes && (
-            <div className="slide-note-group slide-note-group-attendee">
-              {attendeeNotes.map((note) => (
-                <FoldoutNote key={note.id} note={note} />
-              ))}
-            </div>
-          )}
-          {hasPresenterNotes && (
-            <div className="slide-note-group slide-note-group-presenter">
-              {presenterNotes.map((note) => (
-                <FoldoutNote key={note.id} note={note} />
-              ))}
-            </div>
-          )}
+          <div className="slide-note-group slide-note-group-attendee">
+            {attendeeNotes.map((note) => (
+              <FoldoutNote key={note.id} note={note} />
+            ))}
+          </div>
         </div>
       )}
 
@@ -184,9 +174,9 @@ export default function SlideContent({
   title,
   html,
   attendeeNotes = [],
-  presenterNotes = [],
   slideMedia = [],
   slideLiveEmbed,
+  slideVideo,
   slideReferences = [],
   positionLabel,
   mode = "projector",
@@ -230,9 +220,9 @@ export default function SlideContent({
         title={title}
         html={html}
         attendeeNotes={attendeeNotes}
-        presenterNotes={presenterNotes}
         slideMedia={slideMedia}
         slideLiveEmbed={slideLiveEmbed}
+        slideVideo={slideVideo}
         slideReferences={slideReferences}
         chromeLabel={chromeLabel}
       />

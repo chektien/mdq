@@ -344,6 +344,7 @@ Rules:
 - Use `type: slide` for non-interactive slide content. Slides have no timer, answer choices, correct answers, submissions, or leaderboard weight.
 - Add standard markdown images to slide bodies when you want MDQ to arrange media beside the text. Images are scaled proportionately and never cropped or stretched.
 - Use `live_url: https://...` on a slide when you want the instructor/projector surface to embed a live website as the slide itself. Add `live_title_overlay: true` to keep the slide title and body text over the live surface, and keep a normal markdown image in the slide as the static fallback for PDF exports and non-live surfaces.
+- Use `video_card: https://...` on a slide to show a contained, clickable video card instead of a full-slide embed. Add `video_thumbnail: ../images/poster.png` for the poster frame, `video_caption:` for a caption under the card, and `video_label:` for the play badge. The card shows a visible fallback link and opens a modal player (closes with the close control, backdrop, or `Escape`). Unlike presenter notes, the card is audience-safe and appears on the projector.
 - Add slide references with blockquote labels such as `> Reference:` or `> Image Source:`. References render as small, grey, right-aligned footer text and links.
 - Do not combine `multi_select: false` with multiple correct answers.
 - The instructor live `Next` button preview uses the existing `## ...` item heading, including both sides of `Topic: Subtopic` when present.
@@ -375,6 +376,54 @@ live_interactive: true
 ```
 
 Fold-out notes are written as `> Attendee Note:` or `> Presenter Note:` blockquotes. Attendee notes can appear in student and review-facing surfaces; presenter notes stay on authenticated instructor surfaces.
+
+### Presenter notes (instructor-only panel)
+
+Presenter notes are authored per item as `> Presenter Note:` blockquotes, with
+`> ` continuation lines for wrapped text and bullets. They work on `slide`,
+`poll`, and `open_response` items. On non-slide items you may place the note
+after the options and any `> Overall Feedback:` explanation; MDQ associates it
+with the correct item regardless of position. Empty or absent notes render no
+UI.
+
+Notes are Markdown, sanitised through the same rendering path as slide bodies.
+A concise convention keeps them scannable during a talk:
+
+```markdown
+> Presenter Note:
+> - SAY: the one main point in a sentence.
+> - up to three supporting bullets.
+> - TRANSITION: one line into the next item.
+```
+
+Delivery and privacy:
+
+- Presenter notes are served **only** to the authenticated instructor
+  controller, via `GET /api/deck/:week/presenter-notes` (guarded by instructor
+  auth). They are never included on any Socket.IO/session payload, the public
+  `GET /api/deck/:week` response, the student view, the projector/presentation
+  view, or the default PDF export.
+- In the instructor controller they appear in a labelled, keyboard-accessible
+  fold-out panel directly below the current slide preview. Expanding or
+  collapsing the panel never advances the slide, and its open/closed state
+  persists across `Prev`/`Next`.
+
+Configuration (in `data/config.json`, or the matching environment variables):
+
+- `presenterNotes` (boolean, default `false`) — master switch. When `false`,
+  the endpoint returns `enabled: false` with no note bodies and **no**
+  presenter-notes UI can render anywhere. Override with `MDQ_PRESENTER_NOTES`.
+  Presenter notes are only served when an instructor password is **also**
+  configured (`INSTRUCTOR_PASSWORD`/`INSTRUCTOR_KEY`); without configured auth
+  the endpoint returns `enabled: false` so notes cannot leak to a LAN client.
+- `presenterNotesDefaultOpen` (boolean, default `false`) — whether the panel
+  starts expanded when a slide loads. Override with
+  `MDQ_PRESENTER_NOTES_DEFAULT_OPEN`. For a demo-led talk where the notes are
+  the operating script, `true` is convenient; the projector never sees the
+  instructor screen.
+
+The PDF exporter keeps presenter notes hidden by default; pass
+`--presenter-notes` to include them in a private rehearsal handout.
 
 Slide images and references:
 

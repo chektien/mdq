@@ -129,7 +129,12 @@ describe("REST API", () => {
     it("returns the configured browser-visible runtime options", async () => {
       const res = await request(createApp({ quizDir, theme: "light", autoGenerateStudentIds: true })).get("/api/runtime-config");
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ theme: "light", autoGenerateStudentIds: true });
+      expect(res.body).toEqual({
+        theme: "light",
+        autoGenerateStudentIds: true,
+        presenterNotes: false,
+        presenterNotesDefaultOpen: false,
+      });
     });
   });
 

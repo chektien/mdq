@@ -570,6 +570,7 @@ function QuestionView({
           attendeeNotes={question.attendeeNotes}
           slideMedia={question.slideMedia}
           slideLiveEmbed={question.slideLiveEmbed}
+          slideVideo={question.slideVideo}
           slideReferences={question.slideReferences}
           positionLabel={positionLabel}
           mode="student"

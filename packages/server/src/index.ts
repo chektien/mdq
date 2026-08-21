@@ -102,12 +102,22 @@ function sessionRoom(sessionId: string): string {
   return `session:${sessionId}`;
 }
 
+if (runtimeConfig.presenterNotes && !(process.env.INSTRUCTOR_PASSWORD || process.env.INSTRUCTOR_KEY)) {
+  console.warn(
+    "[mdq] presenterNotes is enabled but no instructor password is configured " +
+    "(INSTRUCTOR_PASSWORD/INSTRUCTOR_KEY). Presenter notes will NOT be served " +
+    "until instructor auth is configured, to keep them instructor-only.",
+  );
+}
+
 const app = createApp({
   quizDir,
   dataDir,
   instanceId,
   theme: runtimeConfig.theme,
   autoGenerateStudentIds: runtimeConfig.autoGenerateStudentIds,
+  presenterNotes: runtimeConfig.presenterNotes,
+  presenterNotesDefaultOpen: runtimeConfig.presenterNotesDefaultOpen,
   onStateChange: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => {
     const io = ioRef.current;
     if (!io) return;

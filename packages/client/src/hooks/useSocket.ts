@@ -18,6 +18,7 @@ import type {
   AnswerSubmitPayload,
   SlideMedia,
   SlideLiveEmbed,
+  SlideVideo,
   SlideReference,
 } from "@mdq/shared";
 import { SocketEvents } from "@mdq/shared";
@@ -77,6 +78,7 @@ export interface QuestionState {
   attendeeNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
   slideLiveEmbed?: SlideLiveEmbed;
+  slideVideo?: SlideVideo;
   slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
@@ -256,6 +258,7 @@ export function useSocket(
         attendeeNotes: data.attendeeNotes,
         slideMedia: data.slideMedia,
         slideLiveEmbed: data.slideLiveEmbed,
+        slideVideo: data.slideVideo,
         slideReferences: data.slideReferences,
         options: data.options,
         allowsMultiple: data.allowsMultiple,

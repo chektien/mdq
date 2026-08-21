@@ -88,6 +88,37 @@ export interface FoldoutNote {
   bodyHtml: string;
 }
 
+/**
+ * Presenter notes delivered to the instructor controller only, via the
+ * instructor-authenticated GET /api/deck/:week/presenter-notes endpoint.
+ * They are never broadcast on any session/socket payload. When the
+ * `presenterNotes` runtime config is disabled the server returns
+ * `enabled: false` with an empty `items` list so no UI can render.
+ */
+export interface PresenterNoteItem {
+  questionIndex: number;
+  notes: FoldoutNote[];
+}
+
+export interface PresenterNotesResponse {
+  enabled: boolean;
+  defaultOpen: boolean;
+  items: PresenterNoteItem[];
+}
+
+/**
+ * A contained, clickable playable-video card for a slide. Rendered as a
+ * poster thumbnail with a visible fallback link; clicking opens a modal
+ * player. Audience-safe (public embed URL), so it is carried on the
+ * question:open payload for the projector, unlike presenter notes.
+ */
+export interface SlideVideo {
+  embedUrl: string;
+  thumbnail?: string;
+  caption?: string;
+  label?: string;
+}
+
 export interface SlideMedia {
   src: string;
   alt: string;
@@ -121,6 +152,7 @@ export interface QuestionOpenPayload {
   attendeeNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
   slideLiveEmbed?: SlideLiveEmbed;
+  slideVideo?: SlideVideo;
   slideReferences?: SlideReference[];
   options: { label: string; text: string }[];
   allowsMultiple: boolean;
@@ -206,6 +238,7 @@ export const API = {
   DECKS: "/api/decks",
   DECKS_RELOAD: "/api/decks/reload",
   DECK: "/api/deck/:week",
+  DECK_PRESENTER_NOTES: "/api/deck/:week/presenter-notes",
   QUIZZES: "/api/quizzes",
   QUIZZES_RELOAD: "/api/quizzes/reload",
   QUIZ: "/api/quiz/:week",
@@ -247,6 +280,7 @@ export interface Question {
   presenterNotes?: FoldoutNote[];
   slideMedia?: SlideMedia[];
   slideLiveEmbed?: SlideLiveEmbed;
+  slideVideo?: SlideVideo;
   slideReferences?: SlideReference[];
   options: QuestionOption[];
   correctOptions: string[];

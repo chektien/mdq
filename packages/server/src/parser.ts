@@ -7,6 +7,7 @@ import {
   FoldoutNote,
   SlideMedia,
   SlideLiveEmbed,
+  SlideVideo,
   SlideReference,
 } from "@mdq/shared";
 import { marked } from "marked";
@@ -343,12 +344,29 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     ? extractSlideLiveEmbed(textLines)
     : { contentLines: textLines, liveEmbed: undefined };
   textLines = liveEmbedExtraction.contentLines;
+  const videoExtraction = isSlide
+    ? extractSlideVideo(textLines)
+    : { contentLines: textLines, video: undefined };
+  textLines = videoExtraction.contentLines;
   const referenceExtraction = isSlide
     ? extractSlideReferences(textLines)
     : { contentLines: textLines, references: [] as SlideReference[] };
   textLines = referenceExtraction.contentLines;
   const noteExtraction = extractFoldoutNotes(textLines);
   textLines = noteExtraction.contentLines;
+  // For non-slide items (poll / multiple_choice / open_response) the body is
+  // sliced to the prompt region, which stops at the first option or
+  // blockquote. Presenter/attendee notes are conventionally authored AFTER
+  // the options and Overall Feedback, so also scan the tail region for them.
+  // (Slides already span the whole block, so this only adds non-slide tail
+  // notes and never changes slide behaviour.)
+  const tailNotes = isSlide
+    ? []
+    : extractFoldoutNotes(lines.slice(contentEndLineIdx)).notes;
+  const allNotes = [...noteExtraction.notes, ...tailNotes].map((note, idx) => ({
+    ...note,
+    id: `note-${idx + 1}`,
+  }));
   const mediaExtraction = isSlide
     ? extractSlideMedia(textLines)
     : { contentLines: textLines, media: [] as SlideMedia[] };
@@ -372,10 +390,11 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     textMd,
     textHtml,
     questionType: normalizedQuestionType,
-    attendeeNotes: noteExtraction.notes.filter((note) => note.audience === "attendee"),
-    presenterNotes: noteExtraction.notes.filter((note) => note.audience === "presenter"),
+    attendeeNotes: allNotes.filter((note) => note.audience === "attendee"),
+    presenterNotes: allNotes.filter((note) => note.audience === "presenter"),
     slideMedia: mediaExtraction.media.length > 0 ? mediaExtraction.media : undefined,
     slideLiveEmbed: liveEmbedExtraction.liveEmbed,
+    slideVideo: videoExtraction.video,
     slideReferences: referenceExtraction.references.length > 0 ? referenceExtraction.references : undefined,
     options,
     correctOptions,
@@ -465,6 +484,47 @@ function extractSlideLiveEmbed(lines: string[]): { contentLines: string[]; liveE
       url,
       ...(titleOverlay !== undefined ? { titleOverlay } : {}),
       ...(interactive !== undefined ? { interactive } : {}),
+    },
+  };
+}
+
+function extractSlideVideo(lines: string[]): { contentLines: string[]; video?: SlideVideo } {
+  const contentLines: string[] = [];
+  let embedUrl = "";
+  let thumbnail: string | undefined;
+  let caption: string | undefined;
+  let label: string | undefined;
+
+  for (const line of lines) {
+    const match = line.trim().match(/^(video_card|video_thumbnail|video_caption|video_label):\s*(.+)$/i);
+    if (!match) {
+      contentLines.push(line);
+      continue;
+    }
+    const key = match[1].toLowerCase();
+    const value = stripOptionalQuotes(match[2].trim());
+    if (key === "video_card") {
+      embedUrl = value;
+    } else if (key === "video_thumbnail") {
+      thumbnail = resolveMarkdownImageHref(value);
+    } else if (key === "video_caption") {
+      caption = value;
+    } else if (key === "video_label") {
+      label = value;
+    }
+  }
+
+  if (!embedUrl) {
+    return { contentLines };
+  }
+
+  return {
+    contentLines,
+    video: {
+      embedUrl,
+      ...(thumbnail ? { thumbnail } : {}),
+      ...(caption ? { caption } : {}),
+      ...(label ? { label } : {}),
     },
   };
 }
@@ -572,6 +632,25 @@ function extractFoldoutNotes(lines: string[]): { contentLines: string[]; notes: 
       continue;
     }
     if (currentNote && noteContinuation) {
+      // A following metadata blockquote (Overall Feedback, References, etc.)
+      // must not be absorbed into an open note. Note bullets use "> - LABEL:"
+      // (leading dash), so they do not match this label pattern.
+      const labelMatch = line.match(/^\s*>\s*([A-Za-z][A-Za-z\s]+):/);
+      const label = labelMatch ? labelMatch[1].replace(/\s+/g, " ").trim().toLowerCase() : "";
+      const isMetadataLabel = [
+        "correct answer", "correct answers", "overall feedback",
+        "reference", "references", "source", "sources",
+        "image source", "image sources", "image credit", "image credits",
+        "credit", "credits", "presenter note", "attendee note",
+      ].includes(label);
+      if (isMetadataLabel) {
+        flushNote();
+        contentLines.push(line);
+        if (line.trim()) {
+          lastContentLine = line;
+        }
+        continue;
+      }
       currentNote.bodyLines.push(noteContinuation[1] || "");
       continue;
     }

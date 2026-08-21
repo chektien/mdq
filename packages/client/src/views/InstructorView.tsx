@@ -15,12 +15,13 @@ import {
   hideLeaderboard,
   fetchSessionAccessInfo,
   fetchSessionStateForRestore,
+  fetchPresenterNotes,
   type DeckSummary,
   type QuestionSummary,
   type CreateSessionResponse,
   type SessionRestoreResponse,
 } from "../hooks/api";
-import type { AccessInfo, QuestionType, SessionState } from "@mdq/shared";
+import type { AccessInfo, FoldoutNote, QuestionType, SessionState } from "@mdq/shared";
 import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
 import OpenResponseList from "../components/OpenResponseList";
@@ -31,6 +32,7 @@ import QuizHtml from "../components/QuizHtml";
 import LiveSurface, { type LiveSurfaceAction } from "../components/LiveSurface";
 import ResponsiveQuizSurface from "../components/ResponsiveQuizSurface";
 import SlideContent, { SlideContentBody } from "../components/SlideContent";
+import PresenterNotesPanel from "../components/PresenterNotesPanel";
 import { getQuestionModeText, getRevealActionLabel } from "../questionMode";
 
 type InstructorPhase = "setup" | "lobby" | "live" | "ended";
@@ -78,6 +80,7 @@ function questionStateFromRestore(data: NonNullable<SessionRestoreResponse["revi
     attendeeNotes: data.attendeeNotes,
     slideMedia: data.slideMedia,
     slideLiveEmbed: data.slideLiveEmbed,
+    slideVideo: data.slideVideo,
     slideReferences: data.slideReferences,
     options: data.options,
     allowsMultiple: data.allowsMultiple,
@@ -135,6 +138,11 @@ export default function InstructorView({ autoGenerateStudentIds = false }: { aut
   const [restoredQuestionCache, setRestoredQuestionCache] = useState<Record<number, QuestionState>>({});
   const [restoredRevealCache, setRestoredRevealCache] = useState<Record<number, RevealState>>({});
   const restoreAttemptedRef = useRef(false);
+  // Presenter notes (instructor-only). Populated from the instructor-
+  // authenticated endpoint; empty/disabled means no panel renders.
+  const [presenterNotesEnabled, setPresenterNotesEnabled] = useState(false);
+  const [presenterNotesByIndex, setPresenterNotesByIndex] = useState<Record<number, FoldoutNote[]>>({});
+  const [presenterNotesOpen, setPresenterNotesOpen] = useState(false);
 
   // Socket connection (instructor role)
   const sock = useSocket(sessionInfo?.sessionId ?? null, "instructor");
@@ -157,6 +165,33 @@ export default function InstructorView({ autoGenerateStudentIds = false }: { aut
       })
       .catch((e) => setErrorMsg(e.message));
   }, []);
+
+  // Load presenter notes for the selected deck (instructor-only endpoint).
+  useEffect(() => {
+    if (!selectedWeek) {
+      setPresenterNotesEnabled(false);
+      setPresenterNotesByIndex({});
+      return;
+    }
+    let cancelled = false;
+    fetchPresenterNotes(selectedWeek)
+      .then((data) => {
+        if (cancelled) return;
+        setPresenterNotesEnabled(data.enabled);
+        const byIndex: Record<number, FoldoutNote[]> = {};
+        for (const item of data.items) byIndex[item.questionIndex] = item.notes;
+        setPresenterNotesByIndex(byIndex);
+        if (data.enabled) setPresenterNotesOpen(data.defaultOpen);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPresenterNotesEnabled(false);
+        setPresenterNotesByIndex({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedWeek]);
 
   useEffect(() => {
     if (restoreAttemptedRef.current) return;
@@ -561,6 +596,10 @@ export default function InstructorView({ autoGenerateStudentIds = false }: { aut
       errorMsg={errorMsg}
       restoreNotice={restoreNotice}
       autoGenerateStudentIds={autoGenerateStudentIds}
+      presenterNotesEnabled={presenterNotesEnabled}
+      presenterNotesByIndex={presenterNotesByIndex}
+      presenterNotesOpen={presenterNotesOpen}
+      onPresenterNotesToggle={setPresenterNotesOpen}
       onAction={handleAction}
     />
   );
@@ -583,6 +622,10 @@ function LiveView({
   errorMsg,
   restoreNotice,
   autoGenerateStudentIds,
+  presenterNotesEnabled,
+  presenterNotesByIndex,
+  presenterNotesOpen,
+  onPresenterNotesToggle,
   onAction,
 }: {
   sock: ReturnType<typeof useSocket>;
@@ -599,6 +642,10 @@ function LiveView({
   errorMsg: string | null;
   restoreNotice: string | null;
   autoGenerateStudentIds: boolean;
+  presenterNotesEnabled: boolean;
+  presenterNotesByIndex: Record<number, FoldoutNote[]>;
+  presenterNotesOpen: boolean;
+  onPresenterNotesToggle: (open: boolean) => void;
   onAction: (action: () => Promise<unknown>, label: string) => void;
 }) {
   const state = sock.sessionState as SessionState;
@@ -647,6 +694,9 @@ function LiveView({
       ? rev
       : null;
   const showDetailedRevealChoices = !!displayReveal && !!displayQuestion;
+  const currentPresenterNotes = presenterNotesEnabled
+    ? presenterNotesByIndex[displayQuestion?.questionIndex ?? -1] ?? []
+    : [];
   const getQuestionHeading = useCallback((questionIndex: number | null | undefined): string | null => {
     if (questionIndex === null || questionIndex === undefined || questionIndex < 0) {
       return null;
@@ -941,6 +991,7 @@ function LiveView({
             attendeeNotes={displayQuestion.attendeeNotes}
             slideMedia={displayQuestion.slideMedia}
             slideLiveEmbed={displayQuestion.slideLiveEmbed}
+            slideVideo={displayQuestion.slideVideo}
             slideReferences={displayQuestion.slideReferences}
           />
         );
@@ -1138,6 +1189,14 @@ function LiveView({
             {liveSurfaceContent}
           </LiveSurface>
         </div>
+        {presenterNotesEnabled && currentPresenterNotes.length > 0 && (
+          <PresenterNotesPanel
+            notes={currentPresenterNotes}
+            open={presenterNotesOpen}
+            onToggle={onPresenterNotesToggle}
+            positionLabel={displayPositionLabel}
+          />
+        )}
 
         {errorMsg && (
           <div className="slide-page-error bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-xl text-center">
@@ -1204,6 +1263,7 @@ function LiveView({
                 attendeeNotes={displayQuestion.attendeeNotes}
                 slideMedia={displayQuestion.slideMedia}
                 slideLiveEmbed={displayQuestion.slideLiveEmbed}
+                slideVideo={displayQuestion.slideVideo}
                 slideReferences={displayQuestion.slideReferences}
                 positionLabel={displayPositionLabel}
                 nextLabel={null}

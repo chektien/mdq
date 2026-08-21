@@ -2725,3 +2725,313 @@ body.image-expansion-lock {
     text-align: left;
   }
 }
+
+
+/* ── Presenter notes panel (instructor-only, below slide preview) ───── */
+.presenter-notes-panel {
+  width: 100%;
+  margin-top: clamp(0.6rem, 1.4vh, 1rem);
+}
+
+.presenter-notes-details {
+  border: 1px solid rgba(245, 197, 66, 0.34);
+  border-radius: var(--mdq-panel-radius, 0.9rem);
+  background: linear-gradient(145deg, rgba(46, 38, 18, 0.55), rgba(26, 24, 22, 0.6));
+  overflow: hidden;
+}
+
+.presenter-notes-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.9rem;
+  color: #f6e7c4;
+  user-select: none;
+}
+
+.presenter-notes-summary::-webkit-details-marker {
+  display: none;
+}
+
+.presenter-notes-summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 5px 0 5px 7px;
+  border-color: transparent transparent transparent #f5c542;
+  transition: transform 0.15s ease;
+}
+
+.presenter-notes-details[open] .presenter-notes-summary::before {
+  transform: rotate(90deg);
+}
+
+.presenter-notes-kicker {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: #f5c542;
+}
+
+.presenter-notes-position {
+  color: rgba(246, 231, 196, 0.72);
+  font-variant-numeric: tabular-nums;
+}
+
+.presenter-notes-hint {
+  margin-left: auto;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(246, 231, 196, 0.55);
+}
+
+.presenter-notes-body {
+  max-height: 30vh;
+  overflow-y: auto;
+  padding: 0.35rem 0.95rem 0.9rem;
+  border-top: 1px solid rgba(245, 197, 66, 0.2);
+  color: #ece7db;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.presenter-notes-body .presenter-notes-note + .presenter-notes-note {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(245, 197, 66, 0.18);
+}
+
+.presenter-notes-body ul,
+.presenter-notes-body ol {
+  margin: 0.2rem 0 0.2rem 1.05rem;
+  padding: 0;
+}
+
+.presenter-notes-body li {
+  margin: 0.12rem 0;
+}
+
+html[data-theme="light"] .presenter-notes-details {
+  background: linear-gradient(145deg, rgba(255, 246, 224, 0.92), rgba(255, 250, 238, 0.96));
+  border-color: rgba(191, 138, 12, 0.4);
+}
+
+html[data-theme="light"] .presenter-notes-summary {
+  color: #5a4409;
+}
+
+html[data-theme="light"] .presenter-notes-kicker,
+html[data-theme="light"] .presenter-notes-summary::before {
+  color: #b9860b;
+}
+
+html[data-theme="light"] .presenter-notes-position,
+html[data-theme="light"] .presenter-notes-hint {
+  color: rgba(90, 68, 9, 0.72);
+}
+
+html[data-theme="light"] .presenter-notes-body {
+  color: #33301f;
+  border-top-color: rgba(191, 138, 12, 0.28);
+}
+
+/* ── Slide video card (contained clickable player) ─────────────────── */
+.slide-video-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.slide-video-card-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: min(100%, 60rem);
+}
+
+.slide-video-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  border: 1px solid rgba(238, 238, 235, 0.18);
+  border-radius: calc(var(--mdq-panel-radius, 0.9rem) + 0.2rem);
+  background: #0b0d14;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.slide-video-card:hover,
+.slide-video-card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  outline: 2px solid rgba(120, 170, 255, 0.7);
+  outline-offset: 2px;
+}
+
+.slide-video-card-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.slide-video-card-thumb-empty {
+  background: radial-gradient(circle at 50% 40%, #1c2436, #0b0d14 72%);
+}
+
+.slide-video-card-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.slide-video-card-play svg {
+  width: clamp(48px, 8vw, 84px);
+  height: clamp(48px, 8vw, 84px);
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55));
+}
+
+.slide-video-card-badge {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.7rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(10, 12, 20, 0.78);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.slide-video-card-caption {
+  margin: 0;
+  color: var(--mdq-slide-ink-soft, #a6a6a0);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.slide-video-card-fallback {
+  font-size: 0.85rem;
+  color: rgba(140, 180, 255, 0.92);
+  text-decoration: underline;
+}
+
+/* ── Video expansion modal (modelled on image expansion) ───────────── */
+.video-expansion-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.85rem, 2.8vw, 2.2rem);
+  isolation: isolate;
+}
+
+.video-expansion-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 0;
+  background: rgba(9, 10, 16, 0.9);
+  cursor: zoom-out;
+  backdrop-filter: blur(16px) saturate(1.05);
+}
+
+.video-expansion-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(94vw, 92rem);
+  padding: clamp(0.72rem, 1.5vw, 1.25rem);
+  border: 1px solid rgba(238, 238, 235, 0.14);
+  border-radius: calc(var(--mdq-panel-radius, 0.9rem) + 0.35rem);
+  background: linear-gradient(145deg, rgba(28, 30, 40, 0.95), rgba(16, 17, 24, 0.96));
+  box-shadow: 0 36px 90px rgba(0, 0, 0, 0.62);
+}
+
+.video-expansion-close {
+  align-self: flex-end;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid rgba(238, 238, 235, 0.2);
+  border-radius: 999px;
+  background: rgba(20, 22, 30, 0.85);
+  color: #eee;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.video-expansion-close:hover,
+.video-expansion-close:focus-visible {
+  background: rgba(40, 44, 58, 0.95);
+  outline: 2px solid rgba(120, 170, 255, 0.7);
+}
+
+.video-expansion-player {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: calc(var(--mdq-panel-radius, 0.9rem) - 0.1rem);
+  overflow: hidden;
+  background: #000;
+}
+
+.video-expansion-iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.video-expansion-fallback {
+  color: rgba(140, 180, 255, 0.92);
+  font-size: 0.88rem;
+  text-align: center;
+  text-decoration: underline;
+}
+
+
+/* When presenter notes are shown, dock them below the preview and let the
+   slide surface share one instructor viewport (surface flexes, panel caps). */
+.slide-live-shell-controls:has(.presenter-notes-panel) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+.slide-live-shell-controls:has(.presenter-notes-panel) .slide-live-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.slide-live-shell-controls:has(.presenter-notes-panel) .slide-live-main .slide-surface {
+  min-height: 0;
+}
+
+.slide-live-shell-controls .presenter-notes-panel {
+  flex: 0 0 auto;
+  margin-top: 0;
+  border-top: 1px solid rgba(245, 197, 66, 0.22);
+}
