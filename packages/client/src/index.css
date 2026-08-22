@@ -2479,6 +2479,11 @@ body.image-expansion-lock {
 
 .image-expansion-close {
   position: absolute;
+  /* Keep the shared close control above the expanded media it sits on. Video
+     overlays paint a positioned player (and its iframe) after this button in
+     DOM order, so without an explicit stacking order the frame swallows the
+     pointer target and the control is only reachable by keyboard. */
+  z-index: 2;
   top: clamp(0.52rem, 1.2vw, 0.86rem);
   right: clamp(0.52rem, 1.2vw, 0.86rem);
   display: inline-grid;

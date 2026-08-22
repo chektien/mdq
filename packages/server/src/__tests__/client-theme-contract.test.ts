@@ -100,6 +100,22 @@ describe("client light-theme contract", () => {
     });
   });
 
+  describe("shared expansion close control stacking", () => {
+    const css = read("index.css");
+
+    // The video overlay renders the close button before a positioned player
+    // whose iframe would otherwise paint over it, leaving the control
+    // keyboard-only. The shared rule must establish the stacking order.
+    it("lifts the shared close control above the expanded media", () => {
+      // Anchor on the base rule, not the html[data-theme="light"] override.
+      const start = css.indexOf("\n.image-expansion-close {");
+      expect(start).toBeGreaterThan(-1);
+      const block = css.slice(start, css.indexOf("}", start));
+      expect(block).toMatch(/position:\s*absolute/);
+      expect(block).toMatch(/z-index:\s*[1-9]/);
+    });
+  });
+
   describe("VideoCard media family + expansion close control", () => {
     const tsx = read("components/VideoCard.tsx");
 
