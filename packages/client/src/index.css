@@ -3041,3 +3041,28 @@ html[data-theme="light"] .presenter-notes-body {
   margin-top: 0;
   border-top: 1px solid rgba(245, 197, 66, 0.22);
 }
+
+/* A slide with both a video and an image keeps the established text/media
+   split, with both media items sharing the existing right-hand column. */
+.slide-combined-media {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.55rem, 1cqi, 0.9rem);
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+}
+
+.slide-combined-media .slide-media-grid {
+  height: auto;
+}
+
+.slide-combined-media .slide-media-figure img {
+  max-height: min(27dvh, 15rem);
+}
+
+@media (max-width: 760px) {
+  .slide-combined-media {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
