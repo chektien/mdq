@@ -22,6 +22,9 @@ body {
   --mdq-slide-heading: #171614;
   --mdq-slide-ink: #24221f;
   --mdq-slide-ink-soft: #625d54;
+  /* Caption ink for media slabs (thumbnails + expansion). Light on the dark
+     media slab used in the default/dark surface; overridden in light theme. */
+  --mdq-media-caption-ink: #ece9e3;
   --mdq-slide-eyebrow: #807765;
   --mdq-slide-rule: rgba(36, 34, 31, 0.14);
   --mdq-slide-accent: #0f766e;
@@ -488,6 +491,72 @@ html[data-theme="light"] .slide-surface {
 
 html[data-theme="light"] .slide-surface::after {
   content: none;
+}
+
+/* ── Light-theme media canvas ───────────── */
+html[data-theme="light"] .slide-media-figure {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: #fffdfa;
+  box-shadow: 0 10px 24px rgba(70, 60, 45, 0.08);
+}
+
+html[data-theme="light"] {
+  /* On the light surface the media slab is light, so captions need dark ink. */
+  --mdq-media-caption-ink: #4a453d;
+}
+
+html[data-theme="light"] .slide-video-figure {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: #fffdfa;
+  box-shadow: 0 10px 24px rgba(70, 60, 45, 0.08);
+}
+
+html[data-theme="light"] .slide-media-expand-button {
+  background: transparent;
+}
+
+/* Keep the transparent quote figures transparent (no slab, no shadow). */
+html[data-theme="light"] .slide-media-figure:has(img[src*="finding1-quote-"]),
+html[data-theme="light"] .slide-media-figure:has(img[src*="finding2-quote-"]) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme="light"] .slide-media-expand-button:hover img,
+html[data-theme="light"] .slide-media-expand-button:focus-visible img {
+  box-shadow: 0 14px 32px rgba(70, 60, 45, 0.16);
+}
+
+html[data-theme="light"] .image-expansion-backdrop {
+  background: rgba(44, 36, 26, 0.46);
+}
+
+html[data-theme="light"] .image-expansion-frame {
+  border-color: rgba(100, 116, 139, 0.28);
+  background: #fffdfa;
+  box-shadow: 0 30px 70px rgba(70, 60, 45, 0.22);
+}
+
+html[data-theme="light"] .image-expansion-image {
+  background: #ffffff;
+  box-shadow: 0 14px 40px rgba(70, 60, 45, 0.14);
+}
+
+html[data-theme="light"] .image-expansion-close {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: #fffdfa;
+  box-shadow: 0 10px 24px rgba(70, 60, 45, 0.14);
+}
+
+html[data-theme="light"] .image-expansion-close:hover,
+html[data-theme="light"] .image-expansion-close:focus-visible {
+  border-color: var(--mdq-slide-accent);
+  background: #ffffff;
+}
+
+html[data-theme="light"] .image-expansion-close:focus-visible {
+  outline-color: color-mix(in srgb, var(--mdq-slide-accent) 72%, white);
 }
 
 .slide-safe {
@@ -1183,8 +1252,9 @@ html[data-theme="light"] .slide-surface::after {
   max-height: min(100%, 20dvh, 13rem);
 }
 
-.slide-media-figure figcaption {
-  color: var(--mdq-slide-ink-soft);
+.slide-media-figure figcaption,
+.slide-video-figure figcaption {
+  color: var(--mdq-media-caption-ink);
   font-size: clamp(0.62rem, 0.8cqi, 0.82rem);
   font-weight: 650;
   line-height: 1.22;
@@ -2400,7 +2470,7 @@ body.image-expansion-lock {
 
 .image-expansion-caption {
   max-width: min(92vw, 78rem);
-  color: color-mix(in srgb, var(--mdq-slide-ink-soft, #a6a6a0) 86%, transparent);
+  color: var(--mdq-media-caption-ink);
   font-size: clamp(0.72rem, 1vw, 0.94rem);
   font-weight: 650;
   line-height: 1.25;
@@ -2849,13 +2919,27 @@ html[data-theme="light"] .presenter-notes-body {
   width: 100%;
 }
 
-.slide-video-card-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
+/* Video posters share the image thumbnail's figure grammar: a slab that
+   frames the media with a caption row beneath, so video and image captions
+   read as one component family. */
+.slide-video-figure {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.46rem;
+  margin: 0;
   width: 100%;
   max-width: min(100%, 60rem);
+  border: 1px solid var(--mdq-slide-glass-line);
+  border-radius: var(--mdq-panel-radius);
+  background: rgba(31, 31, 30, 0.72);
+  padding: clamp(0.42rem, 0.7cqi, 0.72rem);
+}
+
+/* The slab is the frame now, so drop the poster's own border and base shadow. */
+.slide-video-figure .slide-video-card {
+  border: 0;
+  box-shadow: none;
+  border-radius: calc(var(--mdq-panel-radius, 0.9rem) - 0.12rem);
 }
 
 .slide-video-card {
@@ -2908,32 +2992,6 @@ html[data-theme="light"] .presenter-notes-body {
   filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55));
 }
 
-.slide-video-card-badge {
-  position: absolute;
-  left: 0.75rem;
-  bottom: 0.7rem;
-  padding: 0.28rem 0.7rem;
-  border-radius: 999px;
-  background: rgba(10, 12, 20, 0.78);
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
-.slide-video-card-caption {
-  margin: 0;
-  color: var(--mdq-slide-ink-soft, #a6a6a0);
-  font-size: 0.9rem;
-  text-align: center;
-}
-
-.slide-video-card-fallback {
-  font-size: 0.85rem;
-  color: rgba(140, 180, 255, 0.92);
-  text-decoration: underline;
-}
-
 /* ── Video expansion modal (modelled on image expansion) ───────────── */
 .video-expansion-overlay {
   position: fixed;
@@ -2967,23 +3025,6 @@ html[data-theme="light"] .presenter-notes-body {
   border-radius: calc(var(--mdq-panel-radius, 0.9rem) + 0.35rem);
   background: linear-gradient(145deg, rgba(28, 30, 40, 0.95), rgba(16, 17, 24, 0.96));
   box-shadow: 0 36px 90px rgba(0, 0, 0, 0.62);
-}
-
-.video-expansion-close {
-  align-self: flex-end;
-  padding: 0.35rem 0.9rem;
-  border: 1px solid rgba(238, 238, 235, 0.2);
-  border-radius: 999px;
-  background: rgba(20, 22, 30, 0.85);
-  color: #eee;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.video-expansion-close:hover,
-.video-expansion-close:focus-visible {
-  background: rgba(40, 44, 58, 0.95);
-  outline: 2px solid rgba(120, 170, 255, 0.7);
 }
 
 .video-expansion-player {
@@ -3044,13 +3085,23 @@ html[data-theme="light"] .presenter-notes-body {
 
 /* A slide with both a video and an image keeps the established text/media
    split, with both media items sharing the existing right-hand column. */
+/* Video and image stack top-and-bottom within the established right-hand
+   media column, balanced to the same width. */
 .slide-combined-media {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: clamp(0.55rem, 1cqi, 0.9rem);
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(0.55rem, 1.4vh, 1rem);
   width: 100%;
   min-width: 0;
-  align-items: center;
+  justify-items: center;
+  align-content: center;
+}
+
+.slide-combined-media .slide-video-slot,
+.slide-combined-media .slide-media-grid {
+  width: 100%;
+  max-width: min(100%, 30rem);
+  margin: 0 auto;
 }
 
 .slide-combined-media .slide-media-grid {
@@ -3059,10 +3110,4 @@ html[data-theme="light"] .presenter-notes-body {
 
 .slide-combined-media .slide-media-figure img {
   max-height: min(27dvh, 15rem);
-}
-
-@media (max-width: 760px) {
-  .slide-combined-media {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }

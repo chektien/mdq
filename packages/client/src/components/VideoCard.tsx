@@ -3,26 +3,36 @@ import { createPortal } from "react-dom";
 import type { SlideVideo } from "@mdq/shared";
 
 /**
- * A contained, clickable playable-video card. Shows a poster thumbnail with
- * a play affordance and a visible fallback link (so the video is reachable
- * even if the embed is blocked). Clicking the card opens a modal player that
- * loads the embed in an iframe. Modelled on the ImageExpansion overlay:
- * portal to document.body, Escape-to-close, backdrop click, scroll lock.
+ * A contained, clickable playable-video card that belongs to the same visual
+ * family as image thumbnails: the poster sits in a media figure with a
+ * caption beneath it, styled exactly like ExpandableImage captions. A centred
+ * play affordance marks it as playable. Clicking opens a modal player that
+ * loads the embed in an iframe. Modelled on the ImageExpansion overlay: portal
+ * to document.body, Escape-to-close, backdrop click, scroll lock, and the same
+ * close control.
  */
 export default function VideoCard({ video, title }: { video: SlideVideo; title: string }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const label = video.label || "Play video";
   const caption = video.caption;
+
+  const closeOverlay = () => {
+    setOpen(false);
+    window.setTimeout(() => triggerRef.current?.focus(), 0);
+  };
+
   return (
-    <div className="slide-video-card-wrap">
+    <figure className="slide-video-figure">
       <button
+        ref={triggerRef}
         type="button"
         className="slide-video-card"
         onClick={() => setOpen(true)}
         aria-label={`${label}: ${title}`}
       >
         {video.thumbnail ? (
-          <img className="slide-video-card-thumb" src={video.thumbnail} alt={title} />
+          <img className="slide-video-card-thumb" src={video.thumbnail} alt="" />
         ) : (
           <span className="slide-video-card-thumb slide-video-card-thumb-empty" aria-hidden="true" />
         )}
@@ -32,19 +42,10 @@ export default function VideoCard({ video, title }: { video: SlideVideo; title: 
             <path d="M9.5 7.5v9l7-4.5-7-4.5z" fill="#fff" />
           </svg>
         </span>
-        <span className="slide-video-card-badge">{label}</span>
       </button>
-      {caption && <p className="slide-video-card-caption">{caption}</p>}
-      <a
-        className="slide-video-card-fallback"
-        href={video.embedUrl}
-        target="_blank"
-        rel="noreferrer noopener"
-      >
-        Open the video in a new tab
-      </a>
-      {open && <VideoOverlay video={video} title={title} onClose={() => setOpen(false)} />}
-    </div>
+      {caption && <figcaption>{caption}</figcaption>}
+      {open && <VideoOverlay video={video} title={title} onClose={closeOverlay} />}
+    </figure>
   );
 }
 
@@ -97,10 +98,16 @@ function VideoOverlay({
   if (typeof document === "undefined") return null;
   return createPortal(
     <div className="video-expansion-overlay" role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" className="video-expansion-backdrop" aria-label="Close video" onClick={onClose} />
+      <button type="button" className="video-expansion-backdrop" aria-label="Close expanded video" onClick={onClose} />
       <div className="video-expansion-frame" ref={frameRef}>
-        <button type="button" ref={closeRef} className="video-expansion-close" onClick={onClose} aria-label="Close video">
-          Close
+        <button
+          type="button"
+          ref={closeRef}
+          className="image-expansion-close"
+          onClick={onClose}
+          aria-label="Close expanded video"
+        >
+          <span className="image-expansion-close-icon" aria-hidden="true" />
         </button>
         <div className="video-expansion-player">
           <iframe
