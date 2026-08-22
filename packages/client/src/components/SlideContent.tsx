@@ -119,30 +119,41 @@ export function SlideContentBody({
       ].filter(Boolean).join(" ")}>
         {hasBody && <QuizHtml className="quiz-html slide-body slide-content-text" html={html} />}
 
-        {hasVideo && slideVideo && (
-          <div className="slide-video-slot">
-            <VideoCard video={slideVideo} title={title} />
-          </div>
-        )}
+        {(() => {
+          const mediaGrid = hasMedia ? (
+            <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
+              {slideMedia.map((media, index) => {
+                const caption = media.title || media.alt;
+                return (
+                  <figure className="slide-media-figure" key={`${media.src}-${index}`}>
+                    <ExpandableImage
+                      className="slide-media-expand-button"
+                      src={media.src}
+                      alt={media.alt}
+                      title={media.title}
+                    />
+                    {caption && <figcaption>{caption}</figcaption>}
+                  </figure>
+                );
+              })}
+            </div>
+          ) : null;
 
-        {hasMedia && (
-          <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
-            {slideMedia.map((media, index) => {
-              const caption = media.title || media.alt;
-              return (
-                <figure className="slide-media-figure" key={`${media.src}-${index}`}>
-                  <ExpandableImage
-                    className="slide-media-expand-button"
-                    src={media.src}
-                    alt={media.alt}
-                    title={media.title}
-                  />
-                  {caption && <figcaption>{caption}</figcaption>}
-                </figure>
-              );
-            })}
-          </div>
-        )}
+          // When a slide carries both a video card and an image, group them in
+          // one column so the content grid stays two columns (text | media)
+          // instead of wrapping the second media element onto a new row.
+          if (hasVideo && slideVideo) {
+            return (
+              <div className="slide-side-media">
+                <div className="slide-video-slot">
+                  <VideoCard video={slideVideo} title={title} />
+                </div>
+                {mediaGrid}
+              </div>
+            );
+          }
+          return mediaGrid;
+        })()}
       </div>
 
       {hasAttendeeNotes && (

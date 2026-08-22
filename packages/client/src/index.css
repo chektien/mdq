@@ -3030,8 +3030,74 @@ html[data-theme="light"] .presenter-notes-body {
   min-height: 0;
 }
 
+/* Keep the slide-safe area (which anchors the slide counter) within the
+   shrunk surface so the counter sits above the docked notes panel rather
+   than being clipped by it. Scoped to the notes-dock layout only. */
+.slide-live-shell-controls:has(.presenter-notes-panel) .slide-safe {
+  min-height: 0;
+  height: 100%;
+}
+
+/* On the docked instructor preview the slide surface is shorter, so cap
+   grouped video+image media tighter here (projector/full-surface layouts keep
+   the generous base caps) to avoid clipping into the notes panel. */
+.slide-live-shell-controls:has(.presenter-notes-panel) .slide-side-media {
+  gap: 0.4rem;
+}
+
+.slide-live-shell-controls:has(.presenter-notes-panel) .slide-side-media .slide-video-card-wrap {
+  max-width: 20rem;
+}
+
+.slide-live-shell-controls:has(.presenter-notes-panel) .slide-side-media .slide-media-figure img {
+  max-height: 13dvh;
+}
+
+/* Slightly compress title and body type in the docked instructor preview so
+   dense slides fit above the notes panel. Projector/student surfaces keep the
+   full-size type. */
+.slide-live-shell-controls:has(.presenter-notes-panel) .slide-title {
+  font-size: clamp(1.5rem, 3.6cqi, 2.5rem);
+  line-height: 1.06;
+}
+
+.slide-live-shell-controls:has(.presenter-notes-panel) .slide-content-text {
+  font-size: clamp(0.95rem, 1.9cqi, 1.35rem);
+}
+
 .slide-live-shell-controls .presenter-notes-panel {
   flex: 0 0 auto;
   margin-top: 0;
   border-top: 1px solid rgba(245, 197, 66, 0.22);
+}
+
+
+/* ── Grouped video + image on one slide (e.g. the mech-suit slide) ──── */
+.slide-side-media {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.6rem, 1.4vh, 1rem);
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.slide-side-media .slide-video-slot {
+  width: 100%;
+}
+
+.slide-side-media .slide-video-card-wrap {
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+}
+
+.slide-side-media .slide-media-grid {
+  margin: 0;
+  width: 100%;
+}
+
+.slide-side-media .slide-media-figure img {
+  max-height: min(30dvh, 17rem);
+  object-fit: contain;
 }
