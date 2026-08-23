@@ -388,6 +388,11 @@ body {
   --mdq-slide-rule: rgba(235, 231, 238, 0.14);
   --mdq-slide-accent: #b366ff;
   --mdq-slide-accent-strong: #ca8cff;
+  /* Paired body-copy accents for setting one term against its counterpart.
+     Warm/cool rather than red/green so they stay separable under CVD; both
+     clear WCAG AA against --mdq-slide-bg in each theme. */
+  --mdq-slide-accent-warm: #ff9d6b;
+  --mdq-slide-accent-cool: #5fd3e8;
   --mdq-slide-scene: #35a64d;
   --mdq-slide-blue: #3159b7;
   --mdq-slide-maroon: #8c2446;
@@ -415,6 +420,8 @@ html[data-theme="light"] {
   --mdq-slide-rule: rgba(117, 92, 62, 0.18);
   --mdq-slide-accent: #1f6f78;
   --mdq-slide-accent-strong: #155d66;
+  --mdq-slide-accent-warm: #a8431a;
+  --mdq-slide-accent-cool: #0e6c78;
   --mdq-slide-glass: rgba(255, 250, 241, 0.82);
   --mdq-slide-glass-strong: rgba(255, 252, 246, 0.94);
   --mdq-slide-glass-line: rgba(117, 92, 62, 0.18);
@@ -963,6 +970,22 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
   line-height: 0.95;
 }
 
+.slide-safe:has(.slide-subtitle) {
+  gap: clamp(0.45rem, 0.75cqi, 0.85rem);
+}
+
+.slide-content-grid:has(.slide-subtitle) {
+  align-items: start;
+}
+
+.slide-subtitle {
+  margin: 0 0 clamp(1.4rem, 2.6cqi, 2.8rem);
+  color: var(--mdq-slide-heading);
+  font-size: clamp(1.1rem, 1.72cqi, 1.8rem);
+  font-weight: 700;
+  line-height: 1.12;
+}
+
 .slide-body {
   max-width: min(62cqi, 70rem);
   color: var(--mdq-slide-ink);
@@ -1063,6 +1086,134 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
 .slide-content-grid-with-media {
   grid-template-columns: minmax(0, 0.96fr) minmax(min(20rem, 100%), 0.88fr);
   align-items: center;
+}
+
+.slide-content-grid-with-media:has(> .slide-visual-stack) {
+  grid-template-columns: minmax(0, 2fr) minmax(min(18rem, 100%), 1fr);
+  align-items: start;
+}
+
+/* In the side column the video poster leads on its own row and the supporting
+   stills sit in a two-column row beneath it, so the whole visual block reads as
+   "poster on top, two equal stills below" while the closing copy and the
+   reference keep their own space in the text column and stay on a 16:9
+   projector. (An earlier form stacked the poster over a two-ROW still column,
+   which ran the block past the column height; the two stills share a single
+   short row here instead.) The top/bottom variants below keep the wide, short
+   strip form. */
+.slide-visual-stack {
+  display: grid;
+  grid-column: 2;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  width: min(100%, 34rem);
+  min-width: 0;
+  min-height: 0;
+  justify-items: stretch;
+  justify-self: end;
+  align-items: start;
+  align-content: start;
+  align-self: start;
+  gap: clamp(0.5rem, 1cqi, 0.95rem);
+}
+
+/* The two stills below the poster share one short row as equal side-by-side
+   columns (mech-suit left, participant email right in source order). Without
+   this the count-2 grid falls back to its stacked two-row form. */
+.slide-content-grid-media-right > .slide-visual-stack .slide-media-grid.slide-media-grid-count-2,
+.slide-content-grid-media-left > .slide-visual-stack .slide-media-grid.slide-media-grid-count-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.slide-content-grid-media-left > .slide-visual-stack {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.slide-content-grid-media-top > .slide-visual-stack,
+.slide-content-grid-media-bottom > .slide-visual-stack {
+  grid-column: 1;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  width: min(100%, 72rem);
+  height: min(44dvh, 24rem);
+  justify-self: center;
+}
+
+.slide-content-grid-media-top > .slide-visual-stack {
+  grid-row: 1;
+}
+
+.slide-content-grid-media-bottom > .slide-visual-stack {
+  grid-row: 2;
+}
+
+.slide-visual-stack .slide-video-slot,
+.slide-visual-stack .slide-video-card-wrap,
+.slide-content-grid-with-media .slide-visual-stack .slide-media-grid {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+}
+
+/* The poster keeps its own 16:9 box and anchors the row height. */
+.slide-content-grid-with-media .slide-visual-stack .slide-media-grid {
+  height: auto;
+  align-content: start;
+  gap: clamp(0.4rem, 0.8cqi, 0.8rem);
+}
+
+/* The two-row form still wants both children to fill their rows. */
+.slide-content-grid-media-top > .slide-visual-stack .slide-video-slot,
+.slide-content-grid-media-top > .slide-visual-stack .slide-video-card-wrap,
+.slide-content-grid-media-top > .slide-visual-stack .slide-video-card,
+.slide-content-grid-media-bottom > .slide-visual-stack .slide-video-slot,
+.slide-content-grid-media-bottom > .slide-visual-stack .slide-video-card-wrap,
+.slide-content-grid-media-bottom > .slide-visual-stack .slide-video-card,
+.slide-content-grid-with-media.slide-content-grid-media-top > .slide-visual-stack .slide-media-grid,
+.slide-content-grid-with-media.slide-content-grid-media-bottom > .slide-visual-stack .slide-media-grid {
+  height: 100%;
+  min-height: 0;
+}
+
+.slide-content-grid-media-top > .slide-visual-stack .slide-video-card,
+.slide-content-grid-media-bottom > .slide-visual-stack .slide-video-card {
+  aspect-ratio: auto;
+}
+
+/* The stills are the supporting pair next to the poster, so their slab and
+   caption run one step tighter than a standalone thumbnail. */
+.slide-visual-stack .slide-media-figure {
+  gap: 0.3rem;
+  padding: clamp(0.3rem, 0.5cqi, 0.55rem);
+}
+
+/* Now that the two stills share a short row beneath the poster (rather than a
+   narrow tall sub-column), their captions have room to read. Let them wrap
+   across as many lines as they need instead of truncating mid-word inside a
+   hidden overflow, so each still stays labelled on the projector. */
+.slide-content-grid-media-right > .slide-visual-stack .slide-media-figure figcaption,
+.slide-content-grid-media-left > .slide-visual-stack .slide-media-figure figcaption {
+  display: block;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-align: center;
+  line-height: 1.15;
+  font-size: clamp(0.72rem, 0.95cqi, 0.9rem);
+}
+
+/* That inset keeps a full-width media grid clear of the join/QR card. The
+   poster+stills column is already confined to a narrow track and sits well
+   above the card, so the same fixed inset collapsed its stills to a sliver.
+   Opt that column out. */
+.slide-safe:has(.slide-join-panel) .slide-content-grid-with-media .slide-visual-stack .slide-media-grid {
+  width: 100%;
+  justify-self: stretch;
 }
 
 .slide-content-grid-with-media:is(
@@ -1497,6 +1648,156 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
   font-weight: 650;
   line-height: 1.22;
   text-align: center;
+}
+
+/* ============================================================
+   Grouped slide media (media_group: directive)
+   Labelled clusters, e.g. a compact 2x2 BEFORE grid beside a larger AFTER
+   result. Generic and deck-agnostic — any slide can group its images.
+   ============================================================ */
+.slide-media-groups {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  gap: clamp(1rem, 2.6cqi, 2.6rem);
+  align-items: stretch;
+}
+.slide-media-groups-count-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Two groups sit side by side; the second (the AFTER result) gets more room. */
+.slide-media-groups-count-2 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.18fr);
+}
+.slide-media-groups-count-many {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.slide-content-grid-media-only .slide-media-groups {
+  height: min(62dvh, 34rem);
+  justify-self: stretch;
+  max-width: none;
+}
+.slide-media-group {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(0.45rem, 0.95cqi, 0.95rem);
+  min-width: 0;
+  min-height: 0;
+}
+.slide-media-group-title {
+  margin: 0;
+  color: var(--mdq-slide-eyebrow);
+  font-size: clamp(0.82rem, 1.5cqi, 1.55rem);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.08;
+  text-transform: uppercase;
+}
+/* The cluster grid fills the group's lower row; images size to their cells. */
+.slide-media-group .slide-media-grid {
+  height: 100%;
+  min-height: 0;
+  max-width: none;
+  justify-self: stretch;
+}
+/* A four-up BEFORE cluster is an even 2x2, not the hero+strip form. */
+.slide-media-group .slide-media-grid.slide-media-grid-count-many {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.slide-media-group .slide-media-grid.slide-media-grid-count-many .slide-media-figure:first-child {
+  grid-column: auto;
+  grid-row: auto;
+}
+/* Each panel fills its cell equally and letterboxes with object-fit contain,
+   overriding the hero/strip per-count image height caps. */
+.slide-media-group .slide-media-grid .slide-media-figure {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+}
+.slide-media-group .slide-media-grid .slide-media-figure img {
+  max-height: 100%;
+}
+/* Keep grouped clusters full-width inside their cell — defeat the join-panel
+   trim meant for a single full-width grid — but inset the whole block from the
+   projector QR/join card so the trailing (AFTER) column stays clear of it. */
+.slide-safe:has(.slide-join-panel) .slide-content-grid .slide-media-group .slide-media-grid {
+  width: 100%;
+  justify-self: stretch;
+}
+.slide-safe:has(.slide-join-panel) .slide-content-grid-media-only .slide-media-groups {
+  width: calc(100% - min(8rem, 15cqi));
+  justify-self: start;
+}
+
+/* ============================================================
+   Orbit composition (.mdq-orbit — deck raw HTML)
+   A single centred image framed by short word callouts placed around it: a
+   deliberate composition rather than an image-with-caption. Generic.
+   ============================================================ */
+.mdq-orbit {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-items: center;
+  column-gap: clamp(0.9rem, 3cqi, 3rem);
+  row-gap: clamp(0.7rem, 1.8cqi, 1.8rem);
+  width: 100%;
+  max-width: min(82cqi, 80rem);
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+.mdq-orbit-image {
+  grid-column: 2;
+  grid-row: 2;
+  display: block;
+  max-width: 100%;
+  max-height: min(42dvh, 30rem);
+  object-fit: contain;
+  border: 1px solid var(--mdq-slide-glass-line);
+  border-radius: var(--mdq-panel-radius);
+  background: rgba(31, 31, 30, 0.72);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+  cursor: zoom-in;
+}
+.mdq-orbit-callout {
+  margin: 0;
+  padding: 0.34em 0.95em;
+  border: 1px solid var(--mdq-slide-glass-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mdq-slide-bg) 84%, transparent);
+  color: var(--mdq-slide-heading);
+  font-size: clamp(0.95rem, 2cqi, 2.1rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+}
+/* Purpose sits centred above; Design and Judgement flank the centred image. */
+.mdq-orbit-callout-top {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+.mdq-orbit-callout-left {
+  grid-column: 1;
+  grid-row: 2;
+}
+.mdq-orbit-callout-right {
+  grid-column: 3;
+  grid-row: 2;
+}
+html[data-theme="light"] .mdq-orbit-image {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: #fffdfa;
+  box-shadow: 0 20px 60px rgba(70, 60, 45, 0.16);
+}
+html[data-theme="light"] .mdq-orbit-callout {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: color-mix(in srgb, #fffdf7 90%, transparent);
 }
 
 .slide-references {
@@ -3292,19 +3593,6 @@ html[data-theme="light"] .presenter-notes-body {
   letter-spacing: 0.01em;
 }
 
-.slide-video-card-caption {
-  margin: 0;
-  color: var(--mdq-slide-ink-soft, #a6a6a0);
-  font-size: 0.9rem;
-  text-align: center;
-}
-
-.slide-video-card-fallback {
-  font-size: 0.85rem;
-  color: rgba(140, 180, 255, 0.92);
-  text-decoration: underline;
-}
-
 /* ── Video expansion modal (modelled on image expansion) ───────────── */
 .video-expansion-overlay {
   position: fixed;
@@ -3313,7 +3601,8 @@ html[data-theme="light"] .presenter-notes-body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(0.85rem, 2.8vw, 2.2rem);
+  --video-overlay-pad: clamp(0.85rem, 2.8vw, 2.2rem);
+  padding: var(--video-overlay-pad);
   isolation: isolate;
 }
 
@@ -3327,13 +3616,25 @@ html[data-theme="light"] .presenter-notes-body {
   backdrop-filter: blur(16px) saturate(1.05);
 }
 
+/* The close control is a flow item in this column, so it never covers player
+   chrome. What it does cost is height: control band + fallback line + gaps +
+   padding. Bound the player against viewport height by that chrome budget so
+   the frame cannot push itself off a 720p screen. */
 .video-expansion-frame {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
   width: min(94vw, 92rem);
-  padding: clamp(0.72rem, 1.5vw, 1.25rem);
+  --video-frame-pad: clamp(0.72rem, 1.5vw, 1.25rem);
+  --video-close-band: 2rem;
+  /* overlay padding + frame padding + control band + the two column gaps +
+     the fallback link line + the frame's own borders */
+  --video-frame-chrome: calc(
+    (2 * var(--video-overlay-pad, 2.2rem)) + (2 * var(--video-frame-pad)) +
+    var(--video-close-band) + (2 * 0.7rem) + 1.75rem + 2px
+  );
+  padding: var(--video-frame-pad);
   border: 1px solid rgba(238, 238, 235, 0.14);
   border-radius: calc(var(--mdq-panel-radius, 0.9rem) + 0.35rem);
   background: linear-gradient(145deg, rgba(28, 30, 40, 0.95), rgba(16, 17, 24, 0.96));
@@ -3359,7 +3660,8 @@ html[data-theme="light"] .presenter-notes-body {
 
 .video-expansion-player {
   position: relative;
-  width: 100%;
+  width: min(100%, calc((100dvh - var(--video-frame-chrome, 12rem)) * 16 / 9));
+  margin-inline: auto;
   aspect-ratio: 16 / 9;
   border-radius: calc(var(--mdq-panel-radius, 0.9rem) - 0.1rem);
   overflow: hidden;
@@ -3401,8 +3703,243 @@ html[data-theme="light"] .presenter-notes-body {
   min-height: 0;
 }
 
+/* The safe area normally reserves a full viewport height. With the notes panel
+   docked the surface is shorter than that, so the safe box overran the clip
+   line and its bottom-anchored reference footer disappeared behind the notes.
+   Fit the safe box to the surface it actually occupies instead. */
+.slide-live-shell-controls:has(.presenter-notes-panel) .slide-safe {
+  min-height: 100%;
+}
+
+/* Same defect one level in, in its general form: the media column claims a
+   viewport-derived height (`min(45dvh, 24rem)`), but with notes docked the box
+   it sits in is shorter than a viewport, so the column escaped the clip line
+   and painted over the notes panel. Let the column size to its row and keep the
+   viewport figure only as an upper bound. */
+.slide-live-shell-controls:has(.presenter-notes-panel)
+  .slide-content-grid-with-media {
+  min-height: 0;
+}
+
+.slide-live-shell-controls:has(.presenter-notes-panel)
+  .slide-content-grid-with-media > .slide-media-grid {
+  height: auto;
+  max-height: min(45dvh, 24rem);
+}
+
+/* The same defect one level further in. That safe box is now shorter than a
+   projector's, but the media column inside it still claimed a viewport-derived
+   height (`min(45dvh, 24rem)`), so on the before/after montage slide the column
+   overran the clip line into the notes panel and painted over the bottom-
+   anchored reference link. Bind the column to the grid row it actually
+   occupies, and lay its two figures out in one row instead of two: stacked in
+   the shortened box each figure collapsed to an unreadable sliver, whereas side
+   by side each one keeps the column's full height. Guarded to skip the <=760px
+   single-column layout. */
+@media (min-width: 761px) {
+  .slide-live-shell-controls:has(.presenter-notes-panel)
+    .slide-content-grid-with-media
+    > .slide-media-grid-count-2:has(img[src*="r3cap-github-montage-"]) {
+    height: 100%;
+    min-height: 0;
+    max-height: min(45dvh, 24rem);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  /* Stacked, that pair needed the join-card inset to stay clear of the QR card.
+     Side by side the column ends well above the card, so it can use the whole
+     media track - which is what buys back the readable image width. */
+  .slide-live-shell-controls:has(.presenter-notes-panel)
+    .slide-safe:has(.slide-join-panel)
+    .slide-content-grid-with-media
+    > .slide-media-grid-count-2:has(img[src*="r3cap-github-montage-"]) {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
+
 .slide-live-shell-controls .presenter-notes-panel {
   flex: 0 0 auto;
   margin-top: 0;
   border-top: 1px solid rgba(245, 197, 66, 0.22);
+}
+
+/* ============================================================
+   Responsive instructor setup / lobby
+   Short screens cannot accommodate the projector-sized QR card, generous
+   gaps, and a vertically centred action in one viewport. Keep the desktop
+   presentation generous, but switch phones, tablets, and short laptop windows
+   to safe-area-aware top flow with compact scan-first controls.
+   ============================================================ */
+@media (max-width: 760px), (max-height: 820px) {
+  .instructor-phase-shell {
+    justify-content: flex-start;
+    gap: clamp(0.8rem, 2dvh, 1.25rem);
+    overflow-y: auto;
+    padding:
+      calc(0.75rem + env(safe-area-inset-top, 0px))
+      clamp(0.85rem, 3vw, 1.5rem)
+      calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .instructor-phase-back {
+    position: static;
+    align-self: flex-start;
+    display: inline-flex;
+    flex: 0 0 auto;
+    min-height: 2.75rem;
+    align-items: center;
+    margin: 0;
+  }
+
+  .instructor-phase-title {
+    margin: 0;
+    text-align: center;
+  }
+
+  .instructor-setup-shell {
+    gap: clamp(0.8rem, 1.8dvh, 1.15rem);
+  }
+
+  .instructor-lobby-shell {
+    gap: clamp(0.65rem, 1.55dvh, 1rem);
+  }
+
+  .instructor-qr-panel {
+    width: min(100%, 22rem);
+    gap: clamp(0.55rem, 1.3dvh, 0.85rem);
+    padding: clamp(0.75rem, 1.8dvh, 1rem);
+    border-radius: 1.25rem;
+  }
+
+  .instructor-qr-image {
+    width: clamp(7.5rem, 21dvh, 11rem);
+    height: clamp(7.5rem, 21dvh, 11rem);
+    padding: 0.45rem;
+    border-radius: 0.9rem;
+  }
+
+  .instructor-qr-code-label {
+    margin-bottom: 0.1rem;
+    font-size: 0.64rem;
+    letter-spacing: 0.16em;
+  }
+
+  .instructor-qr-code {
+    font-size: clamp(1.8rem, 4.8dvh, 2.4rem);
+    line-height: 1;
+    letter-spacing: 0.14em;
+  }
+
+  .instructor-qr-url {
+    font-size: clamp(0.78rem, 1.9dvh, 1rem);
+    line-height: 1.2;
+  }
+
+  .instructor-qr-helper {
+    font-size: 0.66rem;
+  }
+
+  .instructor-qr-presentation-link {
+    margin-top: 0.35rem;
+    padding: 0.4rem 0.72rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+  }
+
+  .instructor-participant-count-value {
+    font-size: clamp(2.1rem, 5.5dvh, 2.75rem);
+  }
+
+  .instructor-participant-count-label {
+    font-size: clamp(0.85rem, 2dvh, 1rem);
+  }
+
+  .instructor-start-button {
+    width: min(100%, 20rem);
+    padding: 0.78rem 2rem;
+    font-size: 1rem;
+    line-height: 1.25;
+  }
+}
+
+@media (max-width: 430px) {
+  .instructor-qr-helper {
+    display: none;
+  }
+
+  .instructor-qr-presentation-link {
+    margin-top: 0.2rem;
+  }
+}
+
+/* ============================================================
+   Narrow-screen slide visual flow
+   The desktop combined-media wrapper owns column 2. Once the outer slide grid
+   collapses to one column that assignment would create an implicit second
+   column, jumbling and cropping the video. On phones: copy first, then the
+   complete video poster, then the supporting thumbnails.
+   ============================================================ */
+@media (max-width: 760px) {
+  /* Phone slides become a vertical document. The desktop surface deliberately
+     clips to a projector frame, but keeping that clip on a narrow viewport
+     cuts off the poster and supporting stills after they stack below the copy. */
+  .slide-surface {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .slide-content-grid-with-media:has(> .slide-visual-stack) {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .slide-content-grid-with-media:has(> .slide-visual-stack) > .slide-content-text {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .slide-content-grid-with-media > .slide-visual-stack,
+  .slide-content-grid-media-left > .slide-visual-stack,
+  .slide-content-grid-media-top > .slide-visual-stack,
+  .slide-content-grid-media-bottom > .slide-visual-stack {
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+    height: auto;
+    justify-self: stretch;
+    align-self: start;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 0.55rem;
+  }
+
+  .slide-visual-stack .slide-video-card {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+  }
+
+  .slide-visual-stack .slide-video-card-thumb {
+    object-fit: contain;
+    background: #0b0d14;
+  }
+
+  .slide-content-grid-with-media > .slide-visual-stack .slide-media-grid.slide-media-grid-count-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto;
+    gap: 0.45rem;
+  }
+
+  .slide-visual-stack .slide-media-figure img {
+    width: 100%;
+    height: auto;
+    max-height: min(24dvh, 10rem);
+    object-fit: contain;
+  }
+
+  .slide-visual-stack .slide-media-figure figcaption {
+    font-size: 0.58rem;
+    line-height: 1.12;
+  }
 }

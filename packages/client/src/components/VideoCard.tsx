@@ -4,15 +4,16 @@ import type { SlideVideo } from "@mdq/shared";
 
 /**
  * A contained, clickable playable-video card. Shows a poster thumbnail with
- * a play affordance and a visible fallback link (so the video is reachable
- * even if the embed is blocked). Clicking the card opens a modal player that
- * loads the embed in an iframe. Modelled on the ImageExpansion overlay:
+ * a play affordance and an in-thumbnail caption. Clicking the card opens a
+ * modal player that loads the embed in an iframe and provides a fallback link
+ * if the embed is blocked. Modelled on the ImageExpansion overlay:
  * portal to document.body, Escape-to-close, backdrop click, scroll lock.
  */
 export default function VideoCard({ video, title }: { video: SlideVideo; title: string }) {
   const [open, setOpen] = useState(false);
   const label = video.label || "Play video";
   const caption = video.caption;
+  const overlayCaption = caption || label;
   return (
     <div className="slide-video-card-wrap">
       <button
@@ -32,17 +33,8 @@ export default function VideoCard({ video, title }: { video: SlideVideo; title: 
             <path d="M9.5 7.5v9l7-4.5-7-4.5z" fill="#fff" />
           </svg>
         </span>
-        <span className="slide-video-card-badge">{label}</span>
+        <span className="slide-video-card-badge">{overlayCaption}</span>
       </button>
-      {caption && <p className="slide-video-card-caption">{caption}</p>}
-      <a
-        className="slide-video-card-fallback"
-        href={video.embedUrl}
-        target="_blank"
-        rel="noreferrer noopener"
-      >
-        Open the video in a new tab
-      </a>
       {open && <VideoOverlay video={video} title={title} onClose={() => setOpen(false)} />}
     </div>
   );

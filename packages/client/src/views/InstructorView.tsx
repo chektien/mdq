@@ -384,11 +384,11 @@ export default function InstructorView({ autoGenerateStudentIds = false }: { aut
   // ── Setup Phase ──────────────────────────
   if (phase === "setup") {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center gap-8 p-8">
-        <a href="#/" className="absolute top-6 left-6 text-zinc-500 hover:text-zinc-300 text-sm">
+      <div className="instructor-phase-shell instructor-setup-shell min-h-dvh flex flex-col items-center justify-center gap-8 p-8">
+        <a href="#/" className="instructor-phase-back absolute top-6 left-6 text-zinc-500 hover:text-zinc-300 text-sm">
           &larr; Back
         </a>
-        <h1 className="text-3xl font-bold text-white">Start a Deck Session</h1>
+        <h1 className="instructor-phase-title text-3xl font-bold text-white">Start a Deck Session</h1>
 
         {errorMsg && (
           <div className="bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-xl max-w-md w-full text-center">
@@ -478,14 +478,14 @@ export default function InstructorView({ autoGenerateStudentIds = false }: { aut
   // ── Lobby Phase ──────────────────────────
   if (phase === "lobby") {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center gap-8 p-8">
+      <div className="instructor-phase-shell instructor-lobby-shell min-h-dvh flex flex-col items-center justify-center gap-8 p-8">
         <button
           onClick={handleBackToSetup}
-          className="absolute top-6 left-6 text-zinc-500 hover:text-zinc-300 text-sm"
+          className="instructor-phase-back absolute top-6 left-6 text-zinc-500 hover:text-zinc-300 text-sm"
         >
           &larr; Back to Setup
         </button>
-        <h1 className="text-2xl font-bold text-white">Waiting for Students</h1>
+        <h1 className="instructor-phase-title text-2xl font-bold text-white">Waiting for Students</h1>
 
         {/* QR + Join Info */}
         {accessInfo && sessionInfo && (
@@ -507,11 +507,11 @@ export default function InstructorView({ autoGenerateStudentIds = false }: { aut
         )}
 
         {/* Participant count */}
-        <div className="text-center">
-          <span className="text-5xl font-bold text-white tabular-nums">
+        <div className="instructor-participant-count text-center">
+          <span className="instructor-participant-count-value text-5xl font-bold text-white tabular-nums">
             {sock.participants?.count ?? 0}
           </span>
-          <span className="text-zinc-400 text-lg ml-2">students joined</span>
+          <span className="instructor-participant-count-label text-zinc-400 text-lg ml-2">students joined</span>
         </div>
 
         {/* Participant list */}
@@ -545,7 +545,7 @@ export default function InstructorView({ autoGenerateStudentIds = false }: { aut
         <button
           onClick={() => handleAction(() => startSession(sid), "start")}
           disabled={loading}
-          className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white font-semibold py-4 px-12 rounded-xl transition-colors text-xl"
+          className="instructor-start-button bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white font-semibold py-4 px-12 rounded-xl transition-colors text-xl"
         >
           {loading ? "Starting..." : "Start Session"}
         </button>

@@ -127,6 +127,13 @@ export interface SlideMedia {
   title?: string;
   position?: MediaPosition;
   opacity?: number;
+  /**
+   * Optional grouping label. Images sharing a group render together under a
+   * group heading (e.g. a "BEFORE" cluster next to an "AFTER" result). Set on
+   * a slide with the `media_group: <label>` directive, which applies to every
+   * image that follows it until the next directive. Generic and deck-agnostic.
+   */
+  group?: string;
 }
 
 export interface SlideReference {

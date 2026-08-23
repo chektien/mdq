@@ -43,6 +43,44 @@ interface SlideContentProps extends SlideContentBodyProps {
   actions?: LiveSurfaceAction[];
 }
 
+/** Group slide media by their `group` label, preserving first-seen order.
+ * Ungrouped images collapse into a single leading label-less group. */
+function groupSlideMedia(media: SlideMedia[]): { label?: string; items: SlideMedia[] }[] {
+  const order: string[] = [];
+  const byKey = new Map<string, SlideMedia[]>();
+  for (const item of media) {
+    const key = item.group ?? "";
+    if (!byKey.has(key)) {
+      byKey.set(key, []);
+      order.push(key);
+    }
+    byKey.get(key)!.push(item);
+  }
+  return order.map((key) => ({ label: key || undefined, items: byKey.get(key)! }));
+}
+
+function mediaGridCountClass(count: number): string {
+  return count > 3 ? "slide-media-grid-count-many" : `slide-media-grid-count-${count}`;
+}
+
+/** Render a single expandable media figure. In grouped layouts the caption is
+ * the explicit title only (so a group heading carries the framing and result
+ * images can stay caption-free); otherwise it falls back to the alt text. */
+function renderMediaFigure(media: SlideMedia, index: number, captionMode: "full" | "title-only") {
+  const caption = captionMode === "title-only" ? media.title : media.title || media.alt;
+  return (
+    <figure className="slide-media-figure" key={`${media.src}-${index}`}>
+      <ExpandableImage
+        className="slide-media-expand-button"
+        src={media.src}
+        alt={media.alt}
+        title={media.title}
+      />
+      {caption && <figcaption>{caption}</figcaption>}
+    </figure>
+  );
+}
+
 export function SlideContentBody({
   title,
   html,
@@ -65,6 +103,9 @@ export function SlideContentBody({
     ? "slide-media-grid-count-many"
     : `slide-media-grid-count-${slideMedia.length}`;
   const resolvedPosition: MediaPosition = slideMediaPosition ?? "right";
+  const stackVisuals = hasVideo && hasMedia && resolvedPosition !== "background";
+  const hasMediaGroups = slideMedia.some((media) => media.group);
+  const mediaGroups = hasMediaGroups ? groupSlideMedia(slideMedia) : [];
   const positionClass = hasMedia ? `slide-content-grid-media-${resolvedPosition}` : null;
   const bgStyle =
     resolvedPosition === "background" && hasMedia
@@ -134,29 +175,49 @@ export function SlideContentBody({
       >
         {hasBody && <QuizHtml className="quiz-html slide-body slide-content-text" html={html} />}
 
-        {hasVideo && slideVideo && (
-          <div className="slide-video-slot">
-            <VideoCard video={slideVideo} title={title} />
+        {stackVisuals ? (
+          <div className="slide-visual-stack">
+            <div className="slide-video-slot">
+              <VideoCard video={slideVideo!} title={title} />
+            </div>
+            <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
+              {slideMedia.map((media, index) => renderMediaFigure(media, index, "full"))}
+            </div>
           </div>
-        )}
+        ) : (
+          <>
+            {hasVideo && slideVideo && (
+              <div className="slide-video-slot">
+                <VideoCard video={slideVideo} title={title} />
+              </div>
+            )}
 
-        {hasMedia && (
-          <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
-            {slideMedia.map((media, index) => {
-              const caption = media.title || media.alt;
-              return (
-                <figure className="slide-media-figure" key={`${media.src}-${index}`}>
-                  <ExpandableImage
-                    className="slide-media-expand-button"
-                    src={media.src}
-                    alt={media.alt}
-                    title={media.title}
-                  />
-                  {caption && <figcaption>{caption}</figcaption>}
-                </figure>
-              );
-            })}
-          </div>
+            {hasMedia && hasMediaGroups && (
+              <div
+                className={`slide-media-groups slide-media-groups-count-${
+                  mediaGroups.length > 2 ? "many" : mediaGroups.length
+                }`}
+              >
+                {mediaGroups.map((group, groupIndex) => (
+                  <section className="slide-media-group" key={group.label ?? `group-${groupIndex}`}>
+                    {group.label && <h2 className="slide-media-group-title">{group.label}</h2>}
+                    <div
+                      className={`slide-media-grid ${mediaGridCountClass(group.items.length)}`}
+                      aria-label={group.label ? `${group.label} images` : "Slide images"}
+                    >
+                      {group.items.map((media, index) => renderMediaFigure(media, index, "title-only"))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+
+            {hasMedia && !hasMediaGroups && (
+              <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
+                {slideMedia.map((media, index) => renderMediaFigure(media, index, "full"))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

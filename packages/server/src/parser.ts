@@ -635,6 +635,7 @@ function extractSlideMedia(lines: string[]): { contentLines: string[]; media: Sl
   const media: SlideMedia[] = [];
   const fencedLines = getFencedCodeLineIndices(lines);
   let inListItem = false;
+  let currentGroup: string | undefined;
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx];
@@ -643,6 +644,18 @@ function extractSlideMedia(lines: string[]): { contentLines: string[]; media: Sl
     if (fencedLines.has(lineIdx)) {
       contentLines.push(line);
       continue;
+    }
+
+    // `media_group: <label>` sets the group applied to every image that
+    // follows until the next directive. An empty value clears the group. The
+    // directive line itself never renders as body text.
+    if (!inListItem) {
+      const groupMatch = line.match(/^\s*media_group:\s*(.*)$/i);
+      if (groupMatch) {
+        const label = groupMatch[1].trim();
+        currentGroup = label.length > 0 ? label : undefined;
+        continue;
+      }
     }
 
     // Track whether we're inside a list item. A new bullet/ordered marker
@@ -685,6 +698,7 @@ function extractSlideMedia(lines: string[]): { contentLines: string[]; media: Sl
         ...(title ? { title } : {}),
         ...(position ? { position } : {}),
         ...(opacity !== undefined ? { opacity } : {}),
+        ...(currentGroup ? { group: currentGroup } : {}),
       });
       extractedRanges.push([match.index, match.index + match[0].length]);
     }
