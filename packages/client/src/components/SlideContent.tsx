@@ -2,11 +2,13 @@ import type {
   FoldoutNote as FoldoutNoteModel,
   MediaPosition,
   SlideMedia,
+  SlideBackground,
   SlideLiveEmbed,
   SlideVideo,
   SlideReference,
 } from "@mdq/shared";
 import FoldoutNote from "./FoldoutNote";
+import SlideBackgroundLayer from "./SlideBackgroundLayer";
 import VideoCard from "./VideoCard";
 import { ExpandableImage } from "./ImageExpansion";
 import LiveSurface, { type LiveSurfaceAction } from "./LiveSurface";
@@ -26,6 +28,7 @@ interface SlideContentBodyProps {
 }
 
 interface SlideContentProps extends SlideContentBodyProps {
+  slideBackground?: SlideBackground;
   positionLabel?: string;
   mode?: "projector" | "review" | "student";
   nextLabel?: string | null;
@@ -63,11 +66,11 @@ function mediaGridCountClass(count: number): string {
   return count > 3 ? "slide-media-grid-count-many" : `slide-media-grid-count-${count}`;
 }
 
-/** Render a single expandable media figure. In grouped layouts the caption is
- * the explicit title only (so a group heading carries the framing and result
- * images can stay caption-free); otherwise it falls back to the alt text. */
-function renderMediaFigure(media: SlideMedia, index: number, captionMode: "full" | "title-only") {
-  const caption = captionMode === "title-only" ? media.title : media.title || media.alt;
+/** Render a single expandable media figure. Visible captions are opt-in via
+ * the Markdown image title; alt text remains available to assistive tech
+ * without being duplicated under every image. */
+function renderMediaFigure(media: SlideMedia, index: number) {
+  const caption = media.title;
   return (
     <figure className="slide-media-figure" key={`${media.src}-${index}`}>
       <ExpandableImage
@@ -181,7 +184,7 @@ export function SlideContentBody({
               <VideoCard video={slideVideo!} title={title} />
             </div>
             <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
-              {slideMedia.map((media, index) => renderMediaFigure(media, index, "full"))}
+              {slideMedia.map((media, index) => renderMediaFigure(media, index))}
             </div>
           </div>
         ) : (
@@ -205,7 +208,7 @@ export function SlideContentBody({
                       className={`slide-media-grid ${mediaGridCountClass(group.items.length)}`}
                       aria-label={group.label ? `${group.label} images` : "Slide images"}
                     >
-                      {group.items.map((media, index) => renderMediaFigure(media, index, "title-only"))}
+                      {group.items.map((media, index) => renderMediaFigure(media, index))}
                     </div>
                   </section>
                 ))}
@@ -214,7 +217,7 @@ export function SlideContentBody({
 
             {hasMedia && !hasMediaGroups && (
               <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
-                {slideMedia.map((media, index) => renderMediaFigure(media, index, "full"))}
+                {slideMedia.map((media, index) => renderMediaFigure(media, index))}
               </div>
             )}
           </>
@@ -256,6 +259,7 @@ export default function SlideContent({
   slideLiveEmbed,
   slideVideo,
   slideReferences = [],
+  slideBackground,
   positionLabel,
   mode = "projector",
   nextLabel,
@@ -279,6 +283,7 @@ export default function SlideContent({
     <LiveSurface
       mode={mode}
       surfaceClassName={surfaceClassName}
+      backgroundLayer={slideBackground ? <SlideBackgroundLayer background={slideBackground} /> : undefined}
       nextLabel={nextLabel}
       qrDataUrl={qrDataUrl}
       sessionCode={sessionCode}

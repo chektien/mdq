@@ -13,6 +13,7 @@ import QuizHtml from "../components/QuizHtml";
 import LiveSurface from "../components/LiveSurface";
 import ResponsiveQuizSurface from "../components/ResponsiveQuizSurface";
 import SlideContent, { SlideContentBody } from "../components/SlideContent";
+import SlideBackgroundLayer from "../components/SlideBackgroundLayer";
 import { getQuestionModeText } from "../questionMode";
 import { applyClientTheme } from "../theme";
 
@@ -416,6 +417,7 @@ export default function PresentationView({
         <div className="slide-live-main">
           <LiveSurface
             surfaceClassName={isLiveEmbedSlideDisplay ? "slide-surface-live-embed" : isSlideDisplay ? undefined : "quiz-surface"}
+            backgroundLayer={isSlideDisplay && currentQuestion?.slideBackground ? <SlideBackgroundLayer background={currentQuestion.slideBackground} /> : undefined}
             nextLabel={isLeaderboardDisplay ? null : nextHeading}
             qrDataUrl={accessInfo?.qrCodeDataUrl}
             sessionCode={meta.sessionCode}
@@ -480,6 +482,7 @@ export default function PresentationView({
                 slideMedia={currentQuestion.slideMedia}
                 slideMediaPosition={currentQuestion.slideMediaPosition}
                 slideMediaOpacity={currentQuestion.slideMediaOpacity}
+                slideBackground={currentQuestion.slideBackground}
                 slideLiveEmbed={currentQuestion.slideLiveEmbed}
                 slideVideo={currentQuestion.slideVideo}
                 slideReferences={currentQuestion.slideReferences}

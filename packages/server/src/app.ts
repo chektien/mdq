@@ -190,6 +190,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         ? question.attendeeNotes
         : undefined,
       slideMedia: question.slideMedia,
+      slideBackground: question.slideBackground,
       slideLiveEmbed: question.slideLiveEmbed,
       slideVideo: question.slideVideo,
       slideReferences: question.slideReferences,

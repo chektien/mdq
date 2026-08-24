@@ -18,6 +18,7 @@ import type {
   AnswerSubmitPayload,
   MediaPosition,
   SlideMedia,
+  SlideBackground,
   SlideLiveEmbed,
   SlideVideo,
   SlideReference,
@@ -87,6 +88,7 @@ export interface QuestionState {
   slideMedia?: SlideMedia[];
   slideMediaPosition?: MediaPosition;
   slideMediaOpacity?: number;
+  slideBackground?: SlideBackground;
   slideLiveEmbed?: SlideLiveEmbed;
   slideVideo?: SlideVideo;
   slideReferences?: SlideReference[];
@@ -95,6 +97,44 @@ export interface QuestionState {
   isPoll: boolean;
   timeLimitSec: number;
   startedAt: number;
+}
+
+/**
+ * Compatibility path for a newly deployed client talking to an older running
+ * server during an active classroom session. Older parsers leave the opt-in
+ * background directive in the rendered HTML; consume it client-side so the
+ * visual can deploy without restarting the in-memory session server.
+ */
+export function resolveSlideBackground(
+  text: string,
+  explicitBackground?: SlideBackground,
+): { text: string; slideBackground?: SlideBackground } {
+  if (explicitBackground) {
+    return { text, slideBackground: explicitBackground };
+  }
+
+  const directive = /\s*<p>\s*(slide_background|slide_background_position|slide_background_size):\s*([^<]+?)\s*<\/p>\s*/gi;
+  const values = new Map<string, string>();
+  const cleanedText = text.replace(directive, (_whole, rawKey: string, rawValue: string) => {
+    values.set(rawKey.toLowerCase(), rawValue.trim().replace(/^['"]|['"]$/g, ""));
+    return "";
+  }).trim();
+  const rawSrc = values.get("slide_background");
+  if (!rawSrc) {
+    return { text };
+  }
+
+  const src = rawSrc.startsWith("../images/")
+    ? `/data/images/${rawSrc.slice("../images/".length)}`
+    : rawSrc;
+  return {
+    text: cleanedText,
+    slideBackground: {
+      src,
+      ...(values.get("slide_background_position") ? { position: values.get("slide_background_position") } : {}),
+      ...(values.get("slide_background_size") ? { size: values.get("slide_background_size") } : {}),
+    },
+  };
 }
 
 export interface RevealState {
@@ -259,17 +299,19 @@ export function useSocket(
     // ── Question lifecycle ─────────────────
     socket.on(SocketEvents.QUESTION_OPEN, (data: QuestionOpenPayload) => {
       const questionType = data.questionType ?? (data.isPoll ? "poll" : "multiple_choice");
+      const resolvedBackground = resolveSlideBackground(data.text, data.slideBackground);
       const previousQuestion = currentQuestionRef.current;
       const isSameQuestion = previousQuestion?.questionIndex === data.questionIndex;
       const nextQuestion = {
         questionIndex: data.questionIndex,
         topic: data.topic,
-        text: data.text,
+        text: resolvedBackground.text,
         questionType,
         attendeeNotes: data.attendeeNotes,
         slideMedia: data.slideMedia,
         slideMediaPosition: data.slideMediaPosition,
         slideMediaOpacity: data.slideMediaOpacity,
+        slideBackground: resolvedBackground.slideBackground,
         slideLiveEmbed: data.slideLiveEmbed,
         slideVideo: data.slideVideo,
         slideReferences: data.slideReferences,

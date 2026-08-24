@@ -7,6 +7,7 @@ import {
   FoldoutNote,
   MediaPosition,
   SlideMedia,
+  SlideBackground,
   SlideLiveEmbed,
   SlideVideo,
   SlideReference,
@@ -428,6 +429,10 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     ? extractSlideVideo(textLines)
     : { contentLines: textLines, video: undefined };
   textLines = videoExtraction.contentLines;
+  const backgroundExtraction = isSlide
+    ? extractSlideBackground(textLines)
+    : { contentLines: textLines, background: undefined };
+  textLines = backgroundExtraction.contentLines;
   const referenceExtraction = isSlide
     ? extractSlideReferences(textLines)
     : { contentLines: textLines, references: [] as SlideReference[] };
@@ -481,6 +486,7 @@ function parseQuestionBlock(block: string, index: number, sourceFile: string, bl
     slideMedia: mediaExtraction.media.length > 0 ? mediaExtraction.media : undefined,
     slideMediaPosition,
     slideMediaOpacity,
+    slideBackground: backgroundExtraction.background,
     slideLiveEmbed: liveEmbedExtraction.liveEmbed,
     slideVideo: videoExtraction.video,
     slideReferences: referenceExtraction.references.length > 0 ? referenceExtraction.references : undefined,
@@ -688,6 +694,45 @@ function extractSlideVideo(lines: string[]): { contentLines: string[]; video?: S
       ...(thumbnail ? { thumbnail } : {}),
       ...(caption ? { caption } : {}),
       ...(label ? { label } : {}),
+    },
+  };
+}
+
+function extractSlideBackground(lines: string[]): { contentLines: string[]; background?: SlideBackground } {
+  const contentLines: string[] = [];
+  let src = "";
+  let position: string | undefined;
+  let size: string | undefined;
+
+  for (const line of lines) {
+    const match = line
+      .trim()
+      .match(/^(slide_background|slide_background_position|slide_background_size):\s*(.+)$/i);
+    if (!match) {
+      contentLines.push(line);
+      continue;
+    }
+    const key = match[1].toLowerCase();
+    const value = stripOptionalQuotes(match[2].trim());
+    if (key === "slide_background") {
+      src = resolveMarkdownImageHref(value);
+    } else if (key === "slide_background_position") {
+      position = value;
+    } else if (key === "slide_background_size") {
+      size = value;
+    }
+  }
+
+  if (!src) {
+    return { contentLines };
+  }
+
+  return {
+    contentLines,
+    background: {
+      src,
+      ...(position ? { position } : {}),
+      ...(size ? { size } : {}),
     },
   };
 }

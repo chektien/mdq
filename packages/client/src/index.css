@@ -837,8 +837,22 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
 }
 
 .slide-action-button-warning {
-  border-color: rgba(216, 211, 82, 0.4);
-  color: #e2dc55;
+  border-color: #ffe49a;
+  background: #f4c95d;
+  color: #2d2200;
+  box-shadow:
+    0 0 0 1px rgba(45, 34, 0, 0.12),
+    0 16px 40px rgba(0, 0, 0, 0.18);
+}
+
+.slide-action-button-warning:hover:not(:disabled) {
+  border-color: #fff0bd;
+  background: #ffda78;
+  color: #211900;
+}
+
+.slide-action-button-warning:focus-visible {
+  outline-color: #f4c95d;
 }
 
 .slide-action-button-danger {
@@ -991,6 +1005,17 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
   color: var(--mdq-slide-ink);
   font-size: clamp(1.22rem, 2.25cqi, 2.55rem);
   line-height: 1.22;
+}
+
+/* Reusable quote/source attribution: clearly secondary to the quote while
+   remaining readable from the room and on a phone. */
+.slide-attribution {
+  display: block;
+  margin-top: 0.7cqi;
+  color: var(--mdq-slide-ink-soft);
+  font-size: clamp(0.82rem, 1.5cqi, 1.4rem);
+  font-style: italic;
+  line-height: 1.3;
 }
 
 .slide-body p {
@@ -1733,13 +1758,257 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
 }
 
 /* ============================================================
+   Orbit composition (.slide-orbit — deck raw HTML)
+   A central image framed by three titled callouts. This variant supports a
+   dominant concept title with a quieter detail line.
+   ============================================================ */
+.slide-content-grid-text-only:has(.slide-orbit) {
+  max-width: min(96cqi, 96rem);
+}
+
+.slide-body:has(.slide-orbit) {
+  max-width: 100%;
+}
+
+.slide-orbit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 22cqi) minmax(0, 1fr);
+  grid-template-areas:
+    "orbit-a orbit-img orbit-b"
+    ".       orbit-c   .";
+  align-items: center;
+  justify-items: center;
+  gap: 0.6cqi 3cqi;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.slide-orbit-media {
+  grid-area: orbit-img;
+  width: 100%;
+  max-width: 22cqi;
+  margin: 0;
+}
+
+.slide-orbit-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 1cqi;
+  box-shadow: var(--mdq-slide-elevation);
+}
+
+/* Two pieces of concrete evidence share the centre without turning the slide
+   into a conventional image grid. The stagger keeps both artefacts legible
+   while preserving the orbit of higher-level meeting concerns. */
+.slide-orbit:has(.slide-orbit-media-pair) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 28cqi) minmax(0, 1fr);
+}
+
+.slide-orbit-media-pair {
+  position: relative;
+  width: 100%;
+  max-width: 28cqi;
+  height: 12cqi;
+}
+
+.slide-orbit .slide-orbit-media-pair img {
+  position: absolute;
+  width: 62%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--mdq-slide-glass-line);
+  background: white;
+}
+
+.slide-orbit-media-pair .orbit-media-primary {
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.slide-orbit-media-pair .orbit-media-secondary {
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+}
+
+.slide-orbit-callout {
+  max-width: 30cqi;
+  padding-top: 0.7cqi;
+  border-top: 0.4cqi solid var(--mdq-slide-accent);
+  text-align: center;
+}
+
+.slide-orbit-callout p {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.18;
+  font-size: clamp(1rem, 2.1cqi, 1.9rem);
+  color: var(--mdq-slide-ink);
+}
+
+.slide-orbit-callout .orbit-title {
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.08;
+  font-size: clamp(1.05rem, 2.4cqi, 2.05rem);
+  color: var(--mdq-slide-ink);
+}
+
+.slide-orbit-callout .orbit-detail {
+  margin: 0.35cqi 0 0;
+  font-weight: 500;
+  line-height: 1.2;
+  font-size: clamp(0.8rem, 1.4cqi, 1.15rem);
+  color: var(--mdq-slide-eyebrow);
+}
+
+.slide-orbit-callout-a {
+  grid-area: orbit-a;
+  border-top-color: var(--mdq-slide-accent-cool, #2563eb);
+}
+
+.slide-orbit-callout-b {
+  grid-area: orbit-b;
+  border-top-color: var(--mdq-slide-accent, #0f766e);
+}
+
+.slide-orbit-callout-c {
+  grid-area: orbit-c;
+  margin-top: 1.4cqi;
+  border-top-color: var(--mdq-slide-accent-warm, #d97706);
+}
+
+/* Agentic productivity deck: six source surfaces on the left, one
+   consolidated review surface on the right. Visible captions are omitted so
+   the accumulated interface friction reads before any explanation. */
+.slide-body:has(.slide-workflow-montage) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.slide-workflow-montage {
+  display: grid;
+  grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.78fr);
+  gap: clamp(0.65rem, 1.15cqi, 1.15rem);
+  width: 100%;
+  height: min(55dvh, 31rem);
+  min-height: 0;
+}
+
+.slide-workflow-sources {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.45rem, 0.7cqi, 0.72rem);
+  min-width: 0;
+  min-height: 0;
+}
+
+.slide-workflow-montage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  border: 1px solid var(--mdq-slide-glass-line);
+  border-radius: clamp(0.35rem, 0.55cqi, 0.6rem);
+  background: white;
+  box-shadow: 0 0.45rem 1.2rem rgba(0, 0, 0, 0.14);
+  object-fit: cover;
+  object-position: top center;
+}
+
+.slide-workflow-result {
+  min-width: 0;
+  min-height: 0;
+}
+
+.slide-workflow-result img {
+  object-fit: contain;
+  object-position: center;
+}
+
+@media (max-width: 760px) {
+  .slide-workflow-montage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    height: min(64dvh, 34rem);
+  }
+}
+
+@container (max-width: 720px) {
+  .slide-orbit {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "orbit-img"
+      "orbit-a"
+      "orbit-b"
+      "orbit-c";
+    gap: 3.2cqi;
+  }
+
+  .slide-orbit-media,
+  .slide-orbit-callout {
+    max-width: 100%;
+    justify-self: stretch;
+  }
+
+  .slide-orbit-media-pair {
+    height: 44cqi;
+  }
+
+  .slide-orbit-callout-c {
+    margin-top: 0;
+  }
+}
+
+/* Presentation surfaces can retain a large internal container even in a
+   narrow browser viewport, so mirror the stack at the viewport level too. */
+@media (max-width: 760px) {
+  .slide-orbit {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "orbit-img"
+      "orbit-a"
+      "orbit-b"
+      "orbit-c";
+    gap: 1rem;
+  }
+
+  .slide-orbit:has(.slide-orbit-media-pair) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .slide-orbit-media,
+  .slide-orbit-callout {
+    max-width: 100%;
+    justify-self: stretch;
+  }
+
+  .slide-orbit-media-pair {
+    height: 44vw;
+  }
+
+  .slide-orbit-callout-c {
+    margin-top: 0;
+  }
+}
+
+/* ============================================================
    Orbit composition (.mdq-orbit — deck raw HTML)
    A single centred image framed by short word callouts placed around it: a
    deliberate composition rather than an image-with-caption. Generic.
    ============================================================ */
 .mdq-orbit {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 34cqi) minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-items: center;
   justify-items: center;
@@ -1764,17 +2033,19 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
   cursor: zoom-in;
 }
 .mdq-orbit-callout {
+  width: min(100%, 18rem);
   margin: 0;
   padding: 0.34em 0.95em;
   border: 1px solid var(--mdq-slide-glass-line);
   border-radius: 999px;
   background: color-mix(in srgb, var(--mdq-slide-bg) 84%, transparent);
   color: var(--mdq-slide-heading);
-  font-size: clamp(0.95rem, 2cqi, 2.1rem);
+  font-size: clamp(0.88rem, 1.5cqi, 1.45rem);
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  white-space: nowrap;
+  text-align: center;
+  white-space: normal;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
 }
 /* Purpose sits centred above; Design and Judgement flank the centred image. */
@@ -1798,6 +2069,63 @@ html[data-theme="light"] .mdq-orbit-image {
 html[data-theme="light"] .mdq-orbit-callout {
   border-color: rgba(100, 116, 139, 0.3);
   background: color-mix(in srgb, #fffdf7 90%, transparent);
+}
+
+@container (max-width: 720px) {
+  .mdq-orbit {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    gap: 0.65rem;
+    max-width: 100%;
+  }
+
+  .mdq-orbit-image {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    max-height: min(36dvh, 18rem);
+  }
+
+  .mdq-orbit-callout-top,
+  .mdq-orbit-callout-left,
+  .mdq-orbit-callout-right {
+    grid-column: 1;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .mdq-orbit-callout-top {
+    grid-row: 2;
+  }
+
+  .mdq-orbit-callout-left {
+    grid-row: 3;
+  }
+
+  .mdq-orbit-callout-right {
+    grid-row: 4;
+  }
+}
+
+/* Passive full-canvas background for slides opting in with
+   `slide_background:`. The layer is never interactive or expandable. */
+.slide-surface-has-bg .slide-bg-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: right -6cqi bottom -4cqi;
+  background-size: 62cqi auto;
+  background-color: transparent;
+  opacity: 0.96;
+}
+
+@container (max-width: 560px) {
+  .slide-surface-has-bg .slide-bg-layer {
+    background-position: center bottom -2cqi;
+    background-size: 132cqi auto;
+  }
 }
 
 .slide-references {

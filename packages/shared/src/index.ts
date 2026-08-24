@@ -137,6 +137,12 @@ export interface SlideMedia {
   group?: string;
 }
 
+export interface SlideBackground {
+  src: string;
+  position?: string;
+  size?: string;
+}
+
 export interface SlideReference {
   id: string;
   textMd: string;
@@ -165,6 +171,7 @@ export interface QuestionOpenPayload {
   slideMedia?: SlideMedia[];
   slideMediaPosition?: MediaPosition;
   slideMediaOpacity?: number;
+  slideBackground?: SlideBackground;
   slideLiveEmbed?: SlideLiveEmbed;
   slideVideo?: SlideVideo;
   slideReferences?: SlideReference[];
@@ -295,6 +302,7 @@ export interface Question {
   slideMedia?: SlideMedia[];
   slideMediaPosition?: MediaPosition;
   slideMediaOpacity?: number;
+  slideBackground?: SlideBackground;
   slideLiveEmbed?: SlideLiveEmbed;
   slideVideo?: SlideVideo;
   slideReferences?: SlideReference[];

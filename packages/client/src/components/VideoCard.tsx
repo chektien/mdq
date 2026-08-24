@@ -13,7 +13,7 @@ export default function VideoCard({ video, title }: { video: SlideVideo; title: 
   const [open, setOpen] = useState(false);
   const label = video.label || "Play video";
   const caption = video.caption;
-  const overlayCaption = caption || label;
+  const overlayCaption = caption;
   return (
     <div className="slide-video-card-wrap">
       <button
@@ -33,7 +33,7 @@ export default function VideoCard({ video, title }: { video: SlideVideo; title: 
             <path d="M9.5 7.5v9l7-4.5-7-4.5z" fill="#fff" />
           </svg>
         </span>
-        <span className="slide-video-card-badge">{overlayCaption}</span>
+        {overlayCaption && <span className="slide-video-card-badge">{overlayCaption}</span>}
       </button>
       {open && <VideoOverlay video={video} title={title} onClose={() => setOpen(false)} />}
     </div>

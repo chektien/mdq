@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSocket } from "../hooks/useSocket";
-import type { QuestionState, RevealState } from "../hooks/useSocket";
+import { resolveSlideBackground, type QuestionState, type RevealState } from "../hooks/useSocket";
 import {
   fetchDecks,
   reloadDecks,
@@ -33,6 +33,7 @@ import QuizHtml from "../components/QuizHtml";
 import LiveSurface, { type LiveSurfaceAction } from "../components/LiveSurface";
 import ResponsiveQuizSurface from "../components/ResponsiveQuizSurface";
 import SlideContent, { SlideContentBody } from "../components/SlideContent";
+import SlideBackgroundLayer from "../components/SlideBackgroundLayer";
 import PresenterNotesPanel from "../components/PresenterNotesPanel";
 import { getQuestionModeText, getRevealActionLabel } from "../questionMode";
 
@@ -73,13 +74,15 @@ function formatDeckChooserSummary(deck: DeckSummary): string {
 }
 
 function questionStateFromRestore(data: NonNullable<SessionRestoreResponse["reviewQuestions"]>[number]): QuestionState {
+  const resolvedBackground = resolveSlideBackground(data.text, data.slideBackground);
   return {
     questionIndex: data.questionIndex,
     topic: data.topic,
-    text: data.text,
+    text: resolvedBackground.text,
     questionType: data.questionType ?? (data.isPoll ? "poll" : "multiple_choice"),
     attendeeNotes: data.attendeeNotes,
     slideMedia: data.slideMedia,
+    slideBackground: resolvedBackground.slideBackground,
     slideLiveEmbed: data.slideLiveEmbed,
     slideVideo: data.slideVideo,
     slideReferences: data.slideReferences,
@@ -1234,6 +1237,7 @@ function LiveView({
           <LiveSurface
             mode={isReviewing ? "review" : "projector"}
             surfaceClassName={isLiveEmbedSlideDisplay ? "slide-surface-live-embed" : isSlideDisplay ? undefined : "quiz-surface"}
+            backgroundLayer={isSlideDisplay && displayQuestion?.slideBackground ? <SlideBackgroundLayer background={displayQuestion.slideBackground} /> : undefined}
             nextLabel={null}
             qrDataUrl={accessInfo?.qrCodeDataUrl}
             sessionCode={sessionCode}
@@ -1326,6 +1330,7 @@ function LiveView({
                 slideMedia={displayQuestion.slideMedia}
                 slideMediaPosition={displayQuestion.slideMediaPosition}
                 slideMediaOpacity={displayQuestion.slideMediaOpacity}
+                slideBackground={displayQuestion.slideBackground}
                 slideLiveEmbed={displayQuestion.slideLiveEmbed}
                 slideVideo={displayQuestion.slideVideo}
                 slideReferences={displayQuestion.slideReferences}
