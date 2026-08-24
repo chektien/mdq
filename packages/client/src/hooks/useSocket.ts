@@ -140,6 +140,7 @@ export interface UseSocketReturn {
   // Actions
   joinSession: (studentId: string, displayName?: string) => void;
   submitAnswer: (payload: AnswerSubmitPayload) => void;
+  reconnect: () => void;
   disconnect: () => void;
 }
 
@@ -469,6 +470,16 @@ export function useSocket(
     [],
   );
 
+  const reconnect = useCallback(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    // Force a fresh transport rather than trusting a stale iOS Safari socket.
+    // The server sends an authoritative state snapshot on every connection.
+    socket.disconnect();
+    socket.connect();
+  }, []);
+
   const disconnect = useCallback(() => {
     clearStoredSession();
     socketRef.current?.disconnect();
@@ -498,6 +509,7 @@ export function useSocket(
     participants,
     joinSession,
     submitAnswer,
+    reconnect,
     disconnect,
   };
 }

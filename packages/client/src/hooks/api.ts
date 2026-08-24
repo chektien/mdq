@@ -9,6 +9,36 @@ import type {
 } from "@mdq/shared";
 
 const BASE = "";
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * Safari can leave a fetch pending indefinitely when the phone changes network
+ * or wakes from the background. Bound every API request so UI busy states can
+ * always recover and the caller can reconcile against the server afterwards.
+ */
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (timedOut) {
+      throw new Error("Connection timed out. Check your connection and try again.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
 
 function apiPath(template: string, params: Record<string, string> = {}): string {
   let path = template;
@@ -85,7 +115,7 @@ export interface RuntimeClientConfig {
 }
 
 export async function fetchRuntimeClientConfig(): Promise<RuntimeClientConfig> {
-  const res = await fetch("/api/runtime-config");
+  const res = await fetchWithTimeout("/api/runtime-config");
   if (!res.ok) throw new Error("Failed to fetch runtime config");
   return res.json();
 }
@@ -97,7 +127,7 @@ export async function fetchRuntimeClientConfig(): Promise<RuntimeClientConfig> {
  * so callers render no presenter-notes UI in that case.
  */
 export async function fetchPresenterNotes(week: string): Promise<PresenterNotesResponse> {
-  const res = await fetch(apiPath(API.DECK_PRESENTER_NOTES, { week }), {
+  const res = await fetchWithTimeout(apiPath(API.DECK_PRESENTER_NOTES, { week }), {
     credentials: "same-origin",
   });
   if (!res.ok) throw new Error("Failed to fetch presenter notes");
@@ -105,13 +135,13 @@ export async function fetchPresenterNotes(week: string): Promise<PresenterNotesR
 }
 
 export async function fetchInstructorSessionStatus(): Promise<InstructorSessionStatus> {
-  const res = await fetch(apiPath(API.INSTRUCTOR_SESSION), { credentials: "same-origin" });
+  const res = await fetchWithTimeout(apiPath(API.INSTRUCTOR_SESSION), { credentials: "same-origin" });
   if (!res.ok) throw new Error("Failed to verify instructor session");
   return res.json();
 }
 
 export async function loginInstructor(password: string): Promise<void> {
-  const res = await fetch(apiPath(API.INSTRUCTOR_LOGIN), {
+  const res = await fetchWithTimeout(apiPath(API.INSTRUCTOR_LOGIN), {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
@@ -124,7 +154,7 @@ export async function loginInstructor(password: string): Promise<void> {
 }
 
 export async function fetchDecks(): Promise<DeckSummary[]> {
-  const res = await fetch(apiPath(API.DECKS));
+  const res = await fetchWithTimeout(apiPath(API.DECKS));
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || "Failed to fetch decks");
@@ -142,7 +172,7 @@ export interface ReloadDecksResponse {
 export type ReloadQuizzesResponse = ReloadDecksResponse;
 
 export async function reloadDecks(): Promise<ReloadDecksResponse> {
-  const res = await fetch(apiPath(API.DECKS_RELOAD), {
+  const res = await fetchWithTimeout(apiPath(API.DECKS_RELOAD), {
     method: "POST",
     credentials: "same-origin",
   });
@@ -156,7 +186,7 @@ export async function reloadDecks(): Promise<ReloadDecksResponse> {
 export const reloadQuizzes = reloadDecks;
 
 export async function createSession(week: string, mode: string = "open"): Promise<CreateSessionResponse> {
-  const res = await fetch(apiPath(API.SESSION_CREATE), {
+  const res = await fetchWithTimeout(apiPath(API.SESSION_CREATE), {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
@@ -172,7 +202,7 @@ export async function createSession(week: string, mode: string = "open"): Promis
 async function sessionAction(sessionId: string, action: string): Promise<Record<string, unknown>> {
   const pathTemplate = (API as Record<string, string>)[`SESSION_${action.toUpperCase()}`];
   if (!pathTemplate) throw new Error(`Unknown action: ${action}`);
-  const res = await fetch(apiPath(pathTemplate, { id: sessionId }), {
+  const res = await fetchWithTimeout(apiPath(pathTemplate, { id: sessionId }), {
     method: "POST",
     credentials: "same-origin",
   });
@@ -208,7 +238,7 @@ export async function endSession(sessionId: string) {
 }
 
 export async function showLeaderboard(sessionId: string): Promise<Record<string, unknown>> {
-  const res = await fetch(apiPath(API.SESSION_LEADERBOARD_SHOW, { id: sessionId }), {
+  const res = await fetchWithTimeout(apiPath(API.SESSION_LEADERBOARD_SHOW, { id: sessionId }), {
     method: "POST",
     credentials: "same-origin",
   });
@@ -220,7 +250,7 @@ export async function showLeaderboard(sessionId: string): Promise<Record<string,
 }
 
 export async function hideLeaderboard(sessionId: string): Promise<Record<string, unknown>> {
-  const res = await fetch(apiPath(API.SESSION_LEADERBOARD_HIDE, { id: sessionId }), {
+  const res = await fetchWithTimeout(apiPath(API.SESSION_LEADERBOARD_HIDE, { id: sessionId }), {
     method: "POST",
     credentials: "same-origin",
   });
@@ -232,19 +262,19 @@ export async function hideLeaderboard(sessionId: string): Promise<Record<string,
 }
 
 export async function fetchLeaderboard(sessionId: string) {
-  const res = await fetch(apiPath(API.SESSION_LEADERBOARD, { id: sessionId }));
+  const res = await fetchWithTimeout(apiPath(API.SESSION_LEADERBOARD, { id: sessionId }));
   if (!res.ok) throw new Error("Failed to fetch leaderboard");
   return res.json();
 }
 
 export async function fetchAccessInfo(): Promise<AccessInfo> {
-  const res = await fetch(apiPath(API.ACCESS_INFO));
+  const res = await fetchWithTimeout(apiPath(API.ACCESS_INFO));
   if (!res.ok) throw new Error("Failed to fetch access info");
   return res.json();
 }
 
 export async function fetchSessionAccessInfo(sessionId: string): Promise<AccessInfo> {
-  const res = await fetch(apiPath(API.SESSION_ACCESS_INFO, { id: sessionId }), {
+  const res = await fetchWithTimeout(apiPath(API.SESSION_ACCESS_INFO, { id: sessionId }), {
     credentials: "same-origin",
   });
   if (!res.ok) throw new Error("Failed to fetch session access info");
@@ -252,7 +282,7 @@ export async function fetchSessionAccessInfo(sessionId: string): Promise<AccessI
 }
 
 export async function fetchSessionStateForRestore(sessionId: string): Promise<SessionRestoreResponse> {
-  const res = await fetch(apiPath(API.SESSION_STATE_RESTORE, { id: sessionId }), {
+  const res = await fetchWithTimeout(apiPath(API.SESSION_STATE_RESTORE, { id: sessionId }), {
     credentials: "same-origin",
   });
   if (!res.ok) {
@@ -263,7 +293,7 @@ export async function fetchSessionStateForRestore(sessionId: string): Promise<Se
 }
 
 export async function fetchPresentationSession(sessionId: string): Promise<PresentationSessionResponse> {
-  const res = await fetch(apiPath(API.SESSION_PRESENTATION, { id: sessionId }), {
+  const res = await fetchWithTimeout(apiPath(API.SESSION_PRESENTATION, { id: sessionId }), {
     credentials: "same-origin",
   });
   if (!res.ok) {
