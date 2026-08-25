@@ -308,6 +308,10 @@ export interface Question {
 export interface Quiz {
   week: string;
   title: string;
+  /** Optional per-deck override. `false` disables globally enabled presenter notes. */
+  presenterNotes?: boolean;
+  /** Optional per-deck override for the panel's initial expanded state. */
+  presenterNotesDefaultOpen?: boolean;
   questions: Question[];
   sourceFile: string;
 }

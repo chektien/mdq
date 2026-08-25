@@ -552,11 +552,20 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     if (!quiz) {
       return res.status(404).json({ error: `Deck not found: ${req.params.week}` });
     }
+    // A deck may opt out of a globally enabled notes feature. It cannot opt in
+    // when the global privacy gate or instructor authentication is unavailable.
+    if (quiz.presenterNotes === false) {
+      return res.json({ enabled: false, defaultOpen: false, items: [] });
+    }
     const items = quiz.questions.map((question, index) => ({
       questionIndex: question.index ?? index,
       notes: question.presenterNotes ?? [],
     }));
-    return res.json({ enabled: true, defaultOpen: presenterNotesDefaultOpen, items });
+    return res.json({
+      enabled: true,
+      defaultOpen: quiz.presenterNotesDefaultOpen ?? presenterNotesDefaultOpen,
+      items,
+    });
   };
   app.get(API.DECK_PRESENTER_NOTES, requireInstructorAuth, getPresenterNotesHandler);
 
