@@ -1,5 +1,11 @@
 import { API } from "@mdq/shared";
-import type { AccessInfo, QuestionOpenPayload, QuestionType, ResultsRevealPayload } from "@mdq/shared";
+import type {
+  AccessInfo,
+  PresenterNotesResponse,
+  QuestionOpenPayload,
+  QuestionType,
+  ResultsRevealPayload,
+} from "@mdq/shared";
 
 const BASE = "";
 
@@ -68,11 +74,27 @@ export interface InstructorSessionStatus {
 export interface RuntimeClientConfig {
   theme?: "dark" | "light";
   autoGenerateStudentIds?: boolean;
+  presenterNotes?: boolean;
+  presenterNotesDefaultOpen?: boolean;
 }
 
 export async function fetchRuntimeClientConfig(): Promise<RuntimeClientConfig> {
   const res = await fetch("/api/runtime-config");
   if (!res.ok) throw new Error("Failed to fetch runtime config");
+  return res.json();
+}
+
+/**
+ * Instructor-only presenter notes for a deck. Requires an authenticated
+ * instructor session when instructor auth is enabled. Returns
+ * `{ enabled: false, items: [] }` when the feature is disabled by config,
+ * so callers render no presenter-notes UI in that case.
+ */
+export async function fetchPresenterNotes(week: string): Promise<PresenterNotesResponse> {
+  const res = await fetch(apiPath(API.DECK_PRESENTER_NOTES, { week }), {
+    credentials: "same-origin",
+  });
+  if (!res.ok) throw new Error("Failed to fetch presenter notes");
   return res.json();
 }
 

@@ -487,6 +487,71 @@ html[data-theme="light"] [class*="bg-[#0f1117]/90"] {
   backdrop-filter: blur(18px);
 }
 
+/* ── End-session dialog (light theme) ─────── */
+html[data-theme="light"] .end-session-overlay {
+  background: rgba(44, 36, 26, 0.4) !important;
+}
+
+html[data-theme="light"] .end-session-card {
+  border-color: rgba(182, 74, 74, 0.28) !important;
+  background: #fffaf3 !important;
+  color: var(--mdq-ink) !important;
+  box-shadow: var(--mdq-shadow) !important;
+}
+
+html[data-theme="light"] .end-session-card h2 {
+  color: var(--mdq-ink) !important;
+}
+
+html[data-theme="light"] .end-session-eyebrow {
+  color: var(--mdq-danger) !important;
+}
+
+html[data-theme="light"] .end-session-desc {
+  color: var(--mdq-muted) !important;
+}
+
+html[data-theme="light"] .end-session-stat {
+  border-color: var(--mdq-line) !important;
+  background: rgba(44, 36, 26, 0.04) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] .end-session-stat-value {
+  color: var(--mdq-ink) !important;
+}
+
+html[data-theme="light"] .end-session-stat-label {
+  color: var(--mdq-muted) !important;
+}
+
+html[data-theme="light"] .end-session-keep {
+  border-color: var(--mdq-line-strong) !important;
+  background: #fffdfa !important;
+  color: var(--mdq-ink) !important;
+}
+
+html[data-theme="light"] .end-session-keep:hover {
+  background: #f3ecdc !important;
+}
+
+html[data-theme="light"] .end-session-end {
+  border-color: rgba(182, 74, 74, 0.4) !important;
+  background: var(--mdq-danger) !important;
+  color: #fff8f8 !important;
+}
+
+html[data-theme="light"] .end-session-end:hover:not(:disabled) {
+  background: #a53f3f !important;
+}
+
+html[data-theme="light"] .end-session-end:disabled {
+  border-color: var(--mdq-line) !important;
+  background: rgba(44, 36, 26, 0.1) !important;
+  color: var(--mdq-soft) !important;
+  box-shadow: none !important;
+}
+
 @media (max-width: 640px) {
   html[data-theme="light"] body::before,
   html[data-theme="light"] body::after {

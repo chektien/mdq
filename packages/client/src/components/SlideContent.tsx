@@ -3,9 +3,11 @@ import type {
   MediaPosition,
   SlideMedia,
   SlideLiveEmbed,
+  SlideVideo,
   SlideReference,
 } from "@mdq/shared";
 import FoldoutNote from "./FoldoutNote";
+import VideoCard from "./VideoCard";
 import { ExpandableImage } from "./ImageExpansion";
 import LiveSurface, { type LiveSurfaceAction } from "./LiveSurface";
 import QuizHtml from "./QuizHtml";
@@ -14,11 +16,11 @@ interface SlideContentBodyProps {
   title: string;
   html: string;
   attendeeNotes?: FoldoutNoteModel[];
-  presenterNotes?: FoldoutNoteModel[];
   slideMedia?: SlideMedia[];
   slideMediaPosition?: MediaPosition;
   slideMediaOpacity?: number;
   slideLiveEmbed?: SlideLiveEmbed;
+  slideVideo?: SlideVideo;
   slideReferences?: SlideReference[];
   chromeLabel?: string | null;
 }
@@ -41,28 +43,69 @@ interface SlideContentProps extends SlideContentBodyProps {
   actions?: LiveSurfaceAction[];
 }
 
+/** Group slide media by their `group` label, preserving first-seen order.
+ * Ungrouped images collapse into a single leading label-less group. */
+function groupSlideMedia(media: SlideMedia[]): { label?: string; items: SlideMedia[] }[] {
+  const order: string[] = [];
+  const byKey = new Map<string, SlideMedia[]>();
+  for (const item of media) {
+    const key = item.group ?? "";
+    if (!byKey.has(key)) {
+      byKey.set(key, []);
+      order.push(key);
+    }
+    byKey.get(key)!.push(item);
+  }
+  return order.map((key) => ({ label: key || undefined, items: byKey.get(key)! }));
+}
+
+function mediaGridCountClass(count: number): string {
+  return count > 3 ? "slide-media-grid-count-many" : `slide-media-grid-count-${count}`;
+}
+
+/** Render a single expandable media figure. In grouped layouts the caption is
+ * the explicit title only (so a group heading carries the framing and result
+ * images can stay caption-free); otherwise it falls back to the alt text. */
+function renderMediaFigure(media: SlideMedia, index: number, captionMode: "full" | "title-only") {
+  const caption = captionMode === "title-only" ? media.title : media.title || media.alt;
+  return (
+    <figure className="slide-media-figure" key={`${media.src}-${index}`}>
+      <ExpandableImage
+        className="slide-media-expand-button"
+        src={media.src}
+        alt={media.alt}
+        title={media.title}
+      />
+      {caption && <figcaption>{caption}</figcaption>}
+    </figure>
+  );
+}
+
 export function SlideContentBody({
   title,
   html,
   attendeeNotes = [],
-  presenterNotes = [],
   slideMedia = [],
   slideMediaPosition,
   slideMediaOpacity,
   slideLiveEmbed,
+  slideVideo,
   slideReferences = [],
   chromeLabel = null,
 }: SlideContentBodyProps) {
   const hasAttendeeNotes = attendeeNotes.length > 0;
-  const hasPresenterNotes = presenterNotes.length > 0;
-  const hasNotes = hasAttendeeNotes || hasPresenterNotes;
   const hasMedia = slideMedia.length > 0;
+  const hasVideo = !!slideVideo;
+  const hasVisual = hasMedia || hasVideo;
   const hasReferences = slideReferences.length > 0;
   const hasBody = html.trim().length > 0;
   const mediaCountClass = slideMedia.length > 3
     ? "slide-media-grid-count-many"
     : `slide-media-grid-count-${slideMedia.length}`;
   const resolvedPosition: MediaPosition = slideMediaPosition ?? "right";
+  const stackVisuals = hasVideo && hasMedia && resolvedPosition !== "background";
+  const hasMediaGroups = slideMedia.some((media) => media.group);
+  const mediaGroups = hasMediaGroups ? groupSlideMedia(slideMedia) : [];
   const positionClass = hasMedia ? `slide-content-grid-media-${resolvedPosition}` : null;
   const bgStyle =
     resolvedPosition === "background" && hasMedia
@@ -99,22 +142,13 @@ export function SlideContentBody({
                 ))}
               </div>
             )}
-            {hasNotes && (
+            {hasAttendeeNotes && (
               <div className="slide-notes slide-live-embed-notes">
-                {hasAttendeeNotes && (
-                  <div className="slide-note-group slide-note-group-attendee">
-                    {attendeeNotes.map((note) => (
-                      <FoldoutNote key={note.id} note={note} />
-                    ))}
-                  </div>
-                )}
-                {hasPresenterNotes && (
-                  <div className="slide-note-group slide-note-group-presenter">
-                    {presenterNotes.map((note) => (
-                      <FoldoutNote key={note.id} note={note} />
-                    ))}
-                  </div>
-                )}
+                <div className="slide-note-group slide-note-group-attendee">
+                  {attendeeNotes.map((note) => (
+                    <FoldoutNote key={note.id} note={note} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -133,50 +167,67 @@ export function SlideContentBody({
       <div
         className={[
           "slide-content-grid",
-          hasMedia ? "slide-content-grid-with-media" : "slide-content-grid-text-only",
-          !hasBody && hasMedia ? "slide-content-grid-media-only" : null,
+          hasVisual ? "slide-content-grid-with-media" : "slide-content-grid-text-only",
+          !hasBody && hasVisual ? "slide-content-grid-media-only" : null,
           positionClass,
         ].filter(Boolean).join(" ")}
         style={bgStyle}
       >
         {hasBody && <QuizHtml className="quiz-html slide-body slide-content-text" html={html} />}
 
-        {hasMedia && (
-          <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
-            {slideMedia.map((media, index) => {
-              const caption = media.title || media.alt;
-              return (
-                <figure className="slide-media-figure" key={`${media.src}-${index}`}>
-                  <ExpandableImage
-                    className="slide-media-expand-button"
-                    src={media.src}
-                    alt={media.alt}
-                    title={media.title}
-                  />
-                  {caption && <figcaption>{caption}</figcaption>}
-                </figure>
-              );
-            })}
+        {stackVisuals ? (
+          <div className="slide-visual-stack">
+            <div className="slide-video-slot">
+              <VideoCard video={slideVideo!} title={title} />
+            </div>
+            <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
+              {slideMedia.map((media, index) => renderMediaFigure(media, index, "full"))}
+            </div>
           </div>
+        ) : (
+          <>
+            {hasVideo && slideVideo && (
+              <div className="slide-video-slot">
+                <VideoCard video={slideVideo} title={title} />
+              </div>
+            )}
+
+            {hasMedia && hasMediaGroups && (
+              <div
+                className={`slide-media-groups slide-media-groups-count-${
+                  mediaGroups.length > 2 ? "many" : mediaGroups.length
+                }`}
+              >
+                {mediaGroups.map((group, groupIndex) => (
+                  <section className="slide-media-group" key={group.label ?? `group-${groupIndex}`}>
+                    {group.label && <h2 className="slide-media-group-title">{group.label}</h2>}
+                    <div
+                      className={`slide-media-grid ${mediaGridCountClass(group.items.length)}`}
+                      aria-label={group.label ? `${group.label} images` : "Slide images"}
+                    >
+                      {group.items.map((media, index) => renderMediaFigure(media, index, "title-only"))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+
+            {hasMedia && !hasMediaGroups && (
+              <div className={`slide-media-grid ${mediaCountClass}`} aria-label="Slide images">
+                {slideMedia.map((media, index) => renderMediaFigure(media, index, "full"))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {(hasAttendeeNotes || hasPresenterNotes) && (
+      {hasAttendeeNotes && (
         <div className="slide-notes">
-          {hasAttendeeNotes && (
-            <div className="slide-note-group slide-note-group-attendee">
-              {attendeeNotes.map((note) => (
-                <FoldoutNote key={note.id} note={note} />
-              ))}
-            </div>
-          )}
-          {hasPresenterNotes && (
-            <div className="slide-note-group slide-note-group-presenter">
-              {presenterNotes.map((note) => (
-                <FoldoutNote key={note.id} note={note} />
-              ))}
-            </div>
-          )}
+          <div className="slide-note-group slide-note-group-attendee">
+            {attendeeNotes.map((note) => (
+              <FoldoutNote key={note.id} note={note} />
+            ))}
+          </div>
         </div>
       )}
 
@@ -199,11 +250,11 @@ export default function SlideContent({
   title,
   html,
   attendeeNotes = [],
-  presenterNotes = [],
   slideMedia = [],
   slideMediaPosition,
   slideMediaOpacity,
   slideLiveEmbed,
+  slideVideo,
   slideReferences = [],
   positionLabel,
   mode = "projector",
@@ -247,11 +298,11 @@ export default function SlideContent({
         title={title}
         html={html}
         attendeeNotes={attendeeNotes}
-        presenterNotes={presenterNotes}
         slideMedia={slideMedia}
         slideMediaPosition={slideMediaPosition}
         slideMediaOpacity={slideMediaOpacity}
         slideLiveEmbed={slideLiveEmbed}
+        slideVideo={slideVideo}
         slideReferences={slideReferences}
         chromeLabel={chromeLabel}
       />
