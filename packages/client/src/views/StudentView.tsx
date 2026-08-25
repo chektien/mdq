@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useSocket } from "../hooks/useSocket";
 import type { QuestionState, RevealState } from "../hooks/useSocket";
 import { API } from "@mdq/shared";
-import type { SessionState } from "@mdq/shared";
+import type { DeckTheme, SessionState } from "@mdq/shared";
 import Timer from "../components/Timer";
 import Leaderboard from "../components/Leaderboard";
 import DistributionChart from "../components/DistributionChart";
@@ -10,6 +10,7 @@ import InlineMarkdownText from "../components/InlineMarkdownText";
 import QuizHtml from "../components/QuizHtml";
 import SlideContent from "../components/SlideContent";
 import { getQuestionModeText } from "../questionMode";
+import { applyClientTheme, resolveClientTheme } from "../theme";
 
 function formatQuizLabel(quizKey: string): string {
   const normalized = quizKey.trim();
@@ -52,10 +53,12 @@ export default function StudentView({
   initialSessionCode,
   initialSessionId,
   autoGenerateStudentIds = false,
+  defaultTheme = "dark",
 }: {
   initialSessionCode?: string;
   initialSessionId?: string;
   autoGenerateStudentIds?: boolean;
+  defaultTheme?: DeckTheme;
 }) {
   const normalizeSessionCode = useCallback(
     (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6),
@@ -68,6 +71,7 @@ export default function StudentView({
   const [displayName, setDisplayName] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [quizKey, setQuizKey] = useState<string | null>(null);
+  const [sessionTheme, setSessionTheme] = useState<DeckTheme>(defaultTheme);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -102,6 +106,35 @@ export default function StudentView({
   const sock = useSocket(sessionId, "student");
   const { connected, sessionToken, joinSession, error: sockError } = sock;
 
+  useEffect(() => {
+    applyClientTheme(sessionTheme, defaultTheme);
+  }, [defaultTheme, sessionTheme]);
+
+  // Resolve QR/join links early so the join form itself uses the deck theme.
+  useEffect(() => {
+    if (!initialSessionCode) return;
+    let cancelled = false;
+    setSessionTheme(defaultTheme);
+    setQuizKey(null);
+    const normalizedCode = normalizeSessionCode(initialSessionCode);
+    fetch(API.SESSION_BY_CODE.replace(":code", normalizedCode))
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{ week?: string; theme?: DeckTheme }>;
+      })
+      .then((data) => {
+        if (cancelled || !data) return;
+        setSessionTheme(resolveClientTheme(data.theme, defaultTheme));
+        if (typeof data.week === "string" && data.week.trim()) setQuizKey(data.week);
+      })
+      .catch(() => {
+        // The submit path reports lookup errors; theme preloading is best-effort.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [defaultTheme, initialSessionCode, normalizeSessionCode]);
+
   // Try to restore session from localStorage on mount
   useEffect(() => {
     try {
@@ -109,6 +142,9 @@ export default function StudentView({
       const targetSessionId = (initialSessionId || "").trim();
       if (raw) {
         const stored = JSON.parse(raw);
+        const restoresStoredSession = targetSessionId
+          ? stored.sessionId === targetSessionId
+          : !initialSessionCode && Boolean(stored.sessionId);
         if (targetSessionId && stored.sessionId === targetSessionId) {
           setSessionId(stored.sessionId);
           setStudentId(stored.studentId || "");
@@ -122,8 +158,11 @@ export default function StudentView({
         if (initialSessionCode && stored.studentId) {
           setStudentId(stored.studentId);
         }
-        if (typeof stored.sessionWeek === "string" && stored.sessionWeek.trim().length > 0) {
+        if (restoresStoredSession && typeof stored.sessionWeek === "string" && stored.sessionWeek.trim().length > 0) {
           setQuizKey(stored.sessionWeek);
+        }
+        if (restoresStoredSession) {
+          setSessionTheme(resolveClientTheme(stored.sessionTheme, defaultTheme));
         }
       } else if (targetSessionId) {
         setSessionId(targetSessionId);
@@ -132,13 +171,14 @@ export default function StudentView({
       // ignore
     }
     setCompleted(false);
-  }, [initialSessionCode, initialSessionId]);
+  }, [defaultTheme, initialSessionCode, initialSessionId]);
 
   const handleDone = useCallback(() => {
     clearSessionArtifacts();
     sock.disconnect();
     setCompleted(true);
-  }, [sock]);
+    setSessionTheme(defaultTheme);
+  }, [defaultTheme, sock]);
 
   // Handle join: first resolve session code to sessionId, then connect socket
   const handleJoin = useCallback(async () => {
@@ -167,11 +207,14 @@ export default function StudentView({
           clearSessionArtifacts();
           setSessionId(null);
           setQuizKey(null);
+          setSessionTheme(defaultTheme);
         }
         throw new Error(data.error || "Session not found. Check the code and try again.");
       }
-      const data: { sessionId: string; week?: string } = await res.json();
+      const data: { sessionId: string; week?: string; theme?: DeckTheme } = await res.json();
+      const resolvedTheme = resolveClientTheme(data.theme, defaultTheme);
       setSessionId(data.sessionId);
+      setSessionTheme(resolvedTheme);
       if (typeof data.week === "string" && data.week.trim().length > 0) {
         setQuizKey(data.week);
       }
@@ -188,6 +231,7 @@ export default function StudentView({
           sessionId: data.sessionId,
           studentId: trimmedStudentId,
           sessionWeek: data.week,
+          sessionTheme: resolvedTheme,
           sessionToken:
             (() => {
               try {
@@ -217,7 +261,7 @@ export default function StudentView({
       setJoinError(e instanceof Error ? e.message : "Failed to join");
       setJoining(false);
     }
-  }, [autoGenerateStudentIds, code, studentId, displayName, normalizeSessionCode]);
+  }, [autoGenerateStudentIds, code, defaultTheme, studentId, displayName, normalizeSessionCode]);
 
   // When socket connects and we have pending join, emit student:join
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { SessionState } from "@mdq/shared";
+import type { DeckTheme, SessionState } from "@mdq/shared";
 import InstructorLoginPrompt from "../components/InstructorLoginPrompt";
 import { fetchPresentationSession, type PresentationSessionResponse } from "../hooks/api";
 import { useSocket, type QuestionState, type RevealState } from "../hooks/useSocket";
@@ -14,6 +14,7 @@ import LiveSurface from "../components/LiveSurface";
 import ResponsiveQuizSurface from "../components/ResponsiveQuizSurface";
 import SlideContent, { SlideContentBody } from "../components/SlideContent";
 import { getQuestionModeText } from "../questionMode";
+import { applyClientTheme } from "../theme";
 
 const EMPTY_QUESTION_HEADINGS: string[] = [];
 
@@ -36,15 +37,21 @@ export default function PresentationView({
   sessionId,
   loginHref,
   autoGenerateStudentIds = false,
+  defaultTheme = "dark",
 }: {
   sessionId: string;
   loginHref: string;
   autoGenerateStudentIds?: boolean;
+  defaultTheme?: DeckTheme;
 }) {
   const [meta, setMeta] = useState<PresentationSessionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const sock = useSocket(meta ? sessionId : null, "presentation");
+
+  useEffect(() => {
+    applyClientTheme(meta?.theme, defaultTheme);
+  }, [defaultTheme, meta?.theme]);
 
   useEffect(() => {
     let cancelled = false;

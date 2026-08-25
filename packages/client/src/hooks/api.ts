@@ -1,6 +1,7 @@
 import { API } from "@mdq/shared";
 import type {
   AccessInfo,
+  DeckTheme,
   PresenterNotesResponse,
   QuestionOpenPayload,
   QuestionType,
@@ -20,6 +21,8 @@ function apiPath(template: string, params: Record<string, string> = {}): string 
 export interface DeckSummary {
   week: string;
   title: string;
+  /** Effective theme after applying the runtime fallback. */
+  theme: DeckTheme;
   /** Total live items, including slides. Kept for progress/restore compatibility. */
   questionCount: number;
   /** Interactive quiz/poll/open-response items, excluding slides. */
@@ -38,6 +41,7 @@ export interface CreateSessionResponse {
   sessionId: string;
   sessionCode: string;
   joinUrl: string;
+  theme: DeckTheme;
   questionHeadings: string[];
   questionSummaries: QuestionSummary[];
 }
@@ -46,6 +50,7 @@ export interface SessionRestoreResponse {
   sessionId: string;
   sessionCode: string;
   week: string;
+  theme: DeckTheme;
   state: string;
   currentQuestionIndex: number;
   questionCount: number;
@@ -59,6 +64,7 @@ export interface PresentationSessionResponse {
   sessionId: string;
   sessionCode: string;
   week: string;
+  theme: DeckTheme;
   state: string;
   questionCount: number;
   questionHeadings: string[];
