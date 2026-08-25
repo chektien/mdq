@@ -474,6 +474,22 @@ Configuration (in `data/config.json`, or the matching environment variables):
   the operating script, `true` is convenient; the projector never sees the
   instructor screen.
 
+Individual decks can narrow those global settings in the Markdown preamble:
+
+```markdown
+# My talk
+presenter_notes: false
+presenter_notes_default_open: false
+
+---
+```
+
+- `presenter_notes: false` disables the panel and prevents note bodies from
+  being served for that deck. A deck cannot enable presenter notes when the
+  global master switch or instructor authentication is unavailable.
+- `presenter_notes_default_open` overrides the global initial open/closed state
+  for that deck when presenter notes are enabled.
+
 The PDF exporter keeps presenter notes hidden by default; pass
 `--presenter-notes` to include them in a private rehearsal handout.
 
