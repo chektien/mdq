@@ -91,4 +91,90 @@ describe("client light-theme contract", () => {
       expect(css).toMatch(/\.slide-media-figure\s*\{[^}]*background:\s*rgba\(31,\s*31,\s*30/);
     });
   });
+
+  describe("media caption contrast token", () => {
+    const css = read("index.css");
+
+    it("defines a dedicated media caption ink token", () => {
+      expect(css).toMatch(/--mdq-media-caption-ink:\s*#/);
+    });
+
+    it("light theme overrides the caption ink token for the light slab", () => {
+      expect(css).toMatch(
+        /html\[data-theme="light"\]\s*\{[^}]*--mdq-media-caption-ink:/,
+      );
+    });
+
+    it("thumbnail and video captions share one rule using the token", () => {
+      expect(css).toMatch(
+        /\.slide-media-figure figcaption,\s*\.slide-video-figure figcaption\s*\{[^}]*color:\s*var\(--mdq-media-caption-ink\)/,
+      );
+    });
+
+    it("expanded image caption uses the same token", () => {
+      const start = css.indexOf(".image-expansion-caption");
+      const block = css.slice(start, css.indexOf("}", start));
+      expect(block).toMatch(/var\(--mdq-media-caption-ink\)/);
+    });
+  });
+
+  describe("shared expansion close control stacking", () => {
+    const css = read("index.css");
+
+    it("lifts the shared close control above the expanded media", () => {
+      const start = css.indexOf("\n.image-expansion-close {");
+      expect(start).toBeGreaterThan(-1);
+      const block = css.slice(start, css.indexOf("}", start));
+      expect(block).toMatch(/position:\s*absolute/);
+      expect(block).toMatch(/z-index:\s*[1-9]/);
+    });
+  });
+
+  describe("VideoCard media family + expansion close control", () => {
+    const tsx = read("components/VideoCard.tsx");
+
+    it("reuses the exact image-expansion close button and icon", () => {
+      expect(tsx).toContain("image-expansion-close");
+      expect(tsx).toContain("image-expansion-close-icon");
+    });
+
+    it("presents the caption with figcaption grammar inside a media figure", () => {
+      expect(tsx).toContain("slide-video-figure");
+      expect(tsx).toContain("<figcaption>");
+    });
+
+    it("drops the on-card label badge and bespoke text close button", () => {
+      expect(tsx).not.toContain("slide-video-card-badge");
+      expect(tsx).not.toContain("video-expansion-close");
+    });
+
+    it("closes on Escape and returns focus to the trigger", () => {
+      expect(tsx).toContain('event.key === "Escape"');
+      expect(tsx).toContain("triggerRef.current?.focus()");
+    });
+
+    it("uses native inline playback for direct media files", () => {
+      expect(tsx).toContain("video-expansion-native");
+      expect(tsx).toContain("playsInline");
+      expect(tsx).toContain('preload="metadata"');
+      expect(tsx).toContain("autoPlay");
+    });
+  });
+
+  describe("open-response identity contrast", () => {
+    const css = read("index.css");
+    const tsx = read("components/OpenResponseList.tsx");
+
+    it("uses semantic identity and answer classes", () => {
+      expect(tsx).toContain("open-response-display-name");
+      expect(tsx).toContain("open-response-student-id");
+      expect(tsx).toContain("open-response-text");
+    });
+
+    it("keeps names and answers light against the dark response card", () => {
+      expect(css).toMatch(/\.open-response-display-name\s*\{[^}]*color:\s*#fffaf1/);
+      expect(css).toMatch(/\.open-response-text\s*\{[^}]*color:\s*#ffffff/);
+      expect(css).toMatch(/html\[data-theme="light"\]\s+\.open-response-entry\s*\{[^}]*background:\s*#41413f/);
+    });
+  });
 });

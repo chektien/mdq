@@ -22,6 +22,9 @@ body {
   --mdq-slide-heading: #171614;
   --mdq-slide-ink: #24221f;
   --mdq-slide-ink-soft: #625d54;
+  /* Caption ink for media slabs (thumbnails + expansion). Light on the dark
+     media slab used in the default/dark surface; overridden in light theme. */
+  --mdq-media-caption-ink: #ece9e3;
   --mdq-slide-eyebrow: #807765;
   --mdq-slide-rule: rgba(36, 34, 31, 0.14);
   --mdq-slide-accent: #0f766e;
@@ -504,6 +507,16 @@ html[data-theme="light"] .slide-media-figure {
   box-shadow: 0 10px 24px rgba(70, 60, 45, 0.08);
 }
 
+html[data-theme="light"] {
+  --mdq-media-caption-ink: #4a453d;
+}
+
+html[data-theme="light"] .slide-video-figure {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: #fffdfa;
+  box-shadow: 0 10px 24px rgba(70, 60, 45, 0.08);
+}
+
 html[data-theme="light"] .slide-media-expand-button {
   background: transparent;
 }
@@ -837,8 +850,22 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
 }
 
 .slide-action-button-warning {
-  border-color: rgba(216, 211, 82, 0.4);
-  color: #e2dc55;
+  border-color: #ffe49a;
+  background: #f4c95d;
+  color: #2d2200;
+  box-shadow:
+    0 0 0 1px rgba(45, 34, 0, 0.12),
+    0 16px 40px rgba(0, 0, 0, 0.18);
+}
+
+.slide-action-button-warning:hover:not(:disabled) {
+  border-color: #fff0bd;
+  background: #ffda78;
+  color: #211900;
+}
+
+.slide-action-button-warning:focus-visible {
+  outline-color: #f4c95d;
 }
 
 .slide-action-button-danger {
@@ -991,6 +1018,17 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
   color: var(--mdq-slide-ink);
   font-size: clamp(1.22rem, 2.25cqi, 2.55rem);
   line-height: 1.22;
+}
+
+/* Reusable quote/source attribution: clearly secondary to the quote while
+   remaining readable from the room and on a phone. */
+.slide-attribution {
+  display: block;
+  margin-top: 0.7cqi;
+  color: var(--mdq-slide-ink-soft);
+  font-size: clamp(0.82rem, 1.5cqi, 1.4rem);
+  font-style: italic;
+  line-height: 1.3;
 }
 
 .slide-body p {
@@ -1151,7 +1189,7 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
 }
 
 .slide-visual-stack .slide-video-slot,
-.slide-visual-stack .slide-video-card-wrap,
+.slide-visual-stack .slide-video-figure,
 .slide-content-grid-with-media .slide-visual-stack .slide-media-grid {
   width: 100%;
   max-width: 100%;
@@ -1169,10 +1207,10 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
 
 /* The two-row form still wants both children to fill their rows. */
 .slide-content-grid-media-top > .slide-visual-stack .slide-video-slot,
-.slide-content-grid-media-top > .slide-visual-stack .slide-video-card-wrap,
+.slide-content-grid-media-top > .slide-visual-stack .slide-video-figure,
 .slide-content-grid-media-top > .slide-visual-stack .slide-video-card,
 .slide-content-grid-media-bottom > .slide-visual-stack .slide-video-slot,
-.slide-content-grid-media-bottom > .slide-visual-stack .slide-video-card-wrap,
+.slide-content-grid-media-bottom > .slide-visual-stack .slide-video-figure,
 .slide-content-grid-media-bottom > .slide-visual-stack .slide-video-card,
 .slide-content-grid-with-media.slide-content-grid-media-top > .slide-visual-stack .slide-media-grid,
 .slide-content-grid-with-media.slide-content-grid-media-bottom > .slide-visual-stack .slide-media-grid {
@@ -1642,8 +1680,9 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
   max-height: min(100%, 20dvh, 13rem);
 }
 
-.slide-media-figure figcaption {
-  color: var(--mdq-slide-ink-soft);
+.slide-media-figure figcaption,
+.slide-video-figure figcaption {
+  color: var(--mdq-media-caption-ink);
   font-size: clamp(0.62rem, 0.8cqi, 0.82rem);
   font-weight: 650;
   line-height: 1.22;
@@ -1733,13 +1772,287 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
 }
 
 /* ============================================================
+   Orbit composition (.slide-orbit — deck raw HTML)
+   A central image framed by three titled callouts. This variant supports a
+   dominant concept title with a quieter detail line.
+   ============================================================ */
+.slide-content-grid-text-only:has(.slide-orbit) {
+  max-width: min(96cqi, 96rem);
+}
+
+.slide-body:has(.slide-orbit) {
+  max-width: 100%;
+}
+
+.slide-orbit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 22cqi) minmax(0, 1fr);
+  grid-template-areas:
+    "orbit-a orbit-img orbit-b"
+    ".       orbit-c   .";
+  align-items: center;
+  justify-items: center;
+  gap: 0.6cqi 3cqi;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.slide-orbit-media {
+  grid-area: orbit-img;
+  width: 100%;
+  max-width: 22cqi;
+  margin: 0;
+}
+
+.slide-orbit-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 1cqi;
+  box-shadow: var(--mdq-slide-elevation);
+}
+
+/* Two pieces of concrete evidence share the centre without turning the slide
+   into a conventional image grid. The stagger keeps both artefacts legible
+   while preserving the orbit of higher-level meeting concerns. */
+.slide-orbit:has(.slide-orbit-media-pair) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 28cqi) minmax(0, 1fr);
+}
+
+.slide-orbit-media-pair {
+  position: relative;
+  width: 100%;
+  max-width: 28cqi;
+  height: 12cqi;
+}
+
+.slide-orbit .slide-orbit-media-pair img {
+  position: absolute;
+  width: 62%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--mdq-slide-glass-line);
+  background: white;
+}
+
+.slide-orbit-media-pair .orbit-media-primary {
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.slide-orbit-media-pair .orbit-media-secondary {
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+}
+
+.slide-orbit-callout {
+  max-width: 30cqi;
+  padding-top: 0.7cqi;
+  border-top: 0.4cqi solid var(--mdq-slide-accent);
+  text-align: center;
+}
+
+.slide-orbit-callout p {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.18;
+  font-size: clamp(1rem, 2.1cqi, 1.9rem);
+  color: var(--mdq-slide-ink);
+}
+
+.slide-orbit-callout .orbit-title {
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.08;
+  font-size: clamp(1.05rem, 2.4cqi, 2.05rem);
+  color: var(--mdq-slide-ink);
+}
+
+.slide-orbit-callout .orbit-detail {
+  margin: 0.35cqi 0 0;
+  font-weight: 500;
+  line-height: 1.2;
+  font-size: clamp(0.8rem, 1.4cqi, 1.15rem);
+  color: var(--mdq-slide-eyebrow);
+}
+
+.slide-orbit-callout-a {
+  grid-area: orbit-a;
+  border-top-color: var(--mdq-slide-accent-cool, #2563eb);
+}
+
+.slide-orbit-callout-b {
+  grid-area: orbit-b;
+  border-top-color: var(--mdq-slide-accent, #0f766e);
+}
+
+.slide-orbit-callout-c {
+  grid-area: orbit-c;
+  margin-top: 1.4cqi;
+  border-top-color: var(--mdq-slide-accent-warm, #d97706);
+}
+
+/* Agentic productivity deck: six source surfaces on the left, one
+   consolidated review surface on the right. Visible captions are omitted so
+   the accumulated interface friction reads before any explanation. */
+.slide-body:has(.slide-workflow-montage) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.slide-workflow-montage {
+  display: grid;
+  grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.78fr);
+  gap: clamp(0.65rem, 1.15cqi, 1.15rem);
+  width: 100%;
+  height: min(55dvh, 31rem);
+  min-height: 0;
+}
+
+.slide-workflow-column {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(0.45rem, 0.95cqi, 0.95rem);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.slide-workflow-label {
+  margin: 0;
+  color: var(--mdq-slide-eyebrow);
+  font-size: clamp(0.82rem, 1.5cqi, 1.55rem);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.08;
+  text-transform: uppercase;
+}
+
+.slide-workflow-sources {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.45rem, 0.7cqi, 0.72rem);
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.quiz-html .slide-workflow-montage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--mdq-slide-glass-line);
+  border-radius: clamp(0.35rem, 0.55cqi, 0.6rem);
+  background: white;
+  box-shadow: 0 0.45rem 1.2rem rgba(0, 0, 0, 0.14);
+  object-fit: cover;
+  object-position: top center;
+}
+
+.slide-workflow-result {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.quiz-html .slide-workflow-result img {
+  object-fit: contain;
+  object-position: center;
+}
+
+@media (max-width: 760px) {
+  .slide-workflow-montage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    height: min(64dvh, 34rem);
+  }
+}
+
+@container (max-width: 720px) {
+  .slide-orbit {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "orbit-img"
+      "orbit-a"
+      "orbit-b"
+      "orbit-c";
+    gap: 3.2cqi;
+  }
+
+  .slide-orbit-media,
+  .slide-orbit-callout {
+    max-width: 100%;
+    justify-self: stretch;
+  }
+
+  .slide-orbit-media-pair {
+    height: 44cqi;
+  }
+
+  .slide-orbit-callout-c {
+    margin-top: 0;
+  }
+}
+
+/* Presentation surfaces can retain a large internal container even in a
+   narrow browser viewport, so mirror the stack at the viewport level too. */
+@media (max-width: 760px) {
+  .slide-orbit {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "orbit-img"
+      "orbit-a"
+      "orbit-b"
+      "orbit-c";
+    gap: 1rem;
+  }
+
+  .slide-orbit:has(.slide-orbit-media-pair) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .slide-orbit-media,
+  .slide-orbit-callout {
+    max-width: 100%;
+    justify-self: stretch;
+  }
+
+  .slide-orbit-media-pair {
+    height: 44vw;
+  }
+
+  .slide-orbit-callout-c {
+    margin-top: 0;
+  }
+}
+
+/* ============================================================
    Orbit composition (.mdq-orbit — deck raw HTML)
    A single centred image framed by short word callouts placed around it: a
    deliberate composition rather than an image-with-caption. Generic.
    ============================================================ */
 .mdq-orbit {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 34cqi) minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-items: center;
   justify-items: center;
@@ -1764,17 +2077,19 @@ html[data-theme="light"] .image-expansion-close:focus-visible {
   cursor: zoom-in;
 }
 .mdq-orbit-callout {
+  width: min(100%, 18rem);
   margin: 0;
   padding: 0.34em 0.95em;
   border: 1px solid var(--mdq-slide-glass-line);
   border-radius: 999px;
   background: color-mix(in srgb, var(--mdq-slide-bg) 84%, transparent);
   color: var(--mdq-slide-heading);
-  font-size: clamp(0.95rem, 2cqi, 2.1rem);
+  font-size: clamp(0.88rem, 1.5cqi, 1.45rem);
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  white-space: nowrap;
+  text-align: center;
+  white-space: normal;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
 }
 /* Purpose sits centred above; Design and Judgement flank the centred image. */
@@ -1798,6 +2113,63 @@ html[data-theme="light"] .mdq-orbit-image {
 html[data-theme="light"] .mdq-orbit-callout {
   border-color: rgba(100, 116, 139, 0.3);
   background: color-mix(in srgb, #fffdf7 90%, transparent);
+}
+
+@container (max-width: 720px) {
+  .mdq-orbit {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    gap: 0.65rem;
+    max-width: 100%;
+  }
+
+  .mdq-orbit-image {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    max-height: min(36dvh, 18rem);
+  }
+
+  .mdq-orbit-callout-top,
+  .mdq-orbit-callout-left,
+  .mdq-orbit-callout-right {
+    grid-column: 1;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .mdq-orbit-callout-top {
+    grid-row: 2;
+  }
+
+  .mdq-orbit-callout-left {
+    grid-row: 3;
+  }
+
+  .mdq-orbit-callout-right {
+    grid-row: 4;
+  }
+}
+
+/* Passive full-canvas background for slides opting in with
+   `slide_background:`. The layer is never interactive or expandable. */
+.slide-surface-has-bg .slide-bg-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: right -6cqi bottom -4cqi;
+  background-size: 62cqi auto;
+  background-color: transparent;
+  opacity: 0.96;
+}
+
+@container (max-width: 560px) {
+  .slide-surface-has-bg .slide-bg-layer {
+    background-position: center bottom -2cqi;
+    background-size: 132cqi auto;
+  }
 }
 
 .slide-references {
@@ -3072,7 +3444,7 @@ body.image-expansion-lock {
 
 .image-expansion-caption {
   max-width: min(92vw, 78rem);
-  color: color-mix(in srgb, var(--mdq-slide-ink-soft, #a6a6a0) 86%, transparent);
+  color: var(--mdq-media-caption-ink);
   font-size: clamp(0.72rem, 1vw, 0.94rem);
   font-weight: 650;
   line-height: 1.25;
@@ -3081,6 +3453,7 @@ body.image-expansion-lock {
 
 .image-expansion-close {
   position: absolute;
+  z-index: 2;
   top: clamp(0.52rem, 1.2vw, 0.86rem);
   right: clamp(0.52rem, 1.2vw, 0.86rem);
   display: inline-grid;
@@ -3521,13 +3894,26 @@ html[data-theme="light"] .presenter-notes-body {
   width: 100%;
 }
 
-.slide-video-card-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
+/* Video posters share the image thumbnail's figure grammar: a slab that
+   frames the media with a caption row beneath, so video and image captions
+   read as one component family. */
+.slide-video-figure {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.46rem;
+  margin: 0;
   width: 100%;
   max-width: min(100%, 60rem);
+  border: 1px solid var(--mdq-slide-glass-line);
+  border-radius: var(--mdq-panel-radius);
+  background: rgba(31, 31, 30, 0.72);
+  padding: clamp(0.42rem, 0.7cqi, 0.72rem);
+}
+
+.slide-video-figure .slide-video-card {
+  border: 0;
+  border-radius: calc(var(--mdq-panel-radius, 0.9rem) - 0.12rem);
+  box-shadow: none;
 }
 
 .slide-video-card {
@@ -3580,19 +3966,6 @@ html[data-theme="light"] .presenter-notes-body {
   filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55));
 }
 
-.slide-video-card-badge {
-  position: absolute;
-  left: 0.75rem;
-  bottom: 0.7rem;
-  padding: 0.28rem 0.7rem;
-  border-radius: 999px;
-  background: rgba(10, 12, 20, 0.78);
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
 /* ── Video expansion modal (modelled on image expansion) ───────────── */
 .video-expansion-overlay {
   position: fixed;
@@ -3616,10 +3989,8 @@ html[data-theme="light"] .presenter-notes-body {
   backdrop-filter: blur(16px) saturate(1.05);
 }
 
-/* The close control is a flow item in this column, so it never covers player
-   chrome. What it does cost is height: control band + fallback line + gaps +
-   padding. Bound the player against viewport height by that chrome budget so
-   the frame cannot push itself off a 720p screen. */
+/* Bound the player against viewport height by the frame/fallback chrome budget
+   so the overlay cannot push itself off a 720p screen. */
 .video-expansion-frame {
   position: relative;
   display: flex;
@@ -3627,35 +3998,17 @@ html[data-theme="light"] .presenter-notes-body {
   gap: 0.7rem;
   width: min(94vw, 92rem);
   --video-frame-pad: clamp(0.72rem, 1.5vw, 1.25rem);
-  --video-close-band: 2rem;
-  /* overlay padding + frame padding + control band + the two column gaps +
-     the fallback link line + the frame's own borders */
+  /* overlay padding + frame padding + one column gap + the fallback line +
+     the frame's own borders; the shared close control is absolutely placed. */
   --video-frame-chrome: calc(
     (2 * var(--video-overlay-pad, 2.2rem)) + (2 * var(--video-frame-pad)) +
-    var(--video-close-band) + (2 * 0.7rem) + 1.75rem + 2px
+    0.7rem + 1.75rem + 2px
   );
   padding: var(--video-frame-pad);
   border: 1px solid rgba(238, 238, 235, 0.14);
   border-radius: calc(var(--mdq-panel-radius, 0.9rem) + 0.35rem);
   background: linear-gradient(145deg, rgba(28, 30, 40, 0.95), rgba(16, 17, 24, 0.96));
   box-shadow: 0 36px 90px rgba(0, 0, 0, 0.62);
-}
-
-.video-expansion-close {
-  align-self: flex-end;
-  padding: 0.35rem 0.9rem;
-  border: 1px solid rgba(238, 238, 235, 0.2);
-  border-radius: 999px;
-  background: rgba(20, 22, 30, 0.85);
-  color: #eee;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.video-expansion-close:hover,
-.video-expansion-close:focus-visible {
-  background: rgba(40, 44, 58, 0.95);
-  outline: 2px solid rgba(120, 170, 255, 0.7);
 }
 
 .video-expansion-player {
@@ -3676,11 +4029,71 @@ html[data-theme="light"] .presenter-notes-body {
   border: 0;
 }
 
+.video-expansion-native {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+  object-fit: contain;
+}
+
 .video-expansion-fallback {
   color: rgba(140, 180, 255, 0.92);
   font-size: 0.88rem;
   text-align: center;
   text-decoration: underline;
+}
+
+/* Open-response cards use semantic classes rather than relying on Tailwind's
+   zinc palette, whose dark-theme utility colours became muddy against the
+   warm light presentation theme. Keep identities and answers unequivocally
+   readable in both themes. */
+.open-response-list {
+  border-color: var(--mdq-slide-glass-line);
+  background: var(--mdq-slide-glass-strong);
+  color: var(--mdq-slide-ink);
+}
+
+.open-response-title,
+.open-response-count,
+.open-response-empty {
+  color: var(--mdq-slide-ink-soft);
+}
+
+.open-response-entry {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: #343432;
+}
+
+.open-response-entry:hover,
+.open-response-entry:focus-visible {
+  border-color: var(--mdq-slide-accent);
+}
+
+.open-response-entry:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--mdq-slide-accent) 72%, white);
+  outline-offset: 2px;
+}
+
+.open-response-identity,
+.open-response-student-id,
+.open-response-display-name {
+  color: #fffaf1;
+}
+
+.open-response-text {
+  color: #ffffff;
+}
+
+html[data-theme="light"] .open-response-list {
+  border-color: rgba(117, 92, 62, 0.2);
+  background: rgba(255, 252, 246, 0.94);
+}
+
+html[data-theme="light"] .open-response-entry {
+  border-color: #59574f;
+  background: #41413f;
 }
 
 
@@ -3703,12 +4116,101 @@ html[data-theme="light"] .presenter-notes-body {
   min-height: 0;
 }
 
+/* The notes disclosure already carries the current item position, so avoid a
+   duplicate counter inside the shortened instructor preview. */
+.slide-live-shell-controls:has(.presenter-notes-panel) .slide-counter {
+  display: none;
+}
+
 /* The safe area normally reserves a full viewport height. With the notes panel
    docked the surface is shorter than that, so the safe box overran the clip
    line and its bottom-anchored reference footer disappeared behind the notes.
    Fit the safe box to the surface it actually occupies instead. */
 .slide-live-shell-controls:has(.presenter-notes-panel) .slide-safe {
   min-height: 100%;
+}
+
+/* Tablet instructor views have enough width to keep projector composition,
+   but not enough height once notes are docked. Put the compact join control
+   into normal flow before slide content and make the preview itself scroll,
+   so it never floats over evidence or disappears behind the notes panel. */
+@media (max-width: 1180px) {
+  .slide-live-shell-controls:has(.presenter-notes-panel)
+    .slide-live-main
+    .slide-surface {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .slide-live-shell-controls:has(.presenter-notes-panel) .slide-join-panel {
+    position: static;
+    align-self: flex-end;
+    width: max-content;
+    max-width: 100%;
+    margin: 0;
+  }
+}
+
+/* Raw-HTML montage slides bypass the standard media-grid sizing above. A
+   collapsed notes disclosure leaves most of the slide available, whereas an
+   open disclosure needs a deliberately compact evidence band. Distinguish the
+   two states: styling every mounted notes panel as though it were open made
+   the iPad montage collapse into tiny, apparently overlapping thumbnails. */
+.slide-live-shell-controls:has(.presenter-notes-panel)
+  .slide-workflow-montage {
+  grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.78fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: min(49dvh, 28rem);
+}
+
+.slide-live-shell-controls:has(.presenter-notes-details[open])
+  .slide-workflow-montage {
+  height: min(19dvh, 10rem);
+}
+
+@media (max-width: 760px) {
+  .slide-live-shell-controls:has(.presenter-notes-panel)
+    .slide-workflow-montage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(12rem, 1.15fr) minmax(8rem, 0.85fr);
+    height: 28rem;
+  }
+
+  /* An open notes drawer leaves only a shallow preview above it on phones.
+     Keep both the six-source grid and the consolidated result visible in one
+     compact row instead of letting the second row continue underneath the
+     notes panel. */
+  .slide-live-shell-controls:has(.presenter-notes-details[open])
+    .slide-workflow-montage {
+    grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.78fr);
+    grid-template-rows: minmax(0, 1fr);
+    height: 7rem;
+  }
+}
+
+/* iPad Safari can expose only ~500 CSS pixels of height in landscape once
+   browser chrome is accounted for (a 1600x1000 screenshot at DPR 2). When
+   notes are open, compact the title rhythm and montage so the complete slide
+   remains above the disclosure instead of painting beneath it. This targets
+   the constrained state and leaves collapsed notes, projector views, and
+   taller tablets untouched. */
+@media (min-width: 761px) and (max-width: 1180px) and (max-height: 650px) {
+  .slide-live-shell-controls:has(.presenter-notes-details[open]) .slide-safe {
+    gap: clamp(0.5rem, 1.8dvh, 0.75rem);
+    padding-top: clamp(4.25rem, 14dvh, 4.75rem);
+    padding-bottom: clamp(0.45rem, 1.5dvh, 0.75rem);
+  }
+
+  .slide-live-shell-controls:has(.presenter-notes-details[open]) .slide-title {
+    font-size: clamp(2rem, 5.25cqi, 2.65rem);
+    line-height: 0.95;
+  }
+
+  .slide-live-shell-controls:has(.presenter-notes-details[open])
+    .slide-workflow-montage {
+    height: min(16dvh, 5rem);
+  }
 }
 
 /* Same defect one level in, in its general form: the media column claims a

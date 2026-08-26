@@ -14,6 +14,13 @@ export default function Timer({
   const offset = circumference * (1 - progress);
   const urgent = remainingSec <= 5 && remainingSec > 0;
 
+  // Show m:ss for a minute or more (e.g. a 5-minute prompt), raw seconds below 60.
+  const label =
+    remainingSec >= 60
+      ? `${Math.floor(remainingSec / 60)}:${String(remainingSec % 60).padStart(2, "0")}`
+      : `${remainingSec}`;
+  const labelFontSize = label.length >= 4 ? size * 0.26 : size * 0.32;
+
   // Color transitions: green -> yellow -> red
   const color =
     remainingSec > totalSec * 0.5
@@ -53,9 +60,9 @@ export default function Timer({
       </svg>
       <span
         className="absolute font-mono font-bold"
-        style={{ fontSize: size * 0.32, color }}
+        style={{ fontSize: labelFontSize, color }}
       >
-        {remainingSec}
+        {label}
       </span>
     </div>
   );

@@ -398,6 +398,34 @@ Name the file to edit.
     });
   });
 
+  describe("GET /data/videos/*", () => {
+    it("serves local slide videos with byte-range support", async () => {
+      const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-videos-quiz-"));
+      const tempDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-videos-data-"));
+      const videoDir = path.join(tempDataDir, "videos");
+      fs.mkdirSync(videoDir, { recursive: true });
+
+      const fixtureWeek01 = fs.readFileSync(path.join(quizDir, "week01.md"), "utf-8");
+      fs.writeFileSync(path.join(tempQuizDir, "week01.md"), fixtureWeek01, "utf-8");
+      fs.writeFileSync(path.join(videoDir, "demo.mp4"), Buffer.from("0123456789"));
+
+      const videoApp = createApp({ quizDir: tempQuizDir, dataDir: tempDataDir });
+
+      try {
+        const res = await request(videoApp)
+          .get("/data/videos/demo.mp4")
+          .set("Range", "bytes=2-5");
+        expect(res.status).toBe(206);
+        expect(res.headers["accept-ranges"]).toBe("bytes");
+        expect(res.headers["content-range"]).toBe("bytes 2-5/10");
+        expect(Buffer.from(res.body).toString("utf-8")).toBe("2345");
+      } finally {
+        fs.rmSync(tempQuizDir, { recursive: true, force: true });
+        fs.rmSync(tempDataDir, { recursive: true, force: true });
+      }
+    });
+  });
+
   describe("Session lifecycle", () => {
     let sessionId: string;
 

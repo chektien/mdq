@@ -142,6 +142,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
   }
   const resolvedInstanceId = (instanceId || process.env.MDQ_INSTANCE_ID || "").trim() || `pid-${process.pid}`;
   const imagesDir = dataDir ? path.join(dataDir, "images") : undefined;
+  const videosDir = dataDir ? path.join(dataDir, "videos") : undefined;
 
   app.use((_req, res, next) => {
     res.setHeader("x-mdq-instance-id", resolvedInstanceId);
@@ -150,6 +151,15 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
 
   if (imagesDir && fs.existsSync(imagesDir)) {
     app.use("/data/images", express.static(imagesDir, {
+      fallthrough: true,
+      index: false,
+      immutable: false,
+      maxAge: 0,
+    }));
+  }
+
+  if (videosDir && fs.existsSync(videosDir)) {
+    app.use("/data/videos", express.static(videosDir, {
       fallthrough: true,
       index: false,
       immutable: false,
@@ -190,6 +200,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         ? question.attendeeNotes
         : undefined,
       slideMedia: question.slideMedia,
+      slideBackground: question.slideBackground,
       slideLiveEmbed: question.slideLiveEmbed,
       slideVideo: question.slideVideo,
       slideReferences: question.slideReferences,

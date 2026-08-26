@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSocket } from "../hooks/useSocket";
-import type { QuestionState, RevealState } from "../hooks/useSocket";
+import { resolveSlideBackground, type QuestionState, type RevealState } from "../hooks/useSocket";
 import {
   fetchDecks,
   reloadDecks,
@@ -33,6 +33,7 @@ import QuizHtml from "../components/QuizHtml";
 import LiveSurface, { type LiveSurfaceAction } from "../components/LiveSurface";
 import ResponsiveQuizSurface from "../components/ResponsiveQuizSurface";
 import SlideContent, { SlideContentBody } from "../components/SlideContent";
+import SlideBackgroundLayer from "../components/SlideBackgroundLayer";
 import PresenterNotesPanel from "../components/PresenterNotesPanel";
 import { getQuestionModeText, getRevealActionLabel } from "../questionMode";
 
@@ -73,13 +74,15 @@ function formatDeckChooserSummary(deck: DeckSummary): string {
 }
 
 function questionStateFromRestore(data: NonNullable<SessionRestoreResponse["reviewQuestions"]>[number]): QuestionState {
+  const resolvedBackground = resolveSlideBackground(data.text, data.slideBackground);
   return {
     questionIndex: data.questionIndex,
     topic: data.topic,
-    text: data.text,
+    text: resolvedBackground.text,
     questionType: data.questionType ?? (data.isPoll ? "poll" : "multiple_choice"),
     attendeeNotes: data.attendeeNotes,
     slideMedia: data.slideMedia,
+    slideBackground: resolvedBackground.slideBackground,
     slideLiveEmbed: data.slideLiveEmbed,
     slideVideo: data.slideVideo,
     slideReferences: data.slideReferences,
@@ -145,7 +148,9 @@ export default function InstructorView({
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
   const [restoredQuestionCache, setRestoredQuestionCache] = useState<Record<number, QuestionState>>({});
   const [restoredRevealCache, setRestoredRevealCache] = useState<Record<number, RevealState>>({});
+  const [pendingRestore, setPendingRestore] = useState<StoredInstructorRestore | null>(null);
   const restoreAttemptedRef = useRef(false);
+  const actionInFlightRef = useRef(false);
   // Presenter notes (instructor-only). Populated from the instructor-
   // authenticated endpoint; empty/disabled means no panel renders.
   const [presenterNotesEnabled, setPresenterNotesEnabled] = useState(false);
@@ -201,6 +206,75 @@ export default function InstructorView({
     };
   }, [selectedWeek]);
 
+  const restoreInstructorSession = useCallback(async (stored: StoredInstructorRestore) => {
+    setLoading(true);
+    setErrorMsg(null);
+    setRestoreNotice(null);
+
+    try {
+      const snapshot = await fetchSessionStateForRestore(stored.sessionId);
+      const restoredInfo: CreateSessionResponse = {
+        sessionId: snapshot.sessionId,
+        sessionCode: snapshot.sessionCode,
+        joinUrl: `/join/${snapshot.sessionCode}`,
+        theme: snapshot.theme,
+        questionHeadings: snapshot.questionHeadings || [],
+        questionSummaries: snapshot.questionSummaries || [],
+      };
+
+      setSessionInfo(restoredInfo);
+      setSelectedWeek(snapshot.week);
+      setTotalQuestionsInQuiz(snapshot.questionCount);
+      setQuestionHeadings(snapshot.questionHeadings || []);
+      setQuestionSummaries(snapshot.questionSummaries || []);
+      setQuizLabel(formatQuizLabel(snapshot.week));
+      setSessionTheme(snapshot.theme);
+      setRestoredQuestionCache(
+        Object.fromEntries(
+          (snapshot.reviewQuestions || []).map((question) => {
+            const restored = questionStateFromRestore(question);
+            return [restored.questionIndex, restored];
+          }),
+        ),
+      );
+      setRestoredRevealCache(
+        Object.fromEntries(
+          (snapshot.reviewReveals || []).map((reveal) => {
+            const restored = revealStateFromRestore(reveal);
+            return [restored.questionIndex, restored];
+          }),
+        ),
+      );
+
+      setPhase(snapshot.state === "LOBBY" ? "lobby" : "live");
+      setPendingRestore(null);
+
+      try {
+        const ai = await fetchSessionAccessInfo(snapshot.sessionId);
+        setAccessInfo(ai);
+      } catch {
+        // Non-critical. The socket and controls can recover without join info.
+      }
+
+      setRestoreNotice(INSTRUCTOR_RESTORE_SUCCESS_NOTICE);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to resume previous session.";
+      if (/ended|not found|missing/i.test(message)) {
+        clearInstructorRestore();
+        setPendingRestore(null);
+        setRestoreNotice("Previous session is no longer active. Start a new session when ready.");
+      } else {
+        // A mobile network transition is temporary. Keep the restore record
+        // and offer an in-place retry instead of losing the live session.
+        saveInstructorRestore(stored);
+        setPendingRestore(stored);
+        setRestoreNotice(`${message} Your live session is preserved; retry when connected.`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (restoreAttemptedRef.current) return;
     restoreAttemptedRef.current = true;
@@ -216,78 +290,13 @@ export default function InstructorView({
       return;
     }
 
-    if (!stored?.sessionId) {
-      return;
+    if (stored?.sessionId) {
+      void restoreInstructorSession(stored);
     }
-
-    setLoading(true);
-    setErrorMsg(null);
-
-    fetchSessionStateForRestore(stored.sessionId)
-      .then(async (snapshot) => {
-        const restoredInfo: CreateSessionResponse = {
-          sessionId: snapshot.sessionId,
-          sessionCode: snapshot.sessionCode,
-          joinUrl: `/join/${snapshot.sessionCode}`,
-          theme: snapshot.theme,
-          questionHeadings: snapshot.questionHeadings || [],
-          questionSummaries: snapshot.questionSummaries || [],
-        };
-
-        setSessionInfo(restoredInfo);
-        setSelectedWeek(snapshot.week);
-        setTotalQuestionsInQuiz(snapshot.questionCount);
-        setQuestionHeadings(snapshot.questionHeadings || []);
-        setQuestionSummaries(snapshot.questionSummaries || []);
-        setQuizLabel(formatQuizLabel(snapshot.week));
-        setSessionTheme(snapshot.theme);
-        setRestoredQuestionCache(
-          Object.fromEntries(
-            (snapshot.reviewQuestions || []).map((question) => {
-              const restored = questionStateFromRestore(question);
-              return [restored.questionIndex, restored];
-            }),
-          ),
-        );
-        setRestoredRevealCache(
-          Object.fromEntries(
-            (snapshot.reviewReveals || []).map((reveal) => {
-              const restored = revealStateFromRestore(reveal);
-              return [restored.questionIndex, restored];
-            }),
-          ),
-        );
-
-        if (snapshot.state === "LOBBY") {
-          setPhase("lobby");
-        } else {
-          setPhase("live");
-        }
-
-        try {
-          const ai = await fetchSessionAccessInfo(snapshot.sessionId);
-          setAccessInfo(ai);
-        } catch {
-          // Non-critical
-        }
-
-        setRestoreNotice(INSTRUCTOR_RESTORE_SUCCESS_NOTICE);
-      })
-      .catch((error) => {
-        clearInstructorRestore();
-        const message = error instanceof Error ? error.message : "Unable to resume previous session.";
-        if (/ended|not found|missing/i.test(message)) {
-          setRestoreNotice("Previous session is no longer active. Start a new session when ready.");
-        } else {
-          setRestoreNotice("Unable to resume previous session. Start a new session when ready.");
-        }
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  }, [restoreInstructorSession]);
 
   useEffect(() => {
     if (!sessionInfo) {
-      clearInstructorRestore();
       return;
     }
 
@@ -354,6 +363,8 @@ export default function InstructorView({
 
   const handleAction = useCallback(
     async (action: () => Promise<unknown>, label: string) => {
+      if (actionInFlightRef.current) return;
+      actionInFlightRef.current = true;
       setRestoreNotice((current) => (
         current === INSTRUCTOR_RESTORE_SUCCESS_NOTICE ? null : current
       ));
@@ -362,12 +373,15 @@ export default function InstructorView({
       try {
         await action();
       } catch (e) {
-        setErrorMsg(e instanceof Error ? e.message : `Failed to ${label}`);
+        const message = e instanceof Error ? e.message : `Failed to ${label}`;
+        setErrorMsg(`${message} Reconnecting to sync the current session state.`);
+        sock.reconnect();
       } finally {
+        actionInFlightRef.current = false;
         setLoading(false);
       }
     },
-    [],
+    [sock],
   );
 
   const handleBackToSetup = useCallback(() => {
@@ -412,8 +426,18 @@ export default function InstructorView({
         )}
 
         {restoreNotice && (
-          <div className="bg-emerald-900/40 border border-emerald-700 text-emerald-100 px-4 py-3 rounded-xl max-w-2xl w-full text-center text-sm">
-            {restoreNotice}
+          <div className={`${pendingRestore ? "bg-amber-900/40 border-amber-700 text-amber-100" : "bg-emerald-900/40 border-emerald-700 text-emerald-100"} border px-4 py-3 rounded-xl max-w-2xl w-full text-center text-sm`}>
+            <p>{restoreNotice}</p>
+            {pendingRestore && (
+              <button
+                type="button"
+                className="mt-3 rounded-lg bg-amber-200 px-4 py-2 font-semibold text-amber-950 disabled:opacity-60"
+                disabled={loading}
+                onClick={() => void restoreInstructorSession(pendingRestore)}
+              >
+                {loading ? "Reconnecting..." : "Retry Session"}
+              </button>
+            )}
           </div>
         )}
 
@@ -559,11 +583,20 @@ export default function InstructorView({
 
         <button
           onClick={() => handleAction(() => startSession(sid), "start")}
-          disabled={loading}
+          disabled={loading || !sock.connected}
           className="instructor-start-button bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white font-semibold py-4 px-12 rounded-xl transition-colors text-xl"
         >
-          {loading ? "Starting..." : "Start Session"}
+          {loading ? "Starting..." : sock.connected ? "Start Session" : "Reconnecting..."}
         </button>
+        {!sock.connected && (
+          <button
+            type="button"
+            className="rounded-lg border border-zinc-600 px-4 py-2 text-sm font-semibold text-zinc-200"
+            onClick={sock.reconnect}
+          >
+            Retry Connection
+          </button>
+        )}
       </div>
     );
   }
@@ -751,20 +784,26 @@ function LiveView({
   const isLiveSurfaceDisplay = isSlideDisplay || isQuizSurfaceDisplay || isLeaderboardDisplay || isReviewSurfaceDisplay;
   const isLiveEmbedSlideDisplay = isSlideDisplay && !!displayQuestion?.slideLiveEmbed;
   const participantCount = sock.participants?.count ?? 0;
+  const liveConnectionNoticeLabel = !sock.connected
+    ? sock.error ? "Connection lost; tap Reconnect" : "Reconnecting..."
+    : null;
   const liveRestoreNoticeLabel = restoreNotice && isLiveSurfaceDisplay
     ? restoreNotice === INSTRUCTOR_RESTORE_SUCCESS_NOTICE
       ? "Session resumed"
       : restoreNotice.replace(/\.$/, "")
     : null;
-  const liveStatusTone: "neutral" | "success" | "warning" = liveRestoreNoticeLabel
+  const liveStatusTone: "neutral" | "success" | "warning" = liveConnectionNoticeLabel
+    ? "warning"
+    : liveRestoreNoticeLabel
     ? "success"
     : isReviewing
       ? "warning"
       : "neutral";
-  const slideStatusLabel = liveRestoreNoticeLabel ?? (isReviewing && reviewQuestionIndex !== null
+  const slideStatusLabel = liveConnectionNoticeLabel ?? liveRestoreNoticeLabel ?? (isReviewing && reviewQuestionIndex !== null
     ? `Reviewing ${formatPositionLabel(reviewQuestionIndex, totalQuestionsInQuiz)}; students stay live`
     : null);
   const quizStatusLabel = (() => {
+    if (liveConnectionNoticeLabel) return liveConnectionNoticeLabel;
     if (liveRestoreNoticeLabel) return liveRestoreNoticeLabel;
     if (!displayQuestion || displayQuestion.questionType === "slide") return null;
     if (isReviewing && reviewQuestionIndex !== null) {
@@ -798,6 +837,7 @@ function LiveView({
   const remainingQuizQuestionCount = Math.max(remainingItems.length - remainingSlideCount, 0);
   const remainingItemCount = remainingQuizQuestionCount + remainingSlideCount;
   const remainingVerb = remainingItemCount === 1 ? "remains" : "remain";
+  const controlsUnavailable = loading || !sock.connected;
 
   useEffect(() => {
     if (!showEndConfirm) return;
@@ -853,19 +893,27 @@ function LiveView({
       {
         label: "Prev",
         onClick: () => onAction(() => prevQuestion(sessionId), "previous"),
-        disabled: !canPrev || loading,
+        disabled: !canPrev || controlsUnavailable,
       },
       {
         label: "Next",
         detail: nextQuestionHeading,
         onClick: () => onAction(() => nextQuestion(sessionId), "next"),
-        disabled: !canNext || loading,
+        disabled: !canNext || controlsUnavailable,
         tone: canNext ? "primary" : "neutral",
       },
     ];
   })();
 
   const liveSurfaceActions: LiveSurfaceAction[] = (() => {
+    if (!sock.connected) {
+      return [{
+        label: "Reconnect",
+        onClick: sock.reconnect,
+        tone: "primary",
+      }];
+    }
+
     if (isReviewing && reviewQuestionIndex !== null) {
       return [
         {
@@ -876,7 +924,7 @@ function LiveView({
         {
           label: "End Session",
           onClick: requestEndSession,
-          disabled: loading,
+          disabled: controlsUnavailable,
           tone: "danger",
         },
       ];
@@ -893,12 +941,12 @@ function LiveView({
             }
             onAction(() => hideLeaderboard(sessionId), "resume");
           },
-          disabled: loading,
+          disabled: controlsUnavailable,
         },
         {
           label: "End Session",
           onClick: requestEndSession,
-          disabled: loading,
+          disabled: controlsUnavailable,
           tone: "danger",
         },
       ];
@@ -909,7 +957,7 @@ function LiveView({
       actions.push({
         label: "Close Question",
         onClick: () => onAction(() => closeQuestion(sessionId), "close"),
-        disabled: loading,
+        disabled: controlsUnavailable,
         tone: "warning",
       });
     }
@@ -917,7 +965,7 @@ function LiveView({
       actions.push({
         label: liveRevealActionLabel,
         onClick: () => onAction(() => revealAnswer(sessionId), "reveal"),
-        disabled: loading,
+        disabled: controlsUnavailable,
         tone: "primary",
       });
     }
@@ -925,14 +973,14 @@ function LiveView({
       actions.push({
         label: "Show Leaderboard",
         onClick: () => onAction(() => showLeaderboard(sessionId), "leaderboard"),
-        disabled: loading,
+        disabled: controlsUnavailable,
         tone: "primary",
       });
     }
     actions.push({
       label: "End Session",
       onClick: requestEndSession,
-      disabled: loading,
+      disabled: controlsUnavailable,
       tone: "danger",
     });
     return actions;
@@ -982,7 +1030,7 @@ function LiveView({
             type="button"
             className="end-session-end rounded-xl border border-red-300/35 bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-950/25 transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-700 disabled:text-zinc-400 disabled:shadow-none"
             onClick={confirmEndSession}
-            disabled={loading}
+            disabled={controlsUnavailable}
           >
             End Session
           </button>
@@ -1189,6 +1237,7 @@ function LiveView({
           <LiveSurface
             mode={isReviewing ? "review" : "projector"}
             surfaceClassName={isLiveEmbedSlideDisplay ? "slide-surface-live-embed" : isSlideDisplay ? undefined : "quiz-surface"}
+            backgroundLayer={isSlideDisplay && displayQuestion?.slideBackground ? <SlideBackgroundLayer background={displayQuestion.slideBackground} /> : undefined}
             nextLabel={null}
             qrDataUrl={accessInfo?.qrCodeDataUrl}
             sessionCode={sessionCode}
@@ -1281,6 +1330,7 @@ function LiveView({
                 slideMedia={displayQuestion.slideMedia}
                 slideMediaPosition={displayQuestion.slideMediaPosition}
                 slideMediaOpacity={displayQuestion.slideMediaOpacity}
+                slideBackground={displayQuestion.slideBackground}
                 slideLiveEmbed={displayQuestion.slideLiveEmbed}
                 slideVideo={displayQuestion.slideVideo}
                 slideReferences={displayQuestion.slideReferences}

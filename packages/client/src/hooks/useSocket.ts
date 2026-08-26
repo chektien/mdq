@@ -18,6 +18,7 @@ import type {
   AnswerSubmitPayload,
   MediaPosition,
   SlideMedia,
+  SlideBackground,
   SlideLiveEmbed,
   SlideVideo,
   SlideReference,
@@ -87,6 +88,7 @@ export interface QuestionState {
   slideMedia?: SlideMedia[];
   slideMediaPosition?: MediaPosition;
   slideMediaOpacity?: number;
+  slideBackground?: SlideBackground;
   slideLiveEmbed?: SlideLiveEmbed;
   slideVideo?: SlideVideo;
   slideReferences?: SlideReference[];
@@ -95,6 +97,56 @@ export interface QuestionState {
   isPoll: boolean;
   timeLimitSec: number;
   startedAt: number;
+}
+
+/**
+ * Compatibility path for a newly deployed client talking to an older running
+ * server during an active classroom session. Older parsers leave the opt-in
+ * background directive in the rendered HTML; consume it client-side so the
+ * visual can deploy without restarting the in-memory session server.
+ */
+export function resolveSlideBackground(
+  text: string,
+  explicitBackground?: SlideBackground,
+): { text: string; slideBackground?: SlideBackground } {
+  if (explicitBackground) {
+    return { text, slideBackground: explicitBackground };
+  }
+
+  const values = new Map<string, string>();
+  const cleanedText = text.replace(/\s*<p>\s*([\s\S]*?)\s*<\/p>\s*/gi, (whole, paragraph: string) => {
+    const lines = paragraph
+      .split(/\r?\n|<br\s*\/?\s*>/i)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length === 0) return whole;
+
+    const paragraphValues = new Map<string, string>();
+    for (const line of lines) {
+      const match = line.match(/^(slide_background|slide_background_position|slide_background_size):\s*(.+)$/i);
+      if (!match) return whole;
+      paragraphValues.set(match[1].toLowerCase(), match[2].trim().replace(/^['"]|['"]$/g, ""));
+    }
+
+    for (const [key, value] of paragraphValues) values.set(key, value);
+    return "";
+  }).trim();
+  const rawSrc = values.get("slide_background");
+  if (!rawSrc) {
+    return { text };
+  }
+
+  const src = rawSrc.startsWith("../images/")
+    ? `/data/images/${rawSrc.slice("../images/".length)}`
+    : rawSrc;
+  return {
+    text: cleanedText,
+    slideBackground: {
+      src,
+      ...(values.get("slide_background_position") ? { position: values.get("slide_background_position") } : {}),
+      ...(values.get("slide_background_size") ? { size: values.get("slide_background_size") } : {}),
+    },
+  };
 }
 
 export interface RevealState {
@@ -140,6 +192,7 @@ export interface UseSocketReturn {
   // Actions
   joinSession: (studentId: string, displayName?: string) => void;
   submitAnswer: (payload: AnswerSubmitPayload) => void;
+  reconnect: () => void;
   disconnect: () => void;
 }
 
@@ -258,17 +311,19 @@ export function useSocket(
     // ── Question lifecycle ─────────────────
     socket.on(SocketEvents.QUESTION_OPEN, (data: QuestionOpenPayload) => {
       const questionType = data.questionType ?? (data.isPoll ? "poll" : "multiple_choice");
+      const resolvedBackground = resolveSlideBackground(data.text, data.slideBackground);
       const previousQuestion = currentQuestionRef.current;
       const isSameQuestion = previousQuestion?.questionIndex === data.questionIndex;
       const nextQuestion = {
         questionIndex: data.questionIndex,
         topic: data.topic,
-        text: data.text,
+        text: resolvedBackground.text,
         questionType,
         attendeeNotes: data.attendeeNotes,
         slideMedia: data.slideMedia,
         slideMediaPosition: data.slideMediaPosition,
         slideMediaOpacity: data.slideMediaOpacity,
+        slideBackground: resolvedBackground.slideBackground,
         slideLiveEmbed: data.slideLiveEmbed,
         slideVideo: data.slideVideo,
         slideReferences: data.slideReferences,
@@ -469,6 +524,16 @@ export function useSocket(
     [],
   );
 
+  const reconnect = useCallback(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    // Force a fresh transport rather than trusting a stale iOS Safari socket.
+    // The server sends an authoritative state snapshot on every connection.
+    socket.disconnect();
+    socket.connect();
+  }, []);
+
   const disconnect = useCallback(() => {
     clearStoredSession();
     socketRef.current?.disconnect();
@@ -498,6 +563,7 @@ export function useSocket(
     participants,
     joinSession,
     submitAnswer,
+    reconnect,
     disconnect,
   };
 }

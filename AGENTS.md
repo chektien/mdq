@@ -11,6 +11,13 @@
 - The local MDQ server commonly runs on port `2081`.
 - A stable HTTPS URL is preferred for student-facing/public access when configured.
 - A Cloudflare tunnel or Worker route may proxy to the local MDQ server. Prefer repairing that route before touching Tailscale Serve/Funnel.
+- Active classroom session continuity is a hard requirement. Recover browser,
+  network, tunnel, and client-control failures by reconnecting and reconciling
+  against the existing server session; do not restart the deck or discard
+  participant quiz progress as a routine recovery step.
+- Never restart or redeploy the MDQ server while an active session may exist
+  unless Chek explicitly approves the interruption after being told that the
+  current in-memory session and participant progress may be lost.
 
 ## Tailscale Routing Warning
 - Do not repoint a bare Tailscale hostname or shared HTTPS route for MDQ unless Chek explicitly asks for that exact routing.

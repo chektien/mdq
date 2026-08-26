@@ -13,6 +13,7 @@ interface LiveSurfaceProps {
   children: ReactNode;
   mode?: "projector" | "review" | "student";
   surfaceClassName?: string;
+  backgroundLayer?: ReactNode;
   nextLabel?: string | null;
   statusLabel?: string | null;
   statusTone?: "neutral" | "success" | "warning";
@@ -33,6 +34,7 @@ export default function LiveSurface({
   children,
   mode = "projector",
   surfaceClassName,
+  backgroundLayer,
   nextLabel,
   statusLabel,
   statusTone = "neutral",
@@ -57,6 +59,7 @@ export default function LiveSurface({
   const className = [
     "slide-surface",
     `slide-surface-${mode}`,
+    backgroundLayer ? "slide-surface-has-bg" : null,
     surfaceClassName,
   ].filter(Boolean).join(" ");
 
@@ -120,6 +123,7 @@ export default function LiveSurface({
 
   return (
     <section ref={surfaceRef} className={className}>
+      {backgroundLayer}
       <div className="slide-safe">
         <div className="slide-toolbar">
           {hasNavActions && (
@@ -154,8 +158,6 @@ export default function LiveSurface({
           )}
         </div>
 
-        {children}
-
         {hasJoinInfo && (
           <SessionCodeCard
             className="slide-join-panel"
@@ -168,6 +170,8 @@ export default function LiveSurface({
             defaultExpanded={joinCardDefaultExpanded}
           />
         )}
+
+        {children}
 
         {positionLabel && <p className="slide-counter">{positionLabel}</p>}
       </div>
