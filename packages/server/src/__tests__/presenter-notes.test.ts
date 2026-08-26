@@ -72,6 +72,13 @@ Nothing to see here.
 ---
 `;
 
+const DECK_WITH_NOTES_DISABLED = DECK_WITH_NOTES.replace(
+  "# Presenter Notes Deck",
+  `# Presenter Notes Deck
+presenter_notes: false
+presenter_notes_default_open: true`,
+);
+
 function writeTempDeck(contents: string): { dir: string; week: string } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-pnotes-"));
   fs.writeFileSync(path.join(dir, "talk.md"), contents);
@@ -157,6 +164,27 @@ describe("presenter notes: parser association", () => {
     const last = parsed.quiz!.questions[3];
     expect(last.presenterNotes ?? []).toHaveLength(0);
   });
+
+  it("parses deck-level presenter-note overrides from the preamble", () => {
+    const result = parseQuizMarkdown(DECK_WITH_NOTES_DISABLED, "talk.md");
+    expect(result.errors).toHaveLength(0);
+    expect(result.quiz?.presenterNotes).toBe(false);
+    expect(result.quiz?.presenterNotesDefaultOpen).toBe(true);
+  });
+
+  it("rejects invalid deck-level boolean metadata", () => {
+    const result = parseQuizMarkdown(
+      DECK_WITH_NOTES.replace(
+        "# Presenter Notes Deck",
+        `# Presenter Notes Deck
+presenter_notes: sometimes`,
+      ),
+      "talk.md",
+    );
+    expect(result.errors.map((error) => error.detail)).toContain(
+      "Invalid presenter_notes: sometimes (expected true or false)",
+    );
+  });
 });
 
 describe("presenter notes: instructor endpoint", () => {
@@ -215,6 +243,44 @@ describe("presenter notes: instructor endpoint", () => {
     expect(res.body.items[3].notes).toEqual([]);
   });
 
+  it("allows a deck to disable globally enabled presenter notes", async () => {
+    const { dir, week } = writeTempDeck(DECK_WITH_NOTES_DISABLED);
+    const app = createApp({ quizDir: dir, presenterNotes: true, presenterNotesDefaultOpen: true });
+    const agent = await authedAgent(app);
+    const res = await agent.get(`/api/deck/${week}/presenter-notes`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ enabled: false, defaultOpen: false, items: [] });
+    expect(JSON.stringify(res.body)).not.toContain("only the presenter sees this");
+  });
+
+  it("allows a deck to override the global default-open setting", async () => {
+    const contents = DECK_WITH_NOTES.replace(
+      "# Presenter Notes Deck",
+      `# Presenter Notes Deck
+presenter_notes_default_open: false`,
+    );
+    const { dir, week } = writeTempDeck(contents);
+    const app = createApp({ quizDir: dir, presenterNotes: true, presenterNotesDefaultOpen: true });
+    const agent = await authedAgent(app);
+    const res = await agent.get(`/api/deck/${week}/presenter-notes`);
+    expect(res.status).toBe(200);
+    expect(res.body.enabled).toBe(true);
+    expect(res.body.defaultOpen).toBe(false);
+  });
+
+  it("does not let a deck enable notes when the global privacy gate is off", async () => {
+    const contents = DECK_WITH_NOTES.replace(
+      "# Presenter Notes Deck",
+      `# Presenter Notes Deck
+presenter_notes: true`,
+    );
+    const { dir, week } = writeTempDeck(contents);
+    const app = createApp({ quizDir: dir, presenterNotes: false });
+    const agent = await authedAgent(app);
+    const res = await agent.get(`/api/deck/${week}/presenter-notes`);
+    expect(res.body).toEqual({ enabled: false, defaultOpen: false, items: [] });
+  });
+
   it("404s for an unknown deck when enabled (authed)", async () => {
     const { dir } = writeTempDeck(DECK_WITH_NOTES);
     const app = createApp({ quizDir: dir, presenterNotes: true });
@@ -247,7 +313,7 @@ describe("presenter notes: instructor endpoint", () => {
     const app = createApp({ quizDir: dir, presenterNotes: true });
     const res = await request(app).get(`/api/deck/${week}`);
     expect(res.status).toBe(200);
-    expect(Object.keys(res.body).sort()).toEqual(["questionCount", "title", "week"]);
+    expect(Object.keys(res.body).sort()).toEqual(["questionCount", "theme", "title", "week"]);
     expect(JSON.stringify(res.body)).not.toContain("presenter");
   });
 });

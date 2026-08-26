@@ -5,6 +5,8 @@ import StudentView from "./views/StudentView";
 import InstructorLoginPrompt from "./components/InstructorLoginPrompt";
 import { fetchInstructorSessionStatus } from "./hooks/api";
 import type { RuntimeClientConfig } from "./hooks/api";
+import type { DeckTheme } from "@mdq/shared";
+import { applyClientTheme, resolveClientTheme } from "./theme";
 
 const DEFAULT_INSTRUCTOR_ROUTE_SEGMENT = "instructor";
 
@@ -116,6 +118,7 @@ function getRoute(): AppRoute {
 export default function App({ runtimeConfig = {} }: { runtimeConfig?: RuntimeClientConfig }) {
   const [route, setRoute] = useState(getRoute);
   const autoGenerateStudentIds = runtimeConfig.autoGenerateStudentIds === true;
+  const defaultTheme = resolveClientTheme(runtimeConfig.theme);
 
   useEffect(() => {
     const onHash = () => setRoute(getRoute());
@@ -123,16 +126,20 @@ export default function App({ runtimeConfig = {} }: { runtimeConfig?: RuntimeCli
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  useEffect(() => {
+    if (route.page === "home") applyClientTheme(defaultTheme);
+  }, [defaultTheme, route.page]);
+
   if (route.page === "instructor") {
-    return <InstructorGate returnTo={route.next} authContext={route.authContext} autoGenerateStudentIds={autoGenerateStudentIds} />;
+    return <InstructorGate returnTo={route.next} authContext={route.authContext} autoGenerateStudentIds={autoGenerateStudentIds} defaultTheme={defaultTheme} />;
   }
 
   if (route.page === "join") {
-    return <StudentView initialSessionCode={route.param} autoGenerateStudentIds={autoGenerateStudentIds} />;
+    return <StudentView initialSessionCode={route.param} autoGenerateStudentIds={autoGenerateStudentIds} defaultTheme={defaultTheme} />;
   }
 
   if (route.page === "student") {
-    return <StudentView initialSessionId={route.param} autoGenerateStudentIds={autoGenerateStudentIds} />;
+    return <StudentView initialSessionId={route.param} autoGenerateStudentIds={autoGenerateStudentIds} defaultTheme={defaultTheme} />;
   }
 
   if (route.page === "presentation" && route.param) {
@@ -144,6 +151,7 @@ export default function App({ runtimeConfig = {} }: { runtimeConfig?: RuntimeCli
           authContext: "presentation",
         })}
         autoGenerateStudentIds={autoGenerateStudentIds}
+        defaultTheme={defaultTheme}
       />
     );
   }
@@ -204,14 +212,20 @@ function InstructorGate({
   returnTo,
   authContext,
   autoGenerateStudentIds,
+  defaultTheme,
 }: {
   returnTo?: string;
   authContext?: AuthContext;
   autoGenerateStudentIds: boolean;
+  defaultTheme: DeckTheme;
 }) {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    applyClientTheme(defaultTheme);
+  }, [defaultTheme]);
 
   useEffect(() => {
     fetchInstructorSessionStatus()
@@ -247,7 +261,7 @@ function InstructorGate({
   }
 
   if (authenticated) {
-    return <InstructorView autoGenerateStudentIds={autoGenerateStudentIds} />;
+    return <InstructorView autoGenerateStudentIds={autoGenerateStudentIds} defaultTheme={defaultTheme} />;
   }
 
   const isPresentationLogin = authContext === "presentation";

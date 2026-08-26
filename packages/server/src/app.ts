@@ -1,6 +1,6 @@
 import express, { type Request, type Response } from "express";
 import cors from "cors";
-import { API, AccessInfo, Quiz, Session, SessionState } from "@mdq/shared";
+import { API, AccessInfo, DeckTheme, Quiz, Session, SessionState } from "@mdq/shared";
 import {
   createSession,
   storeSession,
@@ -46,11 +46,16 @@ export interface AppOptions {
   onStateChange?: (session: Session, sessionId: string, newState: SessionState, quiz?: Quiz) => void;
 }
 
-function summarizeQuizForList(q: Quiz) {
+function resolveDeckTheme(q: Quiz, fallbackTheme: DeckTheme): DeckTheme {
+  return q.theme ?? fallbackTheme;
+}
+
+function summarizeQuizForList(q: Quiz, fallbackTheme: DeckTheme) {
   const slideCount = q.questions.filter((question) => question.questionType === "slide").length;
   return {
     week: q.week,
     title: q.title,
+    theme: resolveDeckTheme(q, fallbackTheme),
     questionCount: q.questions.length,
     liveQuestionCount: q.questions.length - slideCount,
     slideCount,
@@ -495,7 +500,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     if (validationMessage) {
       return res.status(409).json({ error: validationMessage });
     }
-    const list = [...quizzes.values()].sort(compareDecksForList).map(summarizeQuizForList);
+    const list = [...quizzes.values()].sort(compareDecksForList).map((quiz) => summarizeQuizForList(quiz, theme));
     return res.json(list);
   };
 
@@ -509,7 +514,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       if (validationMessage) {
         return res.status(409).json({ error: validationMessage });
       }
-      const list = [...quizzes.values()].sort(compareDecksForList).map(summarizeQuizForList);
+      const list = [...quizzes.values()].sort(compareDecksForList).map((quiz) => summarizeQuizForList(quiz, theme));
       return res.json({ loaded, quizzes: list });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to reload decks";
@@ -530,6 +535,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     res.json({
       week: quiz.week,
       title: quiz.title,
+      theme: resolveDeckTheme(quiz, theme),
       questionCount: quiz.questions.length,
     });
   };
@@ -552,11 +558,20 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     if (!quiz) {
       return res.status(404).json({ error: `Deck not found: ${req.params.week}` });
     }
+    // A deck may opt out of a globally enabled notes feature. It cannot opt in
+    // when the global privacy gate or instructor authentication is unavailable.
+    if (quiz.presenterNotes === false) {
+      return res.json({ enabled: false, defaultOpen: false, items: [] });
+    }
     const items = quiz.questions.map((question, index) => ({
       questionIndex: question.index ?? index,
       notes: question.presenterNotes ?? [],
     }));
-    return res.json({ enabled: true, defaultOpen: presenterNotesDefaultOpen, items });
+    return res.json({
+      enabled: true,
+      defaultOpen: quiz.presenterNotesDefaultOpen ?? presenterNotesDefaultOpen,
+      items,
+    });
   };
   app.get(API.DECK_PRESENTER_NOTES, requireInstructorAuth, getPresenterNotesHandler);
 
@@ -581,6 +596,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       sessionId: session.sessionId,
       sessionCode: session.sessionCode,
       joinUrl: `/join/${session.sessionCode}`,
+      theme: resolveDeckTheme(quiz, theme),
       questionHeadings: getQuestionHeadings(quiz),
       questionSummaries: getQuestionSummaries(quiz),
     });
@@ -593,11 +609,13 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     if (!session) {
       return res.status(404).json({ error: "Session not found for that code" });
     }
+    const quiz = getQuizForSession(session.week);
     res.json({
       sessionId: session.sessionId,
       sessionCode: session.sessionCode,
       state: session.state,
       week: session.week,
+      theme: quiz ? resolveDeckTheme(quiz, theme) : theme,
     });
   });
 
@@ -616,6 +634,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         sessionId: session.sessionId,
         sessionCode: session.sessionCode,
         week: session.week,
+        theme: resolveDeckTheme(quiz, theme),
         state: session.state,
         currentQuestionIndex: session.currentQuestionIndex,
         questionCount: quiz.questions.length,
@@ -957,6 +976,7 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       sessionId: session.sessionId,
       sessionCode: session.sessionCode,
       week: session.week,
+      theme: resolveDeckTheme(quiz, theme),
       state: session.state,
       questionCount: quiz.questions.length,
       questionHeadings: getQuestionHeadings(quiz),

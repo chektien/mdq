@@ -6,6 +6,30 @@ const read = (rel: string): string =>
   fs.readFileSync(path.join(clientSrc, rel), "utf-8");
 
 describe("client light-theme contract", () => {
+  describe("per-deck theme application", () => {
+    const theme = read("theme.ts");
+    const instructor = read("views/InstructorView.tsx");
+    const student = read("views/StudentView.tsx");
+    const presentation = read("views/PresentationView.tsx");
+    const socket = read("hooks/useSocket.ts");
+
+    it("normalizes and applies only supported themes", () => {
+      expect(theme).toContain('theme === "light" || theme === "dark"');
+      expect(theme).toContain("document.documentElement.dataset.theme = resolved");
+    });
+
+    it("applies deck themes to instructor, student, and projector views", () => {
+      expect(instructor).toContain("sessionTheme ?? selectedDeck?.theme");
+      expect(student).toContain("resolveClientTheme(data.theme, defaultTheme)");
+      expect(presentation).toContain("applyClientTheme(meta?.theme, defaultTheme)");
+    });
+
+    it("retains the deck theme across student socket reconnection", () => {
+      expect(socket).toContain("sessionTheme?: DeckTheme");
+      expect(socket).toContain("sessionTheme: existing.sessionTheme");
+    });
+  });
+
   describe("theme.css end-session dialog", () => {
     const css = read("theme.css");
 

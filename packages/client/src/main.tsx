@@ -5,20 +5,17 @@ import "./theme.css";
 import App from "./App";
 import { fetchRuntimeClientConfig } from "./hooks/api";
 import type { RuntimeClientConfig } from "./hooks/api";
-
-function applyRuntimeTheme(theme: unknown): void {
-  document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
-}
+import { applyClientTheme } from "./theme";
 
 async function bootstrap(): Promise<void> {
-  applyRuntimeTheme("dark");
+  applyClientTheme("dark");
   let runtimeConfig: RuntimeClientConfig = {};
 
   try {
     runtimeConfig = await fetchRuntimeClientConfig();
-    applyRuntimeTheme(runtimeConfig.theme);
+    applyClientTheme(runtimeConfig.theme);
   } catch {
-    applyRuntimeTheme("dark");
+    applyClientTheme("dark");
   }
 
   createRoot(document.getElementById("root")!).render(

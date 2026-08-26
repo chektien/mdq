@@ -126,6 +126,20 @@ Optional local runtime settings live in `data/config.json` (copy from
 `data/config.example.json`). The tracked example includes `theme`, which accepts
 `dark` or `light`.
 
+Individual decks can override that global fallback in the Markdown preamble:
+
+```markdown
+# My Deck
+theme: light
+
+---
+```
+
+`theme` accepts only `light` or `dark` (case-insensitive, with optional quotes).
+When it is omitted, every instructor, student, and projector view uses the
+global runtime theme. The PDF export theme remains controlled independently by
+its `--theme` command-line option.
+
 Build and run the app:
 
 ```bash
@@ -232,7 +246,7 @@ Tip for classroom privacy and mobility: project a separate presentation view fro
 ### 2) instructor live surface controls
 
 - The deck picker shows each deck summary as separate quiz question and slide counts, for example `(22 questions, 17 slides)`.
-- The live surface uses a dark presentation theme by default: deep background, restrained accents, rounded controls, and clean dot bullets.
+- The live surface uses the configured global presentation theme by default; a deck-level `theme: light` or `theme: dark` preamble setting overrides it for that session.
 - `Prev` and `Next` stay pinned together near the top-left of the live surface so their click targets do not drift when other controls appear or disappear.
 - In live mode, `Next` includes the next item's markdown heading inside the button. In review mode, `Next` stays a plain button.
 - `End Session` remains available from the live controls and opens a confirmation dialog before closing the room. The dialog shows how many quiz questions and slides are left.
@@ -473,6 +487,22 @@ Configuration (in `data/config.json`, or the matching environment variables):
   `MDQ_PRESENTER_NOTES_DEFAULT_OPEN`. For a demo-led talk where the notes are
   the operating script, `true` is convenient; the projector never sees the
   instructor screen.
+
+Individual decks can narrow those global settings in the Markdown preamble:
+
+```markdown
+# My talk
+presenter_notes: false
+presenter_notes_default_open: false
+
+---
+```
+
+- `presenter_notes: false` disables the panel and prevents note bodies from
+  being served for that deck. A deck cannot enable presenter notes when the
+  global master switch or instructor authentication is unavailable.
+- `presenter_notes_default_open` overrides the global initial open/closed state
+  for that deck when presenter notes are enabled.
 
 The PDF exporter keeps presenter notes hidden by default; pass
 `--presenter-notes` to include them in a private rehearsal handout.

@@ -10,6 +10,7 @@ import {
   SlideLiveEmbed,
   SlideVideo,
   SlideReference,
+  DeckTheme,
 } from "@mdq/shared";
 import { marked } from "marked";
 
@@ -57,6 +58,14 @@ export function parseQuizMarkdown(markdown: string, sourceFile: string): ParseRe
   const errors: QuizParseError[] = [];
 
   const title = extractDeckTitle(markdown);
+  const theme = extractDeckThemeMetadata(markdown, sourceFile, errors);
+  const presenterNotes = extractDeckBooleanMetadata(markdown, "presenter_notes", sourceFile, errors);
+  const presenterNotesDefaultOpen = extractDeckBooleanMetadata(
+    markdown,
+    "presenter_notes_default_open",
+    sourceFile,
+    errors,
+  );
 
   // Extract deck key from filename (e.g., "week01.md" -> "week01", "featured-demo.md" -> "featured-demo")
   const sourceStem = sourceFile.replace(/^.*[\\/]/, "").replace(/\.md$/i, "").toLowerCase();
@@ -92,6 +101,9 @@ export function parseQuizMarkdown(markdown: string, sourceFile: string): ParseRe
   const quiz: Quiz = {
     week,
     title,
+    theme,
+    presenterNotes,
+    presenterNotesDefaultOpen,
     questions,
     sourceFile,
   };
@@ -152,6 +164,56 @@ function stripOptionalQuotes(value: string): string {
     return trimmed.slice(1, -1).trim();
   }
   return trimmed;
+}
+
+function extractDeckThemeMetadata(
+  markdown: string,
+  sourceFile: string,
+  errors: QuizParseError[],
+): DeckTheme | undefined {
+  const preamble = markdown.split(/^---+\s*$/m, 1)[0] || markdown;
+  const match = preamble.match(/^theme:\s*(.*?)\s*$/im);
+  if (!match) return undefined;
+
+  const value = stripOptionalQuotes(match[1]).toLowerCase();
+  if (value === "dark" || value === "light") return value;
+
+  const lineNumber = preamble.slice(0, match.index).split("\n").length;
+  errors.push(
+    new QuizParseError(
+      sourceFile,
+      -1,
+      `Invalid theme: ${match[1].trim()} (expected dark or light)`,
+      lineNumber,
+    ),
+  );
+  return undefined;
+}
+
+function extractDeckBooleanMetadata(
+  markdown: string,
+  key: "presenter_notes" | "presenter_notes_default_open",
+  sourceFile: string,
+  errors: QuizParseError[],
+): boolean | undefined {
+  const preamble = markdown.split(/^---+\s*$/m, 1)[0] || markdown;
+  const match = preamble.match(new RegExp(`^${key}:\\s*(.*?)\\s*$`, "im"));
+  if (!match) return undefined;
+
+  const value = stripOptionalQuotes(match[1]).toLowerCase();
+  if (value === "true") return true;
+  if (value === "false") return false;
+
+  const lineNumber = preamble.slice(0, match.index).split("\n").length;
+  errors.push(
+    new QuizParseError(
+      sourceFile,
+      -1,
+      `Invalid ${key}: ${match[1].trim()} (expected true or false)`,
+      lineNumber,
+    ),
+  );
+  return undefined;
 }
 
 /**
