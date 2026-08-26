@@ -49,6 +49,17 @@ export default function VideoCard({ video, title }: { video: SlideVideo; title: 
   );
 }
 
+function isNativeVideoUrl(url: string): boolean {
+  const pathname = (() => {
+    try {
+      return new URL(url, window.location.href).pathname;
+    } catch {
+      return url.split(/[?#]/, 1)[0];
+    }
+  })();
+  return /\.(mp4|m4v|webm|mov)$/i.test(pathname);
+}
+
 function VideoOverlay({
   video,
   title,
@@ -96,6 +107,7 @@ function VideoOverlay({
   }, [onClose]);
 
   if (typeof document === "undefined") return null;
+  const nativeVideo = isNativeVideoUrl(video.embedUrl);
   return createPortal(
     <div className="video-expansion-overlay" role="dialog" aria-modal="true" aria-label={title}>
       <button type="button" className="video-expansion-backdrop" aria-label="Close expanded video" onClick={onClose} />
@@ -110,13 +122,26 @@ function VideoOverlay({
           <span className="image-expansion-close-icon" aria-hidden="true" />
         </button>
         <div className="video-expansion-player">
-          <iframe
-            className="video-expansion-iframe"
-            src={video.embedUrl}
-            title={title}
-            allow="autoplay; fullscreen"
-            allowFullScreen
-          />
+          {nativeVideo ? (
+            <video
+              className="video-expansion-native"
+              src={video.embedUrl}
+              poster={video.thumbnail}
+              controls
+              playsInline
+              preload="metadata"
+              autoPlay
+              aria-label={title}
+            />
+          ) : (
+            <iframe
+              className="video-expansion-iframe"
+              src={video.embedUrl}
+              title={title}
+              allow="autoplay; fullscreen"
+              allowFullScreen
+            />
+          )}
         </div>
         <a
           className="video-expansion-fallback"

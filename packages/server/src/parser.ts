@@ -673,7 +673,9 @@ function extractSlideVideo(lines: string[]): { contentLines: string[]; video?: S
     const key = match[1].toLowerCase();
     const value = stripOptionalQuotes(match[2].trim());
     if (key === "video_card") {
-      embedUrl = value;
+      embedUrl = value.startsWith("../videos/")
+        ? `/data/videos/${value.slice("../videos/".length)}`
+        : value;
     } else if (key === "video_thumbnail") {
       thumbnail = resolveMarkdownImageHref(value);
     } else if (key === "video_caption") {

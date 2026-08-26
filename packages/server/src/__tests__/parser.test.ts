@@ -350,6 +350,28 @@ Use the live artifact as the slide.
       expect(q.attendeeNotes?.[0].bodyMd).toContain("Demo System");
     });
 
+    it("resolves local slide videos through the private data media route", () => {
+      const md = `# Quiz
+
+---
+
+## Local Demo
+
+type: slide
+video_card: ../videos/demo.mp4
+video_thumbnail: ../images/demo-poster.png
+
+Open the native player.
+
+---`;
+      const result = parseQuizMarkdown(md, "week01.md");
+      expect(result.errors).toHaveLength(0);
+      expect(result.quiz!.questions[0].slideVideo).toEqual({
+        embedUrl: "/data/videos/demo.mp4",
+        thumbnail: "/data/images/demo-poster.png",
+      });
+    });
+
     it("extracts slide references into footer-ready inline html", () => {
       const md = `# Quiz
 

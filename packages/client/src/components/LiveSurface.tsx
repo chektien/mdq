@@ -158,8 +158,6 @@ export default function LiveSurface({
           )}
         </div>
 
-        {children}
-
         {hasJoinInfo && (
           <SessionCodeCard
             className="slide-join-panel"
@@ -172,6 +170,8 @@ export default function LiveSurface({
             defaultExpanded={joinCardDefaultExpanded}
           />
         )}
+
+        {children}
 
         {positionLabel && <p className="slide-counter">{positionLabel}</p>}
       </div>

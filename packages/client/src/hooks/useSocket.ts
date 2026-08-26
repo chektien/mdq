@@ -113,10 +113,22 @@ export function resolveSlideBackground(
     return { text, slideBackground: explicitBackground };
   }
 
-  const directive = /\s*<p>\s*(slide_background|slide_background_position|slide_background_size):\s*([^<]+?)\s*<\/p>\s*/gi;
   const values = new Map<string, string>();
-  const cleanedText = text.replace(directive, (_whole, rawKey: string, rawValue: string) => {
-    values.set(rawKey.toLowerCase(), rawValue.trim().replace(/^['"]|['"]$/g, ""));
+  const cleanedText = text.replace(/\s*<p>\s*([\s\S]*?)\s*<\/p>\s*/gi, (whole, paragraph: string) => {
+    const lines = paragraph
+      .split(/\r?\n|<br\s*\/?\s*>/i)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length === 0) return whole;
+
+    const paragraphValues = new Map<string, string>();
+    for (const line of lines) {
+      const match = line.match(/^(slide_background|slide_background_position|slide_background_size):\s*(.+)$/i);
+      if (!match) return whole;
+      paragraphValues.set(match[1].toLowerCase(), match[2].trim().replace(/^['"]|['"]$/g, ""));
+    }
+
+    for (const [key, value] of paragraphValues) values.set(key, value);
     return "";
   }).trim();
   const rawSrc = values.get("slide_background");

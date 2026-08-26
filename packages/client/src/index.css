@@ -4029,11 +4029,71 @@ html[data-theme="light"] .presenter-notes-body {
   border: 0;
 }
 
+.video-expansion-native {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+  object-fit: contain;
+}
+
 .video-expansion-fallback {
   color: rgba(140, 180, 255, 0.92);
   font-size: 0.88rem;
   text-align: center;
   text-decoration: underline;
+}
+
+/* Open-response cards use semantic classes rather than relying on Tailwind's
+   zinc palette, whose dark-theme utility colours became muddy against the
+   warm light presentation theme. Keep identities and answers unequivocally
+   readable in both themes. */
+.open-response-list {
+  border-color: var(--mdq-slide-glass-line);
+  background: var(--mdq-slide-glass-strong);
+  color: var(--mdq-slide-ink);
+}
+
+.open-response-title,
+.open-response-count,
+.open-response-empty {
+  color: var(--mdq-slide-ink-soft);
+}
+
+.open-response-entry {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: #343432;
+}
+
+.open-response-entry:hover,
+.open-response-entry:focus-visible {
+  border-color: var(--mdq-slide-accent);
+}
+
+.open-response-entry:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--mdq-slide-accent) 72%, white);
+  outline-offset: 2px;
+}
+
+.open-response-identity,
+.open-response-student-id,
+.open-response-display-name {
+  color: #fffaf1;
+}
+
+.open-response-text {
+  color: #ffffff;
+}
+
+html[data-theme="light"] .open-response-list {
+  border-color: rgba(117, 92, 62, 0.2);
+  background: rgba(255, 252, 246, 0.94);
+}
+
+html[data-theme="light"] .open-response-entry {
+  border-color: #59574f;
+  background: #41413f;
 }
 
 
