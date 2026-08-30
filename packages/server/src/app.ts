@@ -12,6 +12,7 @@ import {
   getActiveSessions,
   getDistribution,
   getOpenResponses,
+  repairClosedSlideState,
 } from "./session";
 import { parseQuizMarkdown } from "./parser";
 import {
@@ -639,6 +640,11 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       const quiz = getQuizForSession(session.week);
       if (!quiz) {
         return res.status(500).json({ error: "Quiz data not found" });
+      }
+
+      if (repairClosedSlideState(session, quiz)) {
+        notifyStateChange(session, req.params.id, quiz);
+        logActivity(`repaired closed slide session=${req.params.id} q=${session.currentQuestionIndex} state=${session.state}`);
       }
 
       return res.json({

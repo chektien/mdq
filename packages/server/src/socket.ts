@@ -19,6 +19,7 @@ import {
   getOpenResponses,
   transitionState,
   computeLeaderboard,
+  repairClosedSlideState,
 } from "./session";
 import { Session } from "@mdq/shared";
 import { buildScoredCorrectAnswersMap, getQuestionType, getScoredQuestionCount, isOpenResponseQuestion } from "./scoring";
@@ -279,6 +280,13 @@ export function setupSocket(httpServer: HttpServer, quizzes: Map<string, Quiz>):
       return;
     }
 
+    const sessionQuiz = quizStore.get(session.week);
+    if (sessionQuiz && repairClosedSlideState(session, sessionQuiz)) {
+      clearSessionTimers(sessionId);
+      logActivity(`repaired closed slide session=${sessionId} q=${session.currentQuestionIndex} state=${session.state}`);
+      broadcastQuestionOpen(io, session, sessionId, sessionQuiz);
+    }
+
     if (session.state === "ENDED") {
       socket.emit(SocketEvents.STUDENT_REJECTED, { reason: "Session has ended" });
       logActivity(`reject socket=${socket.id} session=${sessionId} reason=session-ended`);
@@ -470,10 +478,26 @@ export function startQuestionTimer(
   // Clear any existing timers
   clearSessionTimers(sessionId);
 
+  const timedQuestionIndex = session.currentQuestionIndex;
+  const timedQuestionStartedAt = session.questionStartedAt;
   let remaining = timeLimitSec;
+
+  const isCurrentTimedQuestion = (): boolean => {
+    const question = quizStore.get(session.week)?.questions[timedQuestionIndex];
+    return session.state === "QUESTION_OPEN"
+      && session.currentQuestionIndex === timedQuestionIndex
+      && session.questionStartedAt === timedQuestionStartedAt
+      && getQuestionType(question) !== "slide";
+  };
 
   // Tick every second
   const tickInterval = setInterval(() => {
+    if (tickTimers.get(sessionId) !== tickInterval || !isCurrentTimedQuestion()) {
+      if (tickTimers.get(sessionId) === tickInterval) {
+        clearSessionTimers(sessionId);
+      }
+      return;
+    }
     remaining--;
     if (remaining >= 0) {
       io.to(sessionRoom(sessionId)).emit(SocketEvents.QUESTION_TICK, {
@@ -485,12 +509,18 @@ export function startQuestionTimer(
 
   // Auto-close after time limit
   const closeTimer = setTimeout(() => {
+    if (sessionTimers.get(sessionId) !== closeTimer || !isCurrentTimedQuestion()) {
+      if (sessionTimers.get(sessionId) === closeTimer) {
+        clearSessionTimers(sessionId);
+      }
+      return;
+    }
     clearSessionTimers(sessionId);
-    if (session.state === "QUESTION_OPEN") {
+    if (isCurrentTimedQuestion()) {
       try {
         transitionState(session, "QUESTION_CLOSED");
         io.to(sessionRoom(sessionId)).emit(SocketEvents.QUESTION_CLOSE, {
-          questionIndex: session.currentQuestionIndex,
+          questionIndex: timedQuestionIndex,
         });
         io.to(sessionRoom(sessionId)).emit(SocketEvents.SESSION_STATE, {
           state: session.state,
@@ -520,6 +550,9 @@ export function broadcastQuestionOpen(
   sessionId: string,
   quiz: Quiz,
 ): void {
+  // Navigation must always retire the previous item's timer, including when
+  // the destination is a non-timed slide.
+  clearSessionTimers(sessionId);
   const q = quiz.questions[session.currentQuestionIndex];
   session.questionStartedAt = Date.now();
 
@@ -545,6 +578,7 @@ export function broadcastReveal(
   sessionId: string,
   quiz: Quiz,
 ): void {
+  clearSessionTimers(sessionId);
   const q = quiz.questions[session.currentQuestionIndex];
   const dist = getDistribution(session, session.currentQuestionIndex);
 

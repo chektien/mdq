@@ -5,6 +5,7 @@ import {
   Participant,
   Submission,
   OpenResponseEntry,
+  Quiz,
   STATE_TRANSITIONS,
   SESSION_CODE_LENGTH,
 } from "@mdq/shared";
@@ -57,6 +58,21 @@ export function transitionState(session: Session, to: SessionState): void {
     throw new StateTransitionError(session.state, to);
   }
   session.state = to;
+}
+
+/**
+ * Repair the impossible state produced when an expired question timer closes a
+ * slide after the instructor has navigated away from the timed question.
+ */
+export function repairClosedSlideState(session: Session, quiz: Quiz): boolean {
+  const currentQuestion = quiz.questions[session.currentQuestionIndex];
+  if (session.state !== "QUESTION_CLOSED" || currentQuestion?.questionType !== "slide") {
+    return false;
+  }
+
+  session.state = "QUESTION_OPEN";
+  session.questionStartedAt = Date.now();
+  return true;
 }
 
 /**

@@ -639,6 +639,73 @@ describe("Socket.IO Integration", () => {
       clearSessionTimers(session.sessionId);
       client.disconnect();
     }, 10000);
+
+    it("does not let an old question timer close a different current item", async () => {
+      const session = createSession("week01", "open");
+      storeSession(session);
+
+      const client = createClient(session.sessionId);
+      client.connect();
+      const joinedPromise = waitForEvent(client, SocketEvents.STUDENT_JOINED);
+      client.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 1;
+      session.questionStartedAt = Date.now();
+      startQuestionTimer(ioServer, session, session.sessionId, 1);
+
+      // Reproduce the race even if navigation-time cleanup is missed: the
+      // timeout belongs to question 1 and must not mutate question 0.
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() + 1;
+
+      await waitForNoEvent(client, SocketEvents.QUESTION_CLOSE, 1300);
+      expect(session.state).toBe("QUESTION_OPEN");
+      expect(session.currentQuestionIndex).toBe(0);
+
+      clearSessionTimers(session.sessionId);
+      client.disconnect();
+    }, 10000);
+
+    it("cancels a question timer when navigation broadcasts a slide", async () => {
+      const sourceQuiz = quizzes.get("week01")!;
+      const navigationQuiz: Quiz = {
+        ...sourceQuiz,
+        week: "timer-navigation",
+        questions: [
+          { ...sourceQuiz.questions[0], questionType: "slide" },
+          sourceQuiz.questions[1],
+        ],
+      };
+      quizzes.set(navigationQuiz.week, navigationQuiz);
+
+      const session = createSession(navigationQuiz.week, "open");
+      storeSession(session);
+
+      const client = createClient(session.sessionId);
+      client.connect();
+      const joinedPromise = waitForEvent(client, SocketEvents.STUDENT_JOINED);
+      client.emit(SocketEvents.STUDENT_JOIN, { studentId: "S001" });
+      await joinedPromise;
+
+      transitionState(session, "QUESTION_OPEN");
+      session.currentQuestionIndex = 1;
+      session.questionStartedAt = Date.now();
+      startQuestionTimer(ioServer, session, session.sessionId, 1);
+
+      session.currentQuestionIndex = 0;
+      session.questionStartedAt = Date.now() + 1;
+      broadcastQuestionOpen(ioServer, session, session.sessionId, navigationQuiz);
+
+      await waitForNoEvent(client, SocketEvents.QUESTION_CLOSE, 1300);
+      expect(session.state).toBe("QUESTION_OPEN");
+      expect(session.currentQuestionIndex).toBe(0);
+
+      clearSessionTimers(session.sessionId);
+      client.disconnect();
+      quizzes.delete(navigationQuiz.week);
+    }, 10000);
   });
 
   describe("edge cases", () => {
