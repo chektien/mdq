@@ -996,5 +996,14 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
     });
   });
 
+  // Keep unknown API requests out of the production SPA fallback. Express's
+  // final handler would normally return a 404, but index.ts mounts a catch-all
+  // route after this app to serve the client. Without an explicit API fallback,
+  // that catch-all leaves /api requests unresolved and holds the connection
+  // open indefinitely.
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "API route not found" });
+  });
+
   return app;
 }

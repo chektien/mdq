@@ -370,6 +370,15 @@ Name the file to edit.
     });
   });
 
+  describe("unknown API routes", () => {
+    it("returns a JSON 404 instead of falling through to the production SPA route", async () => {
+      const res = await request(app).get("/api/no-such-route").expect(404);
+
+      expect(res.type).toBe("application/json");
+      expect(res.body.error).toBe("API route not found");
+    });
+  });
+
   describe("GET /data/images/*", () => {
     it("serves quiz attachment files from the data images directory", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-images-quiz-"));
