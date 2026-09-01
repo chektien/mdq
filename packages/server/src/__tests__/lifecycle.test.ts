@@ -1,6 +1,6 @@
 import request from "supertest";
 import { createApp } from "../app";
-import { clearAllSessions } from "../session";
+import { clearAllSessions, getSession } from "../session";
 import { setCachedAccessInfo } from "../access-info";
 import { clearInstructorSessionsForTests } from "../instructor-auth";
 import * as path from "path";
@@ -370,6 +370,15 @@ Name the file to edit.
     });
   });
 
+  describe("unknown API routes", () => {
+    it("returns a JSON 404 instead of falling through to the production SPA route", async () => {
+      const res = await request(app).get("/api/no-such-route").expect(404);
+
+      expect(res.type).toBe("application/json");
+      expect(res.body.error).toBe("API route not found");
+    });
+  });
+
   describe("GET /data/images/*", () => {
     it("serves quiz attachment files from the data images directory", async () => {
       const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-images-quiz-"));
@@ -507,6 +516,44 @@ Name the file to edit.
       expect(res.status).toBe(200);
       expect(res.body.state).toBe("QUESTION_OPEN");
       expect(res.body.questionIndex).toBe(0);
+    });
+
+    it("repairs a closed slide when the instructor resumes the session", async () => {
+      const tempQuizDir = fs.mkdtempSync(path.join(os.tmpdir(), "mdq-slide-resume-"));
+      fs.writeFileSync(
+        path.join(tempQuizDir, "recovery.md"),
+        `# Recovery Deck
+
+---
+
+## Opening Slide
+
+type: slide
+
+- This slide must remain navigable after resume.
+`,
+        "utf-8",
+      );
+      const recoveryApp = createApp(tempQuizDir);
+
+      try {
+        const createRes = await request(recoveryApp)
+          .post("/api/session")
+          .send({ week: "recovery" })
+          .expect(201);
+        const session = getSession(createRes.body.sessionId)!;
+        session.currentQuestionIndex = 0;
+        session.state = "QUESTION_CLOSED";
+
+        const restoreRes = await request(recoveryApp)
+          .get(`/api/session/${session.sessionId}/state`)
+          .expect(200);
+
+        expect(restoreRes.body.state).toBe("QUESTION_OPEN");
+        expect(session.state).toBe("QUESTION_OPEN");
+      } finally {
+        fs.rmSync(tempQuizDir, { recursive: true, force: true });
+      }
     });
 
     it("follows full lifecycle", async () => {

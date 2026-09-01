@@ -12,6 +12,7 @@ import {
   getActiveSessions,
   getDistribution,
   getOpenResponses,
+  repairClosedSlideState,
 } from "./session";
 import { parseQuizMarkdown } from "./parser";
 import {
@@ -641,6 +642,11 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
         return res.status(500).json({ error: "Quiz data not found" });
       }
 
+      if (repairClosedSlideState(session, quiz)) {
+        notifyStateChange(session, req.params.id, quiz);
+        logActivity(`repaired closed slide session=${req.params.id} q=${session.currentQuestionIndex} state=${session.state}`);
+      }
+
       return res.json({
         sessionId: session.sessionId,
         sessionCode: session.sessionCode,
@@ -994,6 +1000,15 @@ export function createApp(quizDirOrOpts?: string | AppOptions) {
       questionSummaries: getQuestionSummaries(quiz),
       accessInfo,
     });
+  });
+
+  // Keep unknown API requests out of the production SPA fallback. Express's
+  // final handler would normally return a 404, but index.ts mounts a catch-all
+  // route after this app to serve the client. Without an explicit API fallback,
+  // that catch-all leaves /api requests unresolved and holds the connection
+  // open indefinitely.
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "API route not found" });
   });
 
   return app;

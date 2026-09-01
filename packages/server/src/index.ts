@@ -184,6 +184,9 @@ const app = createApp({
     const io = ioRef.current;
     if (!io) return;
 
+    // Any REST-driven state/navigation change invalidates the previous item timer.
+    clearSessionTimers(sessionId);
+
     switch (newState) {
       case "QUESTION_OPEN":
         if (quiz) {
